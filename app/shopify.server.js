@@ -20,12 +20,28 @@ const shopify = shopifyApp({
     unstable_newEmbeddedAuthStrategy: true,
     removeRest: true,
   },
-  ...(process.env.SHOP_CUSTOM_DOMAIN
-    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
-    : {}),
+  hooks: {
+    afterAuth: async ({ session }) => {
+      await prisma.shop.upsert({
+        where: { shop: session.shop },
+        update: {
+          accessToken: session.accessToken,
+          installed: true,
+        },
+        create: {
+          shop: session.shop,
+          accessToken: session.accessToken,
+          installed: true,
+        },
+      });
+    },
+  },
 });
 
+// export const authenticate = shopify.authenticate;
 export default shopify;
+export { shopify };
+
 export const apiVersion = ApiVersion.January25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
