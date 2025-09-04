@@ -1,328 +1,100 @@
-import { useEffect } from "react";
-import { useFetcher } from "@remix-run/react";
+// app/components/HomeOverview.jsx
+import { Card, Layout, Page, Text, BlockStack } from "@shopify/polaris";
+import { TitleBar } from "@shopify/app-bridge-react";
+import { useEffect, useState } from "react";
 import {
-  Page,
-  Layout,
-  Text,
-  Card,
-  Button,
-  BlockStack,
-  Box,
-  List,
-  Link,
-  InlineStack,
-} from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
-import { authenticate } from "../shopify.server";
+  Chart as ChartJS,
+  LineElement,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  Legend,
+  Tooltip,
+} from "chart.js";
+// import HomeOverview from "../components/HomeOverview";
 
-export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Legend, Tooltip);
 
-  return null;
-};
-
-export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
-  const product = responseJson.data.productCreate.product;
-  const variantId = product.variants.edges[0].node.id;
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyRemixTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson.data.productCreate.product,
-    variant: variantResponseJson.data.productVariantsBulkUpdate.productVariants,
-  };
-};
-
-export default function Index() {
-  const fetcher = useFetcher();
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
-  const productId = fetcher.data?.product?.id.replace(
-    "gid://shopify/Product/",
-    "",
-  );
-
+export default function HomeOverview() {
+  // react-chartjs-2 ને server પર લોડ ન થાય તે માટે client પર lazy-load
+  const [LineComp, setLineComp] = useState(null);
   useEffect(() => {
-    if (productId) {
-      shopify.toast.show("Product created");
-    }
-  }, [productId, shopify]);
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+    import("react-chartjs-2").then((mod) => setLineComp(() => mod.Line));
+  }, []);
+
+  // --- Demo ડેટા (તમે બાદમાં API/DB થી લાવી શકો) ---
+  const stats = [
+    { popup_type: "recent_purchase", visitors: 5,  views: 2, engagements: 1, date: "2025-08-28" },
+    { popup_type: "flash_sale",      visitors: 7,  views: 3, engagements: 2, date: "2025-08-28" },
+    { popup_type: "recent_purchase", visitors: 10, views: 4, engagements: 1, date: "2025-08-29" },
+    { popup_type: "flash_sale",      visitors: 12, views: 6, engagements: 3, date: "2025-08-29" },
+    { popup_type: "recent_purchase", visitors: 8,  views: 5, engagements: 2, date: "2025-08-30" },
+    { popup_type: "flash_sale",      visitors: 15, views: 9, engagements: 4, date: "2025-08-30" },
+  ];
+
+  const dates = [...new Set(stats.map((s) => s.date))];
+  const extractData = (popup, key) =>
+    dates.map((d) => stats.find((s) => s.date === d && s.popup_type === popup)?.[key] || 0);
+
+  const data = {
+    labels: dates,
+    datasets: [
+      { label: "Recent Purchases - Visitors",    data: extractData("recent_purchase", "visitors"),    borderColor: "blue",      backgroundColor: "blue" },
+      { label: "Recent Purchases - Views",       data: extractData("recent_purchase", "views"),       borderColor: "cyan",      backgroundColor: "cyan" },
+      { label: "Recent Purchases - Engagements", data: extractData("recent_purchase", "engagements"), borderColor: "navy",      backgroundColor: "navy" },
+      { label: "Flash Sale - Visitors",          data: extractData("flash_sale", "visitors"),         borderColor: "green",     backgroundColor: "green" },
+      { label: "Flash Sale - Views",             data: extractData("flash_sale", "views"),            borderColor: "lime",      backgroundColor: "lime" },
+      { label: "Flash Sale - Engagements",       data: extractData("flash_sale", "engagements"),      borderColor: "darkgreen", backgroundColor: "darkgreen" },
+    ],
+  };
+
+  const getTotals = (popup) => {
+    const popupStats = stats.filter((s) => s.popup_type === popup);
+    return {
+      visitors: popupStats.reduce((a, b) => a + b.visitors, 0),
+      views: popupStats.reduce((a, b) => a + b.views, 0),
+      engagements: popupStats.reduce((a, b) => a + b.engagements, 0),
+    };
+  };
+
+  const recent = getTotals("recent_purchase");
+  const flash = getTotals("flash_sale");
 
   return (
     <Page>
-      <TitleBar title="Remix app template">
-        <button variant="primary" onClick={generateProduct}>
-          Generate a product
-        </button>
-      </TitleBar>
-      <BlockStack gap="500">
-        <Layout>
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="500">
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Congrats on creating a new Shopify app 🎉
-                  </Text>
-                  <Text variant="bodyMd" as="p">
-                    This embedded app template uses{" "}
-                    <Link
-                      url="https://shopify.dev/docs/apps/tools/app-bridge"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      App Bridge
-                    </Link>{" "}
-                    interface examples like an{" "}
-                    <Link url="/app/additional" removeUnderline>
-                      additional page in the app nav
-                    </Link>
-                    , as well as an{" "}
-                    <Link
-                      url="https://shopify.dev/docs/api/admin-graphql"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      Admin GraphQL
-                    </Link>{" "}
-                    mutation demo, to provide a starting point for app
-                    development.
-                  </Text>
-                </BlockStack>
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Get started with products
-                  </Text>
-                  <Text as="p" variant="bodyMd">
-                    Generate a product with GraphQL and get the JSON output for
-                    that product. Learn more about the{" "}
-                    <Link
-                      url="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-                      target="_blank"
-                      removeUnderline
-                    >
-                      productCreate
-                    </Link>{" "}
-                    mutation in our API references.
-                  </Text>
-                </BlockStack>
-                <InlineStack gap="300">
-                  <Button loading={isLoading} onClick={generateProduct}>
-                    Generate a product
-                  </Button>
-                  {fetcher.data?.product && (
-                    <Button
-                      url={`shopify:admin/products/${productId}`}
-                      target="_blank"
-                      variant="plain"
-                    >
-                      View product
-                    </Button>
-                  )}
-                </InlineStack>
-                {fetcher.data?.product && (
-                  <>
-                    <Text as="h3" variant="headingMd">
-                      {" "}
-                      productCreate mutation
-                    </Text>
-                    <Box
-                      padding="400"
-                      background="bg-surface-active"
-                      borderWidth="025"
-                      borderRadius="200"
-                      borderColor="border"
-                      overflowX="scroll"
-                    >
-                      <pre style={{ margin: 0 }}>
-                        <code>
-                          {JSON.stringify(fetcher.data.product, null, 2)}
-                        </code>
-                      </pre>
-                    </Box>
-                    <Text as="h3" variant="headingMd">
-                      {" "}
-                      productVariantsBulkUpdate mutation
-                    </Text>
-                    <Box
-                      padding="400"
-                      background="bg-surface-active"
-                      borderWidth="025"
-                      borderRadius="200"
-                      borderColor="border"
-                      overflowX="scroll"
-                    >
-                      <pre style={{ margin: 0 }}>
-                        <code>
-                          {JSON.stringify(fetcher.data.variant, null, 2)}
-                        </code>
-                      </pre>
-                    </Box>
-                  </>
-                )}
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-          <Layout.Section variant="oneThird">
-            <BlockStack gap="500">
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    App template specs
-                  </Text>
-                  <BlockStack gap="200">
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Framework
-                      </Text>
-                      <Link
-                        url="https://remix.run"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        Remix
-                      </Link>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Database
-                      </Text>
-                      <Link
-                        url="https://www.prisma.io/"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        Prisma
-                      </Link>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        Interface
-                      </Text>
-                      <span>
-                        <Link
-                          url="https://polaris.shopify.com"
-                          target="_blank"
-                          removeUnderline
-                        >
-                          Polaris
-                        </Link>
-                        {", "}
-                        <Link
-                          url="https://shopify.dev/docs/apps/tools/app-bridge"
-                          target="_blank"
-                          removeUnderline
-                        >
-                          App Bridge
-                        </Link>
-                      </span>
-                    </InlineStack>
-                    <InlineStack align="space-between">
-                      <Text as="span" variant="bodyMd">
-                        API
-                      </Text>
-                      <Link
-                        url="https://shopify.dev/docs/api/admin-graphql"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        GraphQL API
-                      </Link>
-                    </InlineStack>
-                  </BlockStack>
-                </BlockStack>
-              </Card>
-              <Card>
-                <BlockStack gap="200">
-                  <Text as="h2" variant="headingMd">
-                    Next steps
-                  </Text>
-                  <List>
-                    <List.Item>
-                      Build an{" "}
-                      <Link
-                        url="https://shopify.dev/docs/apps/getting-started/build-app-example"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        {" "}
-                        example app
-                      </Link>{" "}
-                      to get started
-                    </List.Item>
-                    <List.Item>
-                      Explore Shopify’s API with{" "}
-                      <Link
-                        url="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-                        target="_blank"
-                        removeUnderline
-                      >
-                        GraphiQL
-                      </Link>
-                    </List.Item>
-                  </List>
-                </BlockStack>
-              </Card>
+      <TitleBar title="home" />
+      <Layout>
+        <Layout.Section variant="oneThird">
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">Recent Purchases</Text>
+              <Text>Visitors: {recent.visitors}</Text>
+              <Text>Views: {recent.views}</Text>
+              <Text>Engagements: {recent.engagements}</Text>
             </BlockStack>
-          </Layout.Section>
-        </Layout>
-      </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section variant="oneThird">
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">Flash Sale Bars</Text>
+              <Text>Visitors: {flash.visitors}</Text>
+              <Text>Views: {flash.views}</Text>
+              <Text>Engagements: {flash.engagements}</Text>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingLg">Popup Performance (Date Wise)</Text>
+              {LineComp ? <LineComp data={data} /> : <Text>Loading chart…</Text>}
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+      </Layout>
     </Page>
   );
 }

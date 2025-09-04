@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Page,
   Card,
@@ -12,6 +12,9 @@ import {
   Text,
   RangeSlider,
   ColorPicker,
+  Frame,
+  Toast,
+  Loading,
 } from "@shopify/polaris";
 import { useLoaderData, useNavigate, useParams } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -92,26 +95,17 @@ const TITLES = {
   geo: "Geo Messaging",
 };
 const pretty = (s) =>
-  s ? s.split("-").map(p => p.charAt(0).toUpperCase()+p.slice(1)).join(" ") : "app";
+  s ? s.split("-").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : "app";
 
-/* -------- color helpers (unchanged) -------- */
-function hexToRgb(hex){const clean=hex.replace("#","");const bigint=parseInt(clean.length===3?clean.split("").map(c=>c+c).join(""):clean,16);return{r:(bigint>>16)&255,g:(bigint>>8)&255,b:bigint&255};}
-function rgbToHex({r,g,b}){const toHex=v=>v.toString(16).padStart(2,"0");return`#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();}
-function rgbToHsv({r,g,b}){const rn=r/255,gn=g/255,bn=b/255;const max=Math.max(rn,gn,bn),min=Math.min(rn,gn,bn);const d=max-min;let h=0;if(d!==0){switch(max){case rn:h=((gn-bn)/d)%6;break;case gn:h=(bn-rn)/d+2;break;case bn:h=(rn-gn)/d+4;break}h*=60;if(h<0)h+=360}const s=max===0?0:d/max;const v=max;return{h,s,v};}
-function hsvToRgb({h,s,v}){const c=v*s;const x=c*(1-Math.abs(((h/60)%2)-1));const m=v-c;let rp=0,gp=0,bp=0;if(0<=h&&h<60)[rp,gp,bp]=[c,x,0];else if(60<=h&&h<120)[rp,gp,bp]=[x,c,0];else if(120<=h&&h<180)[rp,gp,bp]=[0,c,x];else if(180<=h&&h<240)[rp,gp,bp]=[0,x,c];else if(240<=h&&h<300)[rp,gp,bp]=[x,0,c];else if(300<=h&&h<360)[rp,gp,bp]=[c,0,x];return{r:Math.round((rp+m)*255),g:Math.round((gp+m)*255),b:Math.round((bp+m)*255)};}
-function hexToHsb(hex){const rgb=hexToRgb(hex);const{h,s,v}=rgbToHsv(rgb);return{hue:h,saturation:s,brightness:v};}
-function hsbToHex(hsb){const rgb=hsvToRgb({h:hsb.hue,s:hsb.saturation,v:hsb.brightness});return rgbToHex(rgb);}
+/* -------- color helpers -------- */
+function hexToRgb(hex) { const clean = hex.replace("#", ""); const bigint = parseInt(clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean, 16); return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }; }
+function rgbToHex({ r, g, b }) { const toHex = v => v.toString(16).padStart(2, "0"); return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase(); }
+function rgbToHsv({ r, g, b }) { const rn = r / 255, gn = g / 255, bn = b / 255; const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn); const d = max - min; let h = 0; if (d !== 0) { switch (max) { case rn: h = ((gn - bn) / d) % 6; break; case gn: h = (bn - rn) / d + 2; break; case bn: h = (rn - gn) / d + 4; break }h *= 60; if (h < 0) h += 360 } const s = max === 0 ? 0 : d / max; const v = max; return { h, s, v }; }
+function hsvToRgb({ h, s, v }) { const c = v * s; const x = c * (1 - Math.abs(((h / 60) % 2) - 1)); const m = v - c; let rp = 0, gp = 0, bp = 0; if (0 <= h && h < 60) [rp, gp, bp] = [c, x, 0]; else if (60 <= h && h < 120) [rp, gp, bp] = [x, c, 0]; else if (120 <= h && h < 180) [rp, gp, bp] = [0, c, x]; else if (180 <= h && h < 240) [rp, gp, bp] = [0, x, c]; else if (240 <= h && h < 300) [rp, gp, bp] = [x, 0, c]; else if (300 <= h && h < 360) [rp, gp, bp] = [c, 0, x]; return { r: Math.round((rp + m) * 255), g: Math.round((gp + m) * 255), b: Math.round((bp + m) * 255) }; }
+function hexToHsb(hex) { const rgb = hexToRgb(hex); const { h, s, v } = rgbToHsv(rgb); return { hue: h, saturation: s, brightness: v }; }
+function hsbToHex(hsb) { const rgb = hsvToRgb({ h: hsb.hue, s: hsb.saturation, v: hsb.brightness }); return rgbToHex(rgb); }
 
-/* 🔴 Added: tiny helpers for preview layout/animation */
-const getPositionStyle = (pos) => {
-  const base = { position: "absolute" };
-  switch (pos) {
-    case "top-left": return { ...base, top: 16, left: 16 };
-    case "top-right": return { ...base, top: 16, right: 16 };
-    case "bottom-right": return { ...base, bottom: 16, right: 16 };
-    default: return { ...base, bottom: 16, left: 16 }; // bottom-left
-  }
-};
+/* Animation helper */
 const getAnimationStyle = (anim) => {
   switch (anim) {
     case "slide": return { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" };
@@ -121,11 +115,10 @@ const getAnimationStyle = (anim) => {
   }
 };
 
-/* 🔴 Added: Live notification preview component */
+/* Preview */
 function NotificationPreview({ form }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
 
-  // Top-left, no background, no border
   const containerStyle = {
     width: "100%",
     height: "auto",
@@ -152,12 +145,12 @@ function NotificationPreview({ form }) {
     border: "1px solid rgba(17, 24, 39, 0.06)",
     maxWidth: 560,
     width: "fit-content",
-    margin: 0,               // 🔹 no extra gap around the card
+    margin: 0,
     ...animStyle,
   };
 
   const titleStyle = { margin: 0, marginBottom: 6, color: form.titleColor, fontWeight: 600, fontSize: 14 };
-  const textStyle  = { margin: 0, fontSize: 13, lineHeight: 1.5 };
+  const textStyle = { margin: 0, fontSize: 13, lineHeight: 1.5 };
 
   return (
     <div>
@@ -183,14 +176,20 @@ function NotificationPreview({ form }) {
   );
 }
 
-
-
 export default function NotificationConfigPage() {
   const navigate = useNavigate();
   const { key } = useParams();
-  const { existing } = useLoaderData();
+  const { existing } = useLoaderData(); // fetched but not used to prefill
 
   const title = TITLES[key] || pretty(key);
+
+  // UI state
+  const [saving, setSaving] = useState(false);
+  const [toastActive, setToastActive] = useState(false);
+  const [toastError, setToastError] = useState(false);
+  const [toastMsg, setToastMsg] = useState("");
+
+  const toggleToast = () => setToastActive((a) => !a);
 
   const [form, setForm] = useState({
     title: title,
@@ -207,7 +206,7 @@ export default function NotificationConfigPage() {
     bgColor: "#FFFFFF",
     msgColor: "#111111",
     rounded: 12,
-    name: "",
+    name: "Rudra Solanki",
     durationSeconds: 8,
   });
 
@@ -215,45 +214,39 @@ export default function NotificationConfigPage() {
   const [bgHSB, setBgHSB] = useState(hexToHsb(form.bgColor));
   const [msgHSB, setMsgHSB] = useState(hexToHsb(form.msgColor));
 
-  useEffect(() => {
-    if (!existing) return;
-    setForm((f) => ({
-      ...f,
-      enabled: existing.enabled ? ["enabled"] : ["disabled"],
-      showType: existing.showType ?? "all",
-      messageTitle: existing.messageTitle ?? "",
-      messageText: existing.messageText ?? "",
-      fontFamily: existing.fontFamily ?? "System",
-      position: existing.position ?? "bottom-left",
-      animation: existing.animation ?? "fade",
-      mobileSize: existing.mobileSize ?? "compact",
-      mobilePosition: Array.isArray(existing.mobilePositionJson)
-        ? existing.mobilePositionJson
-        : ["bottom"],
-      titleColor: existing.titleColor ?? "#6E62FF",
-      bgColor: existing.bgColor ?? "#FFFFFF",
-      msgColor: existing.msgColor ?? "#111111",
-      rounded: typeof existing.rounded === "number" ? existing.rounded : 12,
-      name: existing.name ?? "",
-      durationSeconds:
-        typeof existing.durationSeconds === "number" ? existing.durationSeconds : 8,
-    }));
-    if (existing?.titleColor) setTitleHSB(hexToHsb(existing.titleColor));
-    if (existing?.bgColor) setBgHSB(hexToHsb(existing.bgColor));
-    if (existing?.msgColor) setMsgHSB(hexToHsb(existing.msgColor));
-  }, [existing]);
-
   const onField = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
-  const onText  = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
+  const onText = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async () => {
     if (!key) return;
-    await fetch(`/app/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ form }),
-    });
-    navigate("/app/notification");
+    try {
+      setSaving(true);
+      const res = await fetch(`/app/${key}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form }),
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt || "Failed to save");
+      }
+
+      setToastMsg("Saved successfully");
+      setToastError(false);
+      setToastActive(true);
+
+      // થોડા પળો બાદ dashboard પર લઇ જવું
+      setTimeout(() => {
+        navigate("/app/dashboard");
+      }, 900);
+    } catch (err) {
+      setToastMsg(err?.message || "Something went wrong");
+      setToastError(true);
+      setToastActive(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const pageOptions = [
@@ -304,123 +297,132 @@ export default function NotificationConfigPage() {
     if (/^#[0-9A-F]{6}$/.test(cleaned)) setHSB(hexToHsb(cleaned));
   };
 
+  const toastMarkup = toastActive ? (
+    <Toast content={toastMsg} error={toastError} onDismiss={toggleToast} duration={2000} />
+  ) : null;
+
   return (
-    <Page
-      title={`Configuration – ${title}`}
-      secondaryActions={[{ content: "Back", onAction: () => navigate("/app/notification") }]}
-      primaryAction={{ content: "Save", onAction: save }}
-    >
-      {/* 🔴 Added: Live Preview */}
-      <Card>
-        <Box padding="4">
-          <BlockStack gap="300">
-            <Text as="h3" variant="headingMd">Live Preview</Text>
-            <InlineStack gap="400" wrap>
-              <div style={{ width: 480, maxWidth: "100%" }}>
-                <NotificationPreview form={form} />
-              </div>
-              <div style={{ maxWidth: 520, opacity: 0.9 }}>
-                <Text as="p" variant="bodyMd">
-                  This is an approximate on-store preview. It reflects your {`position, colors, font, rounded`} and {`animation`} settings. 
-                  Duration is shown as a label for demo.
-                </Text>
-              </div>
-            </InlineStack>
-          </BlockStack>
-        </Box>
-      </Card>
+    <Frame>
+      {saving && <Loading />}
+      <Page
+        title={`Configuration – ${title}`}
+        secondaryActions={[{ content: "Back", onAction: () => navigate("/app/notification") }]}
+        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving }}
+      >
+        {/* Preview */}
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="300">
+              <Text as="h3" variant="headingMd">Live Preview</Text>
+              <InlineStack gap="400" wrap>
+                <div style={{ width: 480, maxWidth: "100%" }}>
+                  <NotificationPreview form={form} />
+                </div>
+                <div style={{ maxWidth: 520, opacity: 0.9 }}>
+                  <Text as="p" variant="bodyMd">
+                    This is an approximate on-store preview. It reflects your {`position, colors, font, rounded`} and {`animation`} settings.
+                    Duration is shown as a label for demo.
+                  </Text>
+                </div>
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        </Card>
 
-      {/* DISPLAY */}
-      <Card>
-        <Box padding="4">
-          <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">Display</Text>
-            <ChoiceList
-              title="Show Popup"
-              choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
-              selected={form.enabled}
-              onChange={onField("enabled")}
-              alignment="horizontal"
-            />
-            <Select label="Show Type" options={pageOptions} value={form.showType} onChange={onField("showType")} />
-            <TextField
-              label="Display notification for"
-              type="number"
-              value={String(form.durationSeconds)}
-              onChange={onDurationChange}
-              suffix="SECONDS"
-              min={1}
-              max={60}
-              step={1}
-              autoComplete="off"
-            />
-          </BlockStack>
-        </Box>
-      </Card>
+        {/* DISPLAY */}
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="400">
+              <Text as="h2" variant="headingMd">Display</Text>
+              <ChoiceList
+                title="Show Popup"
+                choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
+                selected={form.enabled}
+                onChange={onField("enabled")}
+                alignment="horizontal"
+              />
+              <Select label="Show Type" options={pageOptions} value={form.showType} onChange={onField("showType")} />
+              <TextField
+                label="Display notification for"
+                type="number"
+                value={String(form.durationSeconds)}
+                onChange={onDurationChange}
+                suffix="SECONDS"
+                min={1}
+                max={60}
+                step={1}
+                autoComplete="off"
+              />
+            </BlockStack>
+          </Box>
+        </Card>
 
-      {/* MESSAGE */}
-      <Card>
-        <Box padding="4">
-          <BlockStack gap="400">
-            <Text as="h3" variant="headingMd">Message</Text>
-            <TextField label="Message Title" value={form.messageTitle} onChange={onText("messageTitle")} autoComplete="off" />
-            <TextField label="Message Body" value={form.messageText} onChange={onText("messageText")} multiline={2} autoComplete="off" />
-          </BlockStack>
-        </Box>
-      </Card>
+        {/* MESSAGE */}
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="400">
+              <Text as="h3" variant="headingMd">Message</Text>
+              <TextField label="Message Title" value={form.messageTitle} onChange={onText("messageTitle")} autoComplete="off" />
+              <TextField label="Message Body" value={form.messageText} onChange={onText("messageText")} multiline={2} autoComplete="off" />
+            </BlockStack>
+          </Box>
+        </Card>
 
-      {/* CUSTOMIZE */}
-      <Card>
-        <Box padding="4">
-          <BlockStack gap="400">
-            <Text as="h3" variant="headingMd">Customize</Text>
-            <Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} />
-            <Select label="Notification position" options={positionOptions} value={form.position} onChange={onField("position")} />
-            <Select label="Notification animation" options={animationOptions} value={form.animation} onChange={onField("animation")} />
-            <Select label="Notification size on mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} />
-            <ChoiceList
-              title="Mobile Position"
-              choices={[{ label: "Top", value: "top" },{ label: "Bottom", value: "bottom" }]}
-              selected={form.mobilePosition}
-              onChange={onField("mobilePosition")}
-            />
-            <Text as="h4" variant="headingSm">Colors</Text>
-            <InlineStack gap="400" wrap>
-              <BlockStack gap="200">
-                <Text>Title Color</Text>
-                <ColorPicker color={titleHSB} onChange={updateColorByHSB("titleColor", setTitleHSB)} />
-                <TextField label="HEX" value={form.titleColor} onChange={updateColorByHEX("titleColor", setTitleHSB)} autoComplete="off" />
-              </BlockStack>
-              <BlockStack gap="200">
-                <Text>Background Color</Text>
-                <ColorPicker color={bgHSB} onChange={updateColorByHSB("bgColor", setBgHSB)} />
-                <TextField label="HEX" value={form.bgColor} onChange={updateColorByHEX("bgColor", setBgHSB)} autoComplete="off" />
-              </BlockStack>
-              <BlockStack gap="200">
-                <Text>Message Color</Text>
-                <ColorPicker color={msgHSB} onChange={updateColorByHSB("msgColor", setMsgHSB)} />
-                <TextField label="HEX" value={form.msgColor} onChange={updateColorByHEX("msgColor", setMsgHSB)} autoComplete="off" />
-              </BlockStack>
-            </InlineStack>
-            <Text>Rounded Corners (px): {form.rounded}</Text>
-            <RangeSlider min={0} max={24} value={form.rounded} onChange={(v) => setForm((f) => ({ ...f, rounded: v }))} />
-          </BlockStack>
-        </Box>
-      </Card>
+        {/* CUSTOMIZE */}
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="400">
+              <Text as="h3" variant="headingMd">Customize</Text>
+              <Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} />
+              <Select label="Notification position" options={positionOptions} value={form.position} onChange={onField("position")} />
+              <Select label="Notification animation" options={animationOptions} value={form.animation} onChange={onField("animation")} />
+              <Select label="Notification size on mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} />
+              <ChoiceList
+                title="Mobile Position"
+                choices={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
+                selected={form.mobilePosition}
+                onChange={onField("mobilePosition")}
+              />
+              <Text as="h4" variant="headingSm">Colors</Text>
+              <InlineStack gap="400" wrap>
+                <BlockStack gap="200">
+                  <Text>Title Color</Text>
+                  <ColorPicker color={titleHSB} onChange={updateColorByHSB("titleColor", setTitleHSB)} />
+                  <TextField label="HEX" value={form.titleColor} onChange={updateColorByHEX("titleColor", setTitleHSB)} autoComplete="off" />
+                </BlockStack>
+                <BlockStack gap="200">
+                  <Text>Background Color</Text>
+                  <ColorPicker color={bgHSB} onChange={updateColorByHSB("bgColor", setBgHSB)} />
+                  <TextField label="HEX" value={form.bgColor} onChange={updateColorByHEX("bgColor", setBgHSB)} autoComplete="off" />
+                </BlockStack>
+                <BlockStack gap="200">
+                  <Text>Message Color</Text>
+                  <ColorPicker color={msgHSB} onChange={updateColorByHSB("msgColor", setMsgHSB)} />
+                  <TextField label="HEX" value={form.msgColor} onChange={updateColorByHEX("msgColor", setMsgHSB)} autoComplete="off" />
+                </BlockStack>
+              </InlineStack>
+              <Text>Rounded Corners (px): {form.rounded}</Text>
+              <RangeSlider min={0} max={24} value={form.rounded} onChange={(v) => setForm((f) => ({ ...f, rounded: v }))} />
+            </BlockStack>
+          </Box>
+        </Card>
 
-      {/* LAUNCH */}
-      <Card>
-        <Box padding="4">
-          <BlockStack gap="400">
-            <Text as="h3" variant="headingMd">Launch</Text>
-            <TextField label="Notification Name" value={form.name} onChange={onText("name")} autoComplete="off" />
-            <InlineStack gap="200">
-              <Button onClick={() => navigate("/app/notification")}>Cancel</Button>
-              <Button primary onClick={save}>Save</Button>
-            </InlineStack>
-          </BlockStack>
-        </Box>
-      </Card>
-    </Page>
+        {/* LAUNCH */}
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="400">
+              <Text as="h3" variant="headingMd">Launch</Text>
+              <TextField label="Notification Name" value={form.name} onChange={onText("name")} autoComplete="off" />
+              <InlineStack gap="200">
+                <Button onClick={() => navigate("/app/notification")}>Cancel</Button>
+                <Button primary onClick={save} loading={saving} disabled={saving}>Save</Button>
+              </InlineStack>
+            </BlockStack>
+          </Box>
+        </Card>
+      </Page>
+
+      {toastMarkup}
+    </Frame>
   );
 }

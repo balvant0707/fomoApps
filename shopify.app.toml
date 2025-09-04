@@ -2,7 +2,7 @@
 
 client_id = "19bf03bfbf8995bb1bb05e7a45b1b062"
 name = "M2 Web Fomo Popup"
-application_url = "https://degree-libraries-reached-chevy.trycloudflare.com"
+application_url = "https://auckland-sweet-editor-checklist.trycloudflare.com"
 embedded = true
 handle = "m2-web-fomo-popup"
 
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://degree-libraries-reached-chevy.trycloudflare.com/auth/callback", "https://degree-libraries-reached-chevy.trycloudflare.com/auth/shopify/callback", "https://degree-libraries-reached-chevy.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://auckland-sweet-editor-checklist.trycloudflare.com/auth/callback", "https://auckland-sweet-editor-checklist.trycloudflare.com/auth/shopify/callback", "https://auckland-sweet-editor-checklist.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
