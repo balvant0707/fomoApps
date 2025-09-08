@@ -1,21 +1,27 @@
-{% assign avg_rating = block.settings.product.metafields.demo.avg_rating.value | round %}
-<span style="color:{{ block.settings.colour }}">
-  {% render 'stars', rating: avg_rating %}
-</span>
-{% if avg_rating >= 4 %}
-  <br>
-  <img src="{{ "thumbs-up.png" | asset_img_url: '15x' }}" height="15" width="15" loading="lazy">
-  {{ 'ratings.home.recommendationText' | t }}
+{% if block.settings.product and block.settings.product.metafields.demo.avg_rating %}
+  {% assign avg_rating = block.settings.product.metafields.demo.avg_rating.value | round %}
+
+  <span style="color:{{ block.settings.colour }}">
+    {% render 'stars', rating: avg_rating %}
+  </span>
+
+  {% if avg_rating >= 4 %}
+    <br>
+    <img src="{{ 'thumbs-up.png' | asset_img_url: '15x' }}" height="15" width="15" loading="lazy">
+    {{ 'ratings.home.recommendationText' | t }}
+  {% endif %}
+{% else %}
+  <span>No rating available</span>
 {% endif %}
 
 {% schema %}
 {
-  "name": "Star Rating",
-  "target": "section",
-  "settings": [
-    { "type": "product", "id": "product", "label": "product", "autofill": true },
-    { "type": "color", "id": "colour", "label": "Star Colour", "default": "#ff0000" }
-  ]
+  "name": "M2 Web Fomo ⭐",
+  "target": "body",
+  "stylesheet": "fomo.css",
+  "javascript": "m2fomo.js",
+  "enabled_on": {
+    "templates": ["product", "collection", "index", "cart"]
+  },
 }
 {% endschema %}
-

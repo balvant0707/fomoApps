@@ -41,24 +41,44 @@ model Shop {
 
 
 model NotificationConfig {
-  id                 Int      @id @default(autoincrement())
-  shop               String
-  key                String
-  enabled            Boolean
-  showType           String
-  messageTitle       String?
-  messageText        String?
-  fontFamily         String
-  position           String
-  animation          String
-  mobileSize         String
-  mobilePositionJson Json?
-  titleColor         String
-  bgColor            String
-  msgColor           String
-  rounded            Int
-  name               String?
-  durationSeconds    Int
+  id                    Int       @id @default(autoincrement())
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  @@unique([shop, key], name: "shop_key")
+  shop                  String
+  key                   String
+
+  enabled               Boolean   @default(false)
+  showType              String?
+
+  // multi arrays as JSON strings
+  messageTitlesJson     String?   @db.LongText
+  locationsJson         String?   @db.LongText
+  namesJson             String?   @db.LongText
+  selectedProductsJson  String?   @db.LongText
+
+  messageText           String?
+  fontFamily            String?
+  position              String?
+  animation             String?
+  mobileSize            String?
+  mobilePositionJson    String?
+
+  titleColor            String?
+  bgColor               String?
+  msgColor              String?
+  ctaBgColor            String?
+
+  rounded               Int?
+  durationSeconds       Int?
+  alternateSeconds      Int?
+  fontWeight            Int?
+
+  // icon support
+  iconKey               String?
+  iconSvg               String?   @db.LongText
+
+  @@index([shop, key])
 }
+
+
