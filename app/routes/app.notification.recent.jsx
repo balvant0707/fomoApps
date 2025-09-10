@@ -160,7 +160,7 @@ function hsvToRgb({ hue: h, saturation: s, brightness: v }) {
   else if (60 <= h && h < 120) [R, G, B] = [x, c, 0];
   else if (120 <= h && h < 180) [R, G, B] = [0, c, x];
   else if (180 <= h && h < 240) [R, G, B] = [0, x, c];
-  else [R, G, B] = [x, 0, c];
+  else[R, G, B] = [x, 0, c];
   return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) };
 }
 const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
@@ -251,7 +251,7 @@ function useTokenInput(listKey, form, setForm) {
     setDraft("");
   }, [draft, add]);
 
-  const onKeyDown = () => {};
+  const onKeyDown = () => { };
 
   return { draft, setDraft, add, removeAt, onChange, onKeyDown, commitDraft };
 }
@@ -297,13 +297,13 @@ function NotificationBubble({ form, selectedProduct, isMobile = false, drafts = 
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
 
   const firstTitle = form?.messageTitles?.[0] || "Someone";
-  const firstLoc   = form?.locations?.[0] || "Ahmedabad Gujarat";
-  const firstName  = form?.names?.[0] || "Rudra Sachiya";
+  const firstLoc = form?.locations?.[0] || "Ahmedabad Gujarat";
+  const firstName = form?.names?.[0] || "Rudra Sachiya";
 
   // prefer drafts while typing
   const displayTitle = (drafts.title || "").trim() || firstTitle;
-  const displayLoc   = (drafts.location || "").trim() || firstLoc;
-  const displayName  = (drafts.name || "").trim() || firstName;
+  const displayLoc = (drafts.location || "").trim() || firstLoc;
+  const displayName = (drafts.name || "").trim() || firstName;
 
   const firstHandle = Array.isArray(form?.selectedProducts) && form.selectedProducts.length
     ? form.selectedProducts[0] : null;
@@ -460,11 +460,11 @@ function LivePreview({ form, selectedProduct, drafts }) {
       </InlineStack>
 
       {mode === "desktop" && <DesktopPreview form={form} selectedProduct={selectedProduct} drafts={drafts} />}
-      {mode === "mobile"  && <MobilePreview  form={form} selectedProduct={selectedProduct} drafts={drafts} />}
+      {mode === "mobile" && <MobilePreview form={form} selectedProduct={selectedProduct} drafts={drafts} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
-          <Box width="40%"><MobilePreview  form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
+          <Box width="58%" class="DesktopPreview"><DesktopPreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
+          <Box width="40%" class="MobilePreview"><MobilePreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
         </InlineStack>
       )}
 
@@ -505,7 +505,7 @@ export default function RecentConfigPage() {
   // Defaults
   const [form, setForm] = useState({
     enabled: ["enabled"],
-    showType: "all",
+    showType: "allpage",
 
     messageTitles: ["Someone"],
     locations: ["Ahmedabad Gujarat"],
@@ -653,7 +653,7 @@ export default function RecentConfigPage() {
   };
 
   const pageOptions = [
-    { label: "All Pages", value: "all" },
+    { label: "All Pages", value: "allpage" },
     { label: "Home Page", value: "home" },
     { label: "Product Page", value: "product" },
     { label: "Collection Page", value: "collection" },
@@ -684,6 +684,10 @@ export default function RecentConfigPage() {
     { label: "Comfortable", value: "comfortable" },
     { label: "Large", value: "large" },
   ];
+    const mobilePosition = [
+    { label: "Top", value: "top" },
+    { label: "Bottom", value: "bottom" },
+  ];
   const weightOptions = [
     { label: "100 - Thin", value: "100" },
     { label: "200 - Extra Light", value: "200" },
@@ -693,10 +697,7 @@ export default function RecentConfigPage() {
     { label: "600 - Semi Bold", value: "600" },
     { label: "700 - Bold", value: "700" },
   ];
-  const mobilePosition = [
-    { label: "Top", value: "top" },
-    { label: "Bottom", value: "bottom" },
-  ];
+
 
   return (
     <Frame>
@@ -958,7 +959,7 @@ export default function RecentConfigPage() {
                 </BlockStack>
               </Box>
             </Card>
-         
+
             {/* <Card>
               <Box padding="4">
                 <BlockStack gap="400">

@@ -16,7 +16,7 @@ export const loader = async ({ request, params }) => {
         where: { shop },
         orderBy: { id: "desc" }, // optional: latest first
       });
-
+      
       if (!configs || configs.length === 0) {
         return json({ showPopup: false });
       }
