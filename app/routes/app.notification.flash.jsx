@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Page, Card, Button, TextField, Select, ChoiceList, Box,
-  BlockStack, InlineStack, Text, RangeSlider, ColorPicker, Frame, Toast, Loading, Layout
+  BlockStack, InlineStack, Text, ColorPicker, Frame,
+  Toast, Loading, Layout, Popover, Tag, ButtonGroup
 } from "@shopify/polaris";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -11,17 +12,19 @@ import { prisma } from "../db.server";
 /* ───────── Loader & Action ───────── */
 const KEY = "flash";
 
+/* Safe JSON list parse (kept for future use) */
+function parseList(str) {
+  if (!str || typeof str !== "string") return [];
+  try { const v = JSON.parse(str); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
-  const shop = session?.shop;
-  if (!shop) throw new Response("Missing shop", { status: 400 });
+  // Auth still required, but we DON'T read/return DB values at all.
+  await authenticate.admin(request);
 
-  // NO unique: use findFirst
-  const existing = await prisma.notificationConfig.findFirst({
-    where: { shop, key: KEY },
-  });
-
-  return json({ existing: existing ?? null, key: KEY, title: "Flash Sale Bars" });
+  // IMPORTANT: return nothing from DB — UI will never prefill with saved values.
+  return json({ existing: null, key: KEY, title: "Flash Sale Bars" });
 }
 
 export async function action({ request }) {
@@ -30,9 +33,9 @@ export async function action({ request }) {
   if (!shop) throw new Response("Missing shop", { status: 400 });
 
   const { form } = await request.json();
+
   const enabled = form.enabled?.includes("enabled") ?? false;
 
-  // normalize
   const fontWeightNum =
     form.fontWeight !== undefined && form.fontWeight !== null && form.fontWeight !== ""
       ? Number(form.fontWeight)
@@ -41,50 +44,59 @@ export async function action({ request }) {
   const iconKey = form.iconKey ?? null;
   const iconSvg = iconKey && SVGS[iconKey] ? SVGS[iconKey] : null;
 
-  // NO upsert (needs unique). Do findFirst -> update OR create.
-  const existing = await prisma.notificationConfig.findFirst({
-    where: { shop, key: KEY },
-    select: { id: true },
-  });
+  // Arrays from client
+  const titleArr   = Array.isArray(form.messageTitlesJson) ? form.messageTitlesJson : [];
+  const locationArr= Array.isArray(form.locationsJson)     ? form.locationsJson     : [];
+  const namesArr   = Array.isArray(form.namesJson)         ? form.namesJson         : [];
+  const mobilePosArr = Array.isArray(form.mobilePosition)  ? form.mobilePosition    : [];
+
+  const selProdJson =
+    Array.isArray(form.selectedProductsJson) && form.selectedProductsJson.length
+      ? JSON.stringify(form.selectedProductsJson)
+      : null;
 
   const data = {
-    shop,            // kept in update too (harmless)
-    key: KEY,        // kept in update too (harmless)
+    shop,
+    key: "flash",
     enabled,
-    showType: form.showType,
-    messageTitle: form.messageTitle,
-    messageText: form.messageText,
-    fontFamily: form.fontFamily,
-    fontWeight: isNaN(fontWeightNum) ? null : fontWeightNum, // Int?
-    position: form.position,
-    animation: form.animation,
-    mobileSize: form.mobileSize,
-    mobilePositionJson: form.mobilePosition ?? [],
-    titleColor: form.titleColor,
-    bgColor: form.bgColor,
-    msgColor: form.msgColor,
-    rounded: Number(form.rounded),
-    name: form.name,
-    durationSeconds: Number(form.durationSeconds),
-    alternateSeconds: Number(form.alternateSeconds), // Int?
+    showType: form.showType ?? null,
+
+    // JSON strings for DB
+    messageTitlesJson: JSON.stringify(titleArr),
+    locationsJson:     JSON.stringify(locationArr),
+    namesJson:         JSON.stringify(namesArr),
+    selectedProductsJson: selProdJson,
+    mobilePositionJson: JSON.stringify(mobilePosArr),
+
+    // Scalars
+    messageText: form.messageText ?? (namesArr[0] ?? null),
+    fontFamily: form.fontFamily ?? null,
+    fontWeight: isNaN(fontWeightNum) ? null : fontWeightNum,
+    position: form.position ?? null,
+    animation: form.animation ?? null,
+    mobileSize: form.mobileSize ?? null,
+    titleColor: form.titleColor ?? null,
+    bgColor: form.bgColor ?? null,
+    msgColor: form.msgColor ?? null,
+    ctaBgColor: form.ctaBgColor ?? null,
+
+    rounded: form.rounded != null ? Number(form.rounded) : null,
+    durationSeconds: form.durationSeconds != null ? Number(form.durationSeconds) : null,
+    alternateSeconds: form.alternateSeconds != null ? Number(form.alternateSeconds) : null,
+
     iconKey,
     iconSvg,
   };
 
-  let saved;
-  if (existing?.id) {
-    saved = await prisma.notificationConfig.update({
-      where: { id: existing.id },
-      data,
-    });
-  } else {
-    saved = await prisma.notificationConfig.create({ data });
-  }
+  // INSERT-ONLY: koi check nathi, koi update nathi
+  await prisma.notificationConfig.create({ data });
 
-  return json({ success: true, saved });
+  // save pachhi pan koi data echo back nathi — UI show na thay
+  return json({ success: true });
 }
 
-/* ───────── SVG options (template literals avoid escaping hell) ───────── */
+
+/* ───────── SVG options ───────── */
 const SVGS = {
   reshot: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 64 64">
@@ -219,116 +231,284 @@ const svgOptions = [
   { label: "Deadline", value: "deadline" },
 ];
 
-function svgToDataUri(svg) {
-  const encoded = encodeURIComponent(svg).replace(/'/g, "%27").replace(/"/g, "%22");
-  return `data:image/svg+xml;charset=UTF-8,${encoded}`;
+/* ───────── Color helpers ───────── */
+const hex6 = (v) => /^#[0-9A-F]{6}$/i.test(String(v || ""));
+function hexToRgb(hex) { const c = hex.replace("#", ""); const n = parseInt(c, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: (n & 255) }; }
+function rgbToHsv({ r, g, b }) { r /= 255; g /= 255; b /= 255; const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; let h = 0; if (d) { switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break }h *= 60; } const s = max ? d / max : 0; return { hue: h, saturation: s, brightness: max }; }
+function hsvToRgb({ hue: h, saturation: s, brightness: v }) { const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; let R = 0, G = 0, B = 0; if (0 <= h && h < 60) [R, G, B] = [c, x, 0]; else if (60 <= h && h < 120) [R, G, B] = [x, c, 0]; else if (120 <= h && h < 180) [R, G, B] = [0, c, x]; else if (180 <= h && h < 240) [R, G, B] = [0, x, c]; else[R, G, B] = [x, 0, c]; return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) }; }
+const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
+const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
+
+/* ───────── ColorInput ───────── */
+function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
+  const [open, setOpen] = useState(false);
+  const [hsb, setHsb] = useState(hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 });
+  useEffect(() => { if (hex6(value)) setHsb(hexToHSB(value)); }, [value]);
+
+  const swatch = (
+    <div
+      onClick={() => setOpen(true)}
+      style={{ width: 28, height: 28, borderRadius: 10, cursor: "pointer", border: "1px solid rgba(0,0,0,0.08)", background: hex6(value) ? value : "#ffffff" }}
+    />
+  );
+
+  return (
+    <Popover active={open} onClose={() => setOpen(false)} preferredAlignment="right"
+      activator={
+        <TextField
+          label={label}
+          value={value}
+          onChange={(v) => { const next = v.toUpperCase(); onChange(next); if (hex6(next)) setHsb(hexToHSB(next)); }}
+          autoComplete="off"
+          placeholder={placeholder}
+          suffix={swatch}
+          onFocus={() => setOpen(true)}
+        />
+      }>
+      <Box padding="300" minWidth="260px">
+        <ColorPicker color={hsb} onChange={(c) => { setHsb(c); onChange(hsbToHEX(c)); }} allowAlpha={false} />
+      </Box>
+    </Popover>
+  );
 }
 
-/* ───────── color + preview helpers ───────── */
-function hexToRgb(hex) { const c = hex.replace("#", ""); const b = parseInt(c.length === 3 ? c.split("").map(x => x + x).join("") : c, 16); return { r: (b >> 16) & 255, g: (b >> 8) & 255, b: b & 255 }; }
-function rgbToHex({ r, g, b }) { const h = v => v.toString(16).padStart(2, "0"); return `#${h(r)}${h(g)}${h(b)}`.toUpperCase(); }
-function rgbToHsv({ r, g, b }) { r /= 255; g /= 255; b /= 255; const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; let h = 0; if (d) { switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break } h *= 60; } const s = max ? d / max : 0; return { h, s, v: max }; }
-function hsvToRgb({ h, s, v }) { const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; let R = 0, G = 0, B = 0; if (0 <= h && h < 60) [R, G, B] = [c, x, 0]; else if (60 <= h && h < 120) [R, G, B] = [x, c, 0]; else if (120 <= h && h < 180) [R, G, B] = [0, c, x]; else if (180 <= h && h < 240) [R, G, B] = [0, x, c]; else[R, G, B] = [c, 0, x]; return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) }; }
-const hexToHsb = (hex) => { const { h, s, v } = rgbToHsv(hexToRgb(hex)); return { hue: h, saturation: s, brightness: v }; };
-const hsbToHex = (hsb) => rgbToHex(hsvToRgb({ h: hsb.hue, s: hsb.saturation, v: hsb.brightness }));
+/* ───────── Multi-value helpers ───────── */
+const splitTokens = (raw) =>
+  String(raw || "").split(/[,|\n]+/g).map((p) => p.trim()).filter(Boolean);
 
+/** ALLOW DUPLICATES — includes check nathi */
+function useTokenDraft(list, setList) {
+  const [draft, setDraft] = useState("");
+  const splitOnComma = (raw) => String(raw || "").split(",").map((p) => p.trim()).filter(Boolean);
+
+  const addMany = useCallback((vals) => {
+    const incoming = Array.isArray(vals) ? vals : splitOnComma(vals);
+    if (!incoming.length) return;
+    setList((prev) => { const next = [...prev]; incoming.forEach((v) => next.push(v)); return next; });
+  }, [setList]);
+
+  const removeAt = useCallback((idx) => {
+    setList((prev) => { const next = [...prev]; next.splice(idx, 1); return next; });
+  }, [setList]);
+
+  const commitDraft = useCallback(() => { if (!draft) return; addMany(draft); setDraft(""); }, [draft, addMany]);
+  const onInputChange = useCallback((val) => setDraft(val), []);
+  const onKeyDown = useCallback((e) => { if (e.key === "Enter") { e.preventDefault(); commitDraft(); } }, [commitDraft]);
+
+  return { draft, setDraft, addMany, removeAt, commitDraft, onInputChange, onKeyDown };
+}
+
+/* ───────── Anim & Preview helpers ───────── */
 const getAnimationStyle = (a) =>
   a === "slide" ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" } :
     a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
       a === "zoom" ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" } :
         { opacity: 0, animation: "notif-fade-in 220ms ease-out forwards" };
 
-function NotificationPreview({ form }) {
+const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large" ? 360 : 330);
+const mobileSizeScale = (size) => (size === "compact" ? 0.92 : size === "large" ? 1.06 : 1);
+const posToFlex = (pos) => {
+  switch (pos) {
+    case "top-left": return { justifyContent: "flex-start", alignItems: "flex-start" };
+    case "top-right": return { justifyContent: "flex-end", alignItems: "flex-start" };
+    case "bottom-left": return { justifyContent: "flex-start", alignItems: "flex-end" };
+    case "bottom-right": return { justifyContent: "flex-end", alignItems: "flex-end" };
+    default: return { justifyContent: "flex-start", alignItems: "flex-end" };
+  }
+};
+
+/* ───────── Notification bubble ───────── */
+function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const svgMarkup = useMemo(() => SVGS[form.iconKey] || "", [form.iconKey]);
+
+  const base = Number(form.rounded ?? 14) || 14;
+  const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
+  const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
 
   return (
     <div>
       <style>{`
-        .Polaris-BlockStack.Polaris-BlockStack--listReset {
-          display: flex; justify-content: start; flex-direction: row !important; gap: 2rem;
-        }
         @keyframes notif-fade-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes notif-slide-in { from { opacity: 0; transform: translateY(18px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes notif-zoom-in  { from { opacity: 0; transform: scale(0.94) } to { opacity: 1; transform: scale(1) } }
         @keyframes notif-bounce-in { 0% { transform: translateY(18px); opacity: 0 } 60% { transform: translateY(-6px); opacity: 1 } 100% { transform: translateY(0) } }
       `}</style>
 
-      <div style={{ display: "flex" }}>
-        <div style={{
-          fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
-          background: form.bgColor, color: form.msgColor, borderRadius: "14px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 14, border: "1px solid rgba(17,24,39,0.06)",
-          maxWidth: 560, display: "flex", alignItems: "center", gap: 12, ...animStyle
-        }}>
-          {svgMarkup ? (
-            <span aria-hidden="true" style={{ display: "block", flexShrink: 0 }}
-              dangerouslySetInnerHTML={{ __html: svgMarkup.replace('width="60"', 'width="50"').replace('height="60"', 'height="50"') }}
-            />
-          ) : null}
-
-          <div style={{ display: "grid", gap: 4 }}>
-            <p style={{ margin: 0, color: form.titleColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: form.rounded }}>
-              {form.messageTitle || "Flash Sale"}
-            </p>
-            <p style={{ margin: 0, fontSize: form.rounded, lineHeight: 1.5 }}>
-              <small>{form.messageText || "Flash Sale: 20% OFF — ends in 02:15"}
-                {form.alternateSeconds ? ` (alt: ${form.alternateSeconds}s)` : ""}</small>
-            </p>
-          </div>
+      <div style={{
+        fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
+        background: form.bgColor, color: form.msgColor, borderRadius: 14,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
+        display: "flex", alignItems: "center", gap: 12,
+        maxWidth: isMobile ? mobileSizeToWidth(form?.mobileSize) : 560,
+        ...animStyle
+      }}>
+        {svgMarkup ? (
+          <span aria-hidden="true" style={{ display: "block", flexShrink: 0 }}
+            dangerouslySetInnerHTML={{ __html: svgMarkup.replace('width="60"', 'width="50"').replace('height="60"', 'height="50"') }}
+          />
+        ) : null}
+        <div style={{ display: "grid", gap: 4 }}>
+          <p style={{ margin: 0, color: form.titleColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: sized }}>
+            {form.messageTitle || "Flash Sale"}
+          </p>
+          <p style={{ margin: 0, fontSize: sized, lineHeight: 1.5 }}>
+            <small>{form.name || "Flash Sale: 20% OFF"} -- {form.messageText || "ends in 02:15 hours"}</small>
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
+/* Desktop frame */
+function DesktopPreview({ form }) {
+  const flex = posToFlex(form?.position);
+  return (
+    <div
+      style={{
+        width: "100%", maxWidth: 900, minHeight: 320, height: 400, borderRadius: 12,
+        border: "1px solid #e5e7eb", background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
+        overflow: "hidden", position: "relative", display: "flex", padding: 18, boxSizing: "border-box", ...flex,
+      }}
+    >
+      <NotificationPreview form={form} />
+    </div>
+  );
+}
+
+/* Mobile frame */
+function MobilePreview({ form }) {
+  const mobilePos = (form?.mobilePosition && form.mobilePosition[0]) || "top";
+  return (
+    <div style={{ display: "flex", justifyContent: "center" }}>
+      <div
+        style={{
+          width: 380, height: 400, borderRadius: 40, border: "1px solid #e5e7eb",
+          background: "linear-gradient(180deg,#fcfcfd 0%,#f5f5f6 100%)", boxShadow: "0 14px 40px rgba(0,0,0,0.12)",
+          position: "relative", overflow: "hidden", padding: 14, display: "flex",
+          justifyContent: "center", alignItems: mobilePos === "top" ? "flex-start" : "flex-end",
+        }}
+      >
+        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 120, height: 18, borderRadius: 10, background: "#0f172a0f" }} />
+        <div style={{ padding: 8 }}>
+          <NotificationPreview form={form} isMobile />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Live Preview wrapper */
+function LivePreview({ form }) {
+  const [mode, setMode] = useState("desktop");
+  return (
+    <BlockStack gap="300">
+      <InlineStack align="space-between" blockAlign="center">
+        <Text as="h3" variant="headingMd">Live Preview</Text>
+        <ButtonGroup segmented>
+          <Button pressed={mode === "desktop"} onClick={() => setMode("desktop")}>Desktop</Button>
+          <Button pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile</Button>
+          <Button pressed={mode === "both"} onClick={() => setMode("both")}>Both</Button>
+        </ButtonGroup>
+      </InlineStack>
+
+      {mode === "desktop" && <DesktopPreview form={form} />}
+      {mode === "mobile" && <MobilePreview form={form} />}
+      {mode === "both" && (
+        <InlineStack gap="400" align="space-between" wrap>
+          <Box width="58%"><DesktopPreview form={form} /></Box>
+          <Box width="40%"><MobilePreview form={form} /></Box>
+        </InlineStack>
+      )}
+
+      <Text as="p" variant="bodySm" tone="subdued">
+        Desktop preview follows the Desktop position. Mobile preview follows the Mobile Position and the Notification size.
+      </Text>
+    </BlockStack>
+  );
+}
+
 /* ───────── Page ───────── */
 export default function FlashConfigPage() {
   const navigate = useNavigate();
-  const { existing, title } = useLoaderData();
+  const { title } = useLoaderData(); // existing is purposely ignored
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
 
+  // defaults ONLY (no DB prefill)
+  const defaultTitles = ["Flash Sale"];
+  const defaultLocations = ["Flash Sale: 20% OFF"];
+  const defaultNames = ["ends in 02:15 hours"];
+
+  const [titlesList, setTitlesList] = useState(defaultTitles);
+  const [locationsList, setLocationsList] = useState(defaultLocations);
+  const [namesList, setNamesList] = useState(defaultNames);
+
   const [form, setForm] = useState({
-    enabled: existing?.enabled ? ["enabled"] : ["enabled"],
-    showType: existing?.showType || "all",
-    messageTitle: existing?.messageTitle || title,
-    messageText: existing?.messageText || "",
-    fontFamily: existing?.fontFamily || "System",
-    fontWeight: existing?.fontWeight != null ? String(existing.fontWeight) : "600",
-    position: existing?.position || "top-right",
-    animation: existing?.animation || "slide",
-    mobileSize: existing?.mobileSize || "compact",
-    mobilePosition: existing?.mobilePositionJson || ["top"],
-    titleColor: existing?.titleColor || "#111111",
-    bgColor: existing?.bgColor || "#FFF8E1",
-    msgColor: existing?.msgColor || "#111111",
-    rounded: Number(existing?.rounded ?? 14),
-    name: existing?.name || "Flash Sale Bar",
-    durationSeconds: Number(existing?.durationSeconds ?? 10),
-    alternateSeconds: Number(existing?.alternateSeconds ?? 5),
-    iconKey: existing?.iconKey || "reshot",
+    enabled: ["enabled"],
+    showType: "allpage",
+    // Preview values (use first items from lists)
+    messageTitle: defaultTitles[0],
+    name: defaultLocations[0],
+    messageText: defaultNames[0],
+    fontFamily: "System",
+    fontWeight: "600",
+    position: "top-right",
+    animation: "slide",
+    mobileSize: "compact",
+    mobilePosition: ["top"],
+    titleColor: "#111111",
+    bgColor: "#FFF8E1",
+    msgColor: "#111111",
+    rounded: 14,
+    durationSeconds: 10,
+    alternateSeconds: 5,
+    iconKey: "reshot",
+    ctaBgColor: null,
   });
 
-  const [titleHSB, setTitleHSB] = useState(hexToHsb(form.titleColor));
-  const [bgHSB, setBgHSB] = useState(hexToHsb(form.bgColor));
-  const [msgHSB, setMsgHSB] = useState(hexToHsb(form.msgColor));
-  const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
-  const onText = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
+  // keep preview first values in sync (preview only)
+  useEffect(() => {
+    setForm(f => ({
+      ...f,
+      messageTitle: titlesList[0] || f.messageTitle || "",
+      name: locationsList[0] || f.name || "",
+      messageText: namesList[0] || f.messageText || "",
+    }));
+  }, [titlesList, locationsList, namesList]);
 
+  const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const onDurationChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 1 : Math.min(60, Math.max(1, n)); setForm(f => ({ ...f, durationSeconds: x })); };
   const onAlternateChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 0 : Math.min(3600, Math.max(0, n)); setForm(f => ({ ...f, alternateSeconds: x })); };
 
-  const updateColorByHSB = (field, setHSB) => (hsb) => { setHSB(hsb); setForm(f => ({ ...f, [field]: hsbToHex(hsb) })); };
-  const updateColorByHEX = (field, setHSB) => (val) => { const c = val.toUpperCase(); setForm(f => ({ ...f, [field]: c })); if (/^#[0-9A-F]{6}$/.test(c)) setHSB(hexToHsb(c)); };
+  const countsMatch = (titlesList.length === locationsList.length) && (locationsList.length === namesList.length);
+
+  const titlesDraft = useTokenDraft(titlesList, setTitlesList);
+  const locationsDraft = useTokenDraft(locationsList, setLocationsList);
+  const namesDraft = useTokenDraft(namesList, setNamesList);
 
   const save = async () => {
+    if (!countsMatch) {
+      setToast({ active: true, error: true, msg: `Counts must match. Now Banner Title: ${titlesList.length}, Notification Name: ${locationsList.length}, Banner Text: ${namesList.length}.` });
+      return;
+    }
     try {
       setSaving(true);
+      const payload = {
+        ...form,
+        // send arrays; server will stringify
+        messageTitlesJson: titlesList.length ? titlesList : defaultTitles,
+        locationsJson: locationsList.length ? locationsList : defaultLocations,
+        namesJson: namesList.length ? namesList : defaultNames,
+        mobilePosition: form.mobilePosition,
+      };
       const res = await fetch("/app/notification/flash", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ form }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form: payload }),
       });
       if (!res.ok) throw new Error(await res.text() || "Failed to save");
       setToast({ active: true, error: false, msg: "Saved successfully" });
@@ -338,24 +518,37 @@ export default function FlashConfigPage() {
     } finally { setSaving(false); }
   };
 
-  const pageOptions = [{ label: "All Pages", value: "all" }, { label: "Home Page", value: "home" }, { label: "Product Page", value: "product" }, { label: "Collection Page", value: "collection" }, { label: "Pages", value: "pages" }, { label: "Cart Page", value: "cart" }];
-  const fontOptions = [{ label: "System", value: "System" }, { label: "Inter", value: "Inter" }, { label: "Roboto", value: "Roboto" }, { label: "Montserrat", value: "Montserrat" }, { label: "Poppins", value: "Poppins" }];
-
-  const positionOptions = [{ label: "Top Left", value: "top-left" }, { label: "Top Right", value: "top-right" }, { label: "Bottom Left", value: "bottom-left" }, { label: "Bottom Right", value: "bottom-right" }];
-  const animationOptions = [{ label: "Fade", value: "fade" }, { label: "Slide", value: "slide" }, { label: "Bounce", value: "bounce" }, { label: "Zoom", value: "zoom" }];
-  const mobileSizeOptions = [{ label: "Compact", value: "compact" }, { label: "Comfortable", value: "comfortable" }, { label: "Large", value: "large" }];
-  const FontweightOptions = [
-    { label: "100 - Thin", value: "100" },
-    { label: "200 - Extra Light", value: "200" },
-    { label: "300 - Light", value: "300" },
-    { label: "400 - Normal", value: "400" },
-    { label: "500 - Medium", value: "500" },
-    { label: "600 - Semi Bold", value: "600" },
-    { label: "700 - Bold", value: "700" },
+  /* Select options */
+  const pageOptions = [
+    { label: "All Pages", value: "allpage" },
+    { label: "Home Page", value: "home" },
+    { label: "Product Page", value: "product" },
+    { label: "Collection Page", value: "collection" },
+    { label: "Pages", value: "pages" },
+    { label: "Cart Page", value: "cart" },
   ];
 
-  const currentSvg = SVGS[form.iconKey] || "";
-  const currentDataUri = useMemo(() => (currentSvg ? svgToDataUri(currentSvg) : ""), [currentSvg]);
+  const fontOptions = [
+    { label: "System", value: "System" }, { label: "Inter", value: "Inter" }, { label: "Roboto", value: "Roboto" },
+    { label: "Montserrat", value: "Montserrat" }, { label: "Poppins", value: "Poppins" }
+  ];
+  const positionOptions = [
+    { label: "Top Left", value: "top-left" }, { label: "Top Right", value: "top-right" },
+    { label: "Bottom Left", value: "bottom-left" }, { label: "Bottom Right", value: "bottom-right" }
+  ];
+  const animationOptions = [
+    { label: "Fade", value: "fade" }, { label: "Slide", value: "slide" },
+    { label: "Bounce", value: "bounce" }, { label: "Zoom", value: "zoom" }
+  ];
+  const mobileSizeOptions = [
+    { label: "Compact", value: "compact" }, { label: "Comfortable", value: "comfortable" }, { label: "Large", value: "large" }
+  ];
+  const FontweightOptions = [
+    { label: "100 - Thin", value: "100" }, { label: "200 - Extra Light", value: "200" },
+    { label: "300 - Light", value: "300" }, { label: "400 - Normal", value: "400" },
+    { label: "500 - Medium", value: "500" }, { label: "600 - Semi Bold", value: "600" },
+    { label: "700 - Bold", value: "700" },
+  ];
 
   return (
     <Frame>
@@ -363,26 +556,14 @@ export default function FlashConfigPage() {
       <Page
         title="Configuration – Flash Sale Bars"
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
-        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving }}
+        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving || !countsMatch }}
       >
         <Layout>
-          {/* Preview */}
-          <Layout.Section oneHalf>
+          {/* Live Preview */}
+          <Layout.Section>
             <Card>
               <Box padding="4">
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingMd">Live Preview</Text>
-                  <InlineStack gap="400" wrap>
-                    <div style={{ width: 480, maxWidth: "100%" }}>
-                      <NotificationPreview form={form} />
-                    </div>
-                    <div style={{ maxWidth: 520, opacity: .9 }}>
-                      <Text as="p" variant="bodyMd">
-                        Preview shows your bar style, animation and colors. Adjust as needed.
-                      </Text>
-                    </div>
-                  </InlineStack>
-                </BlockStack>
+                <LivePreview form={form} />
               </Box>
             </Card>
           </Layout.Section>
@@ -394,7 +575,15 @@ export default function FlashConfigPage() {
                 <BlockStack gap="400">
                   <Text as="h2" variant="headingMd">Display</Text>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><ChoiceList title="Show Popup" choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]} selected={form.enabled} onChange={onField("enabled")} alignment="horizontal" /></Box>
+                    <Box width="50%">
+                      <ChoiceList
+                        title="Show Popup"
+                        choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
+                        selected={form.enabled}
+                        onChange={onField("enabled")}
+                        alignment="horizontal"
+                      />
+                    </Box>
                     <Box width="50%"><Select label="Show Type" options={pageOptions} value={form.showType} onChange={onField("showType")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
@@ -406,15 +595,75 @@ export default function FlashConfigPage() {
             </Card>
           </Layout.Section>
 
-          {/* Message */}
+          {/* Message – multi value (independent) */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
-                <BlockStack gap="400">
-                  <Text as="h3" variant="headingMd">Message</Text>
-                  <TextField label="Banner Title" value={form.messageTitle} onChange={onText("messageTitle")} autoComplete="off" />
-                  <TextField label="Banner Text" value={form.messageText} onChange={onText("messageText")} multiline={2} autoComplete="off" />
-                  <TextField label="Notification Name" value={form.name} onChange={onText("name")} autoComplete="off" />
+                <BlockStack gap="350">
+                  <InlineStack align="space-between">
+                    <Text as="h3" variant="headingMd">Message</Text>
+                  </InlineStack>
+
+                  {!countsMatch && (
+                    <Box paddingBlockStart="100">
+                      <div role="alert" style={{ border: '1px solid #E0B3B2', background: '#FFF6F6', borderRadius: 8, padding: 12 }}>
+                        <Text tone="critical">
+                          Counts must match. Banner Title: {titlesList.length}, Notification Name: {locationsList.length}, Banner Text: {namesList.length}
+                        </Text>
+                      </div>
+                    </Box>
+                  )}
+
+                  {/* Banner Title */}
+                  <BlockStack gap="150">
+                    <div onKeyDownCapture={titlesDraft.onKeyDown}>
+                      <TextField
+                        label="Banner Title (add multiple)"
+                        value={titlesDraft.draft}
+                        onChange={titlesDraft.onInputChange}
+                        autoComplete="off"
+                        multiline={1}
+                        placeholder="Flash Sale, Flash Sale 2, Flash Sale 3 … (press Enter to add)"
+                      />
+                    </div>
+                    <InlineStack gap="150" wrap>
+                      {titlesList.map((t, i) => (<Tag key={`title-${i}`} onRemove={() => titlesDraft.removeAt(i)}>{t}</Tag>))}
+                    </InlineStack>
+                  </BlockStack>
+
+                  {/* Notification Name */}
+                  <BlockStack gap="150">
+                    <div onKeyDownCapture={locationsDraft.onKeyDown}>
+                      <TextField
+                        label="Notification Name (add multiple)"
+                        value={locationsDraft.draft}
+                        onChange={locationsDraft.onInputChange}
+                        autoComplete="off"
+                        multiline={1}
+                        placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF … (press Enter to add)"
+                      />
+                    </div>
+                    <InlineStack gap="150" wrap>
+                      {locationsList.map((t, i) => (<Tag key={`loc-${i}`} onRemove={() => locationsDraft.removeAt(i)}>{t}</Tag>))}
+                    </InlineStack>
+                  </BlockStack>
+
+                  {/* Banner Text */}
+                  <BlockStack gap="150">
+                    <div onKeyDownCapture={namesDraft.onKeyDown}>
+                      <TextField
+                        label="Banner Text (add multiple)"
+                        value={namesDraft.draft}
+                        onChange={namesDraft.onInputChange}
+                        autoComplete="off"
+                        multiline={1}
+                        placeholder="ends in 01:15 hours, ends in 02:15 hours … (press Enter to add)"
+                      />
+                    </div>
+                    <InlineStack gap="150" wrap>
+                      {namesList.map((t, i) => (<Tag key={`name-${i}`} onRemove={() => namesDraft.removeAt(i)}>{t}</Tag>))}
+                    </InlineStack>
+                  </BlockStack>
                 </BlockStack>
               </Box>
             </Card>
@@ -427,12 +676,8 @@ export default function FlashConfigPage() {
                 <BlockStack gap="400">
                   <Text as="h3" variant="headingMd">Customize</Text>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%">
-                      <Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} />
-                    </Box>
-                    <Box width="50%">
-                      <Select label="Font Weight" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} />
-                    </Box>
+                    <Box width="50%"><Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
+                    <Box width="50%"><Select label="Font Weight" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%"><Select label="Notification position" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
@@ -440,49 +685,63 @@ export default function FlashConfigPage() {
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%"><Select label="Notification size on mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
-                    <Box width="50%"><ChoiceList title="Mobile Position" choices={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]} selected={form.mobilePosition} onChange={onField("mobilePosition")} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label="Mobile Position"
+                        options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
+                        value={(form.mobilePosition && form.mobilePosition[0]) || "top"}
+                        onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
+                      />
+                    </Box>
                   </InlineStack>
 
+                  {/* Icon + Font size */}
                   <InlineStack gap="400" wrap={false} width="100%" alignItems="center">
+                    <Box width="50%"><Select label="Choose Icon" options={svgOptions} value={form.iconKey} onChange={onField("iconKey")} /></Box>
                     <Box width="50%">
-                      <Select label="Choose Icon" options={svgOptions} value={form.iconKey} onChange={onField("iconKey")} />
-                    </Box>
-                    <Box width="50%">
-                      <Text>Font Size(px): {form.rounded}</Text>
-                      <RangeSlider min={0} max={24} value={form.rounded} onChange={(v) => setForm(f => ({ ...f, rounded: v }))} />
+                      <BlockStack gap="150">
+                        <Text>Font Size (px)</Text>
+                        <TextField
+                          label=" "
+                          labelHidden
+                          type="number"
+                          min={10}
+                          max={72}
+                          step={1}
+                          value={String(form.rounded)}
+                          onChange={(v) => {
+                            const n = parseInt(v || "0", 10);
+                            const clamped = isNaN(n) ? 10 : Math.max(10, Math.min(72, n));
+                            setForm(f => ({ ...f, rounded: clamped }));
+                          }}
+                          suffix="px"
+                          autoComplete="off"
+                        />
+                      </BlockStack>
                     </Box>
                   </InlineStack>
 
-                  <Text as="h4" variant="headingSm">Colors</Text>
-                  <InlineStack gap="400" wrap>
-                    <BlockStack gap="200">
-                      <Text>Title Color</Text>
-                      <ColorPicker color={hexToHsb(form.titleColor)} onChange={(hsb) => { setTitleHSB(hsb); setForm(f => ({ ...f, titleColor: hsbToHex(hsb) })) }} />
-                      <TextField label="HEX" value={form.titleColor} onChange={(val) => { const c = val.toUpperCase(); setForm(f => ({ ...f, titleColor: c })) }} />
-                    </BlockStack>
-                    <BlockStack gap="200">
-                      <Text>Background Color</Text>
-                      <ColorPicker color={hexToHsb(form.bgColor)} onChange={(hsb) => { setBgHSB(hsb); setForm(f => ({ ...f, bgColor: hsbToHex(hsb) })) }} />
-                      <TextField label="HEX" value={form.bgColor} onChange={(val) => { const c = val.toUpperCase(); setForm(f => ({ ...f, bgColor: c })) }} />
-                    </BlockStack>
-                    <BlockStack gap="200">
-                      <Text>Message Color</Text>
-                      <ColorPicker color={hexToHsb(form.msgColor)} onChange={(hsb) => { setMsgHSB(hsb); setForm(f => ({ ...f, msgColor: hsbToHex(hsb) })) }} />
-                      <TextField label="HEX" value={form.msgColor} onChange={(val) => { const c = val.toUpperCase(); setForm(f => ({ ...f, msgColor: c })) }} />
-                    </BlockStack>
+                  {/* Colors */}
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%"><ColorInput label="Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%"><ColorInput label="Message Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
                   </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
           </Layout.Section>
 
+          {/* Footer */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
                 <BlockStack gap="400">
                   <InlineStack gap="200">
                     <Button onClick={() => navigate("/app/notification")}>Cancel</Button>
-                    <Button primary onClick={save} loading={saving} disabled={saving}>Save</Button>
+                    <Button primary onClick={save} loading={saving} disabled={saving || !countsMatch}>Save</Button>
                   </InlineStack>
                 </BlockStack>
               </Box>

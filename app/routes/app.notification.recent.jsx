@@ -284,6 +284,12 @@ const mobileSizeScale = (size) => (size === "compact" ? 0.92 : size === "large" 
 function PreviewKeyframes() {
   return (
     <style>{`
+      @media screen and (max-width:750px){
+      .Polaris-Box
+        {
+            --pc-box-width: 100% !important;
+        }
+      }
       @keyframes notif-fade-in { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
       @keyframes notif-slide-in { from { opacity: 0; transform: translateY(18px) } to { opacity: 1; transform: translateY(0) } }
       @keyframes notif-zoom-in  { from { opacity: 0; transform: scale(0.94) } to { opacity: 1; transform: scale(1) } }
@@ -445,7 +451,7 @@ function MobilePreview({ form, selectedProduct, drafts }) {
 
 /* Wrapper that shows Desktop/Mobile/Both with buttons */
 function LivePreview({ form, selectedProduct, drafts }) {
-  const [mode, setMode] = useState("both"); // 'desktop' | 'mobile' | 'both'
+  const [mode, setMode] = useState("desktop"); // 'desktop' | 'mobile' | 'both'
   return (
     <BlockStack gap="200">
       <PreviewKeyframes />
@@ -463,8 +469,8 @@ function LivePreview({ form, selectedProduct, drafts }) {
       {mode === "mobile" && <MobilePreview form={form} selectedProduct={selectedProduct} drafts={drafts} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%" class="DesktopPreview"><DesktopPreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
-          <Box width="40%" class="MobilePreview"><MobilePreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
+          <Box width="58%"><DesktopPreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
+          <Box width="40%"><MobilePreview form={form} selectedProduct={selectedProduct} drafts={drafts} /></Box>
         </InlineStack>
       )}
 
@@ -528,7 +534,7 @@ export default function RecentConfigPage() {
     selectedProducts: [],
 
     fontWeight: "600",
-    alternateSeconds: 0,
+    alternateSeconds: 10,
 
     // icon fields (nullable)
     iconKey: "",
