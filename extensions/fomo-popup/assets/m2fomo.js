@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     el.style.left = "0"; el.style.right = "0"; el.style.margin = "0 auto";
   }
 
-  /* ========== FLASH renderer (SVG, Title, Location, TimeText only) ========== */
+  /* ========== FLASH renderer (SVG, Title, Location + TimeText same line) ========== */
   function renderFlash(cfg, mode, onDone) {
     const mt = mobileTokens(cfg.mobileSize);
     const visibleMs = Math.max(1, +cfg.visibleSeconds) * 1000;
@@ -83,25 +83,42 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:cover;border-radius:${iRad}px;background:#222;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => { img.src = FLAME_SVG; };
 
-    // Body (no defaults, no concatenation, exact fields)
+    // Body
     const body = document.createElement("div");
     body.className = "fomo-body";
     body.style.cssText = `flex:1;min-width:0;pointer-events:none;`;
 
+    // Title
     const ttl = document.createElement("div");
     ttl.className = "fomo-title";
-    ttl.textContent = safe(cfg.title, "");               // exact title only
+    ttl.textContent = safe(cfg.title, "");
     ttl.style.cssText = `font-weight:${safe(cfg.fontWeight, "700")}; color:${cfg.titleColor || "inherit"}; margin-bottom:4px;`;
+    body.appendChild(ttl);
 
-    const loc = document.createElement("div");
+    // Location + TimeText in one line
+    const locLine = document.createElement("div");
+    locLine.className = "fomo-locline";
+    locLine.style.cssText = "opacity:.95;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;";
+
+    const loc = document.createElement("span");
     loc.className = "fomo-location";
-    loc.textContent = safe(cfg.location, "");            // exact location only
-    loc.style.cssText = `opacity:.95;`;
+    loc.textContent = safe(cfg.location, "");
+    locLine.appendChild(loc);
 
-    const tmt = document.createElement("div");
-    tmt.className = "fomo-time";
-    tmt.textContent = safe(cfg.timeText, "");            // exact timeText only
-    tmt.style.cssText = `margin-top:8px; font-size:${Math.max(10, (Number(cfg.baseFontSize) || 14) - 1)}px; opacity:.75;`;
+    const tmtVal = safe(cfg.timeText, "");
+    if (tmtVal) {
+      const sep = document.createElement("span");
+      sep.textContent = "—";
+      sep.style.opacity = ".6";
+      sep.setAttribute("aria-hidden", "true");
+      const tmt = document.createElement("span");
+      tmt.className = "fomo-time";
+      tmt.textContent = tmtVal;
+      tmt.style.cssText = `font-size:${Math.max(10, (Number(cfg.baseFontSize) || 14) - 1)}px; opacity:.8;`;
+      locLine.appendChild(sep);
+      locLine.appendChild(tmt);
+    }
+    body.appendChild(locLine);
 
     // Close
     const close = document.createElement("button");
@@ -110,15 +127,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.style.cssText = `position:absolute;top:6px;right:10px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
     close.onmouseenter = () => close.style.opacity = "1"; close.onmouseleave = () => close.style.opacity = ".8";
 
-    body.appendChild(ttl);
-    body.appendChild(loc);
-    body.appendChild(tmt);
     card.appendChild(img);
     card.appendChild(body);
     card.appendChild(close);
     wrap.appendChild(card);
 
-    // progress (keep as before; style via CSS if needed)
+    // progress
     const barWrap = document.createElement("div");
     barWrap.className = "fomo-progress-wrap";
     barWrap.style.cssText = `height:4px;width:100%;background:rgba(255,255,255,.12)`;
@@ -280,7 +294,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (!["all", "allpage", pt].includes(showType)) continue;
 
       const names = parseList(it.messageTitlesJson);  // titles
-      const times = parseList(it.namesJson);          // timeText list (as per your payload)
+      const times = parseList(it.namesJson);          // timeText list
       const locs = parseList(it.locationsJson);      // locations
       const handles = parseList(it.selectedProductsJson);
       const mbPos = parseList(it.mobilePositionJson);
@@ -394,4 +408,3 @@ document.addEventListener("DOMContentLoaded", async function () {
     console.error("[FOMO] build error:", err);
   }
 });
-
