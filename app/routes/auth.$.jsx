@@ -1,29 +1,22 @@
-import { authenticate } from "../shopify.server";
+import { redirect } from "@remix-run/node";
+import { authenticate, registerWebhooks } from "../shopify.server";
 import prisma from "../db.server";
 
+const norm = (s) => (s || "").toLowerCase();
+
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const result = await authenticate.admin(request);
+  if (result instanceof Response) return result;
 
-  console.log("AUTH CALLBACK LOADED");
-  console.log("Session:", session);
+  const { session } = result;
+  const shop = norm(session.shop);
 
-  try {
-    await prisma.shop.upsert({
-      where: { shop: session.shop },
-      update: {
-        accessToken: session.accessToken,
-        installed: true,
-      },
-      create: {
-        shop: session.shop,
-        accessToken: session.accessToken,
-        installed: true,
-      },
-    });
-    console.log("Shop inserted/updated successfully!");
-  } catch (err) {
-    console.error("DB Error:", err);
-  }
+  await prisma.shop.upsert({
+    where: { shop },
+    update: { accessToken: session.accessToken ?? null, installed: true, uninstalledAt: null },
+    create: { shop, accessToken: session.accessToken ?? null, installed: true },
+  });
 
-  return Response.redirect("/");
+  await registerWebhooks({ session });
+  return redirect("/app");
 };

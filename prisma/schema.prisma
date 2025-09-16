@@ -31,12 +31,14 @@ model Session {
 }
 
 model Shop {
-  id          Int      @id @default(autoincrement())
-  shop        String   @unique
-  accessToken String?
-  installed   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  shop           String    @unique
+  accessToken    String?
+  installed      Boolean   @default(false)
+  uninstalledAt  DateTime?
+  onboardedAt   DateTime? 
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 

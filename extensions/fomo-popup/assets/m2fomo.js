@@ -19,16 +19,68 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   const FLAME_SVG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path fill="%23ffb02e" d="M31 4c5 8-3 13 3 19s11-5 11-5c6 15 3 19-1 23-4 4-8 6-13 6s-12-3-14-9c-2-6 1-12 7-17c4-3 6-7 7-17z"/><path fill="%23ef4545" d="M39 33c1 6-4 9-8 9s-10-3-9-9c1-6 7-8 9-14c3 6 7 8 8 14z"/><circle cx="32" cy="44" r="3" fill="%23000"/></svg>';
 
-  // keyframes (once)
+  // keyframes (once)  — UPDATED: only animations added
   if (!document.getElementById("kf-fomo-onefile")) {
     const st = document.createElement("style");
     st.id = "kf-fomo-onefile";
     st.textContent = `
+      /* existing generic */
       @keyframes fIn  { from{opacity:0;transform:translateY(10px) scale(.98)} to{opacity:1;transform:none} }
       @keyframes fOut { to  {opacity:0;transform:translateY(6px)  scale(.98)} }
+
+      /* fade */
+      @keyframes fFadeIn  { from{opacity:0} to{opacity:1} }
+      @keyframes fFadeOut { from{opacity:1} to{opacity:0} }
+
+      /* zoom */
+      @keyframes fZoomIn  { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
+      @keyframes fZoomOut { from{opacity:1;transform:scale(1)} to{opacity:0;transform:scale(.96)} }
+
+      /* bounce (subtle) */
+      @keyframes fBounceIn  {
+        0%{opacity:0;transform:scale(.9)}
+        60%{opacity:1;transform:scale(1.03)}
+        100%{transform:scale(1)}
+      }
+      @keyframes fBounceOut {
+        0%{opacity:1;transform:scale(1)}
+        100%{opacity:0;transform:scale(.96)}
+      }
+
+      /* slide — horizontal for desktop (left/right) */
+      @keyframes fSlideInLeft  { from{opacity:0;transform:translateX(-16px)} to{opacity:1;transform:none} }
+      @keyframes fSlideOutLeft { from{opacity:1;transform:none} to{opacity:0;transform:translateX(-12px)} }
+      @keyframes fSlideInRight  { from{opacity:0;transform:translateX(16px)} to{opacity:1;transform:none} }
+      @keyframes fSlideOutRight { from{opacity:1;transform:none} to{opacity:0;transform:translateX(12px)} }
+
+      /* progress */
       @keyframes fomoProgress { from{width:100%} to{width:0%} }
     `;
     document.head.appendChild(st);
+  }
+
+  /* === animation selector (NEW, animation-only) === */
+  function getAnimPair(cfg, mode){
+    const val = (cfg?.animation || "").toLowerCase();
+
+    if (val === "slide") {
+      if (mode === "desktop") {
+        const pos = (cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
+        const isLeft = pos.includes("left"); // top-left / bottom-left
+        return isLeft
+          ? { inAnim: "fSlideInLeft",  outAnim: "fSlideOutLeft"  }
+          : { inAnim: "fSlideInRight", outAnim: "fSlideOutRight" };
+      }
+      // mobile: keep your existing vertical feel (no other change)
+      return { inAnim: "fIn", outAnim: "fOut" };
+    }
+
+    if (val === "fade")   return { inAnim: "fFadeIn",   outAnim: "fFadeOut" };
+    if (val === "zoom")   return { inAnim: "fZoomIn",   outAnim: "fZoomOut" };
+    if (val === "bounce") return { inAnim: "fBounceIn", outAnim: "fBounceOut" };
+
+    // fallback to your existing default
+    return { inAnim: "fIn", outAnim: "fOut" };
   }
 
   /* ========== positions ========== */
@@ -52,6 +104,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   function renderFlash(cfg, mode, onDone) {
     const mt = mobileTokens(cfg.mobileSize);
     const visibleMs = Math.max(1, +cfg.visibleSeconds) * 1000;
+    const { inAnim, outAnim } = getAnimPair(cfg, mode); // <-- animation applied
 
     const wrap = document.createElement("div");
     wrap.className = "fomo-flash";
@@ -62,7 +115,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       background:${cfg.bgColor || "#111"}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.15);
       font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
-      animation:fIn .28s ease-out both;
+      animation:${inAnim} .28s ease-out both;
     `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
 
@@ -145,17 +198,21 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.addEventListener("click", e => { if (e.target === close) return; if (cfg.productUrl) window.location.href = cfg.productUrl; });
 
     let tid = setTimeout(autoClose, visibleMs);
-    function autoClose() { wrap.style.animation = "fOut .22s ease-in forwards"; setTimeout(() => { wrap.remove(); onDone && onDone("auto"); }, 220); }
+    function autoClose() { 
+      wrap.style.animation = `${outAnim} .22s ease-in forwards`; 
+      setTimeout(() => { wrap.remove(); onDone && onDone("auto"); }, 220); 
+    }
     close.onclick = (e) => { e.stopPropagation(); clearTimeout(tid); autoClose(); onDone && onDone("closed"); };
 
     document.body.appendChild(wrap);
     return wrap;
   }
 
-  /* ========== RECENT renderer (unchanged) ========== */
+  /* ========== RECENT renderer (unchanged UI) ========== */
   function renderRecent(cfg, mode, onDone) {
     const mt = mobileTokens(cfg.mobileSize);
     const visibleMs = Math.max(1, +cfg.visibleSeconds) * 1000;
+    const { inAnim, outAnim } = getAnimPair(cfg, mode); // <-- animation applied
 
     const wrap = document.createElement("div");
     wrap.style.cssText = `
@@ -165,7 +222,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       background:${cfg.bgColor || "#8cf5f0"}; color:${cfg.fontColor || "#111"};
       box-shadow:0 10px 30px rgba(0,0,0,.15);
       font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
-      animation:fIn .28s ease-out both;
+      animation:${inAnim} .28s ease-out both;
     `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
 
@@ -224,7 +281,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     wrap.addEventListener("click", e => { if (e.target === close) return; if (cfg.productUrl) window.location.href = cfg.productUrl; });
     let tid = setTimeout(autoClose, visibleMs);
-    function autoClose() { wrap.style.animation = "fOut .22s ease-in forwards"; setTimeout(() => { wrap.remove(); onDone && onDone("auto"); }, 220); }
+    function autoClose() { 
+      wrap.style.animation = `${outAnim} .22s ease-in forwards`; 
+      setTimeout(() => { wrap.remove(); onDone && onDone("auto"); }, 220); 
+    }
     close.onclick = (e) => { e.stopPropagation(); clearTimeout(tid); autoClose(); onDone && onDone("closed"); };
 
     document.body.appendChild(wrap);
@@ -408,3 +468,4 @@ document.addEventListener("DOMContentLoaded", async function () {
     console.error("[FOMO] build error:", err);
   }
 });
+
