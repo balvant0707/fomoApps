@@ -6,7 +6,9 @@ import {
   useNavigation,
   useSubmit,
   useNavigate,
-  useLocation,           // 👈 NEW
+  useLocation,
+  useFetcher,
+  useRevalidator, // 👈 NEW
 } from "@remix-run/react";
 import {
   Page,
@@ -14,7 +16,6 @@ import {
   IndexTable,
   Text,
   Button,
-  Badge,
   Modal,
   TextField,
   Select,
@@ -23,24 +24,27 @@ import {
   ButtonGroup,
   Spinner,
   Pagination,
-  Frame,                 // 👈 NEW
-  Toast,                 // 👈 NEW
+  Frame,
+  Toast,
 } from "@shopify/polaris";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { prisma } from "../db.server";
 import { authenticate } from "../shopify.server";
 
 // -------------------- Titles Mapping --------------------
 const TITLES = {
   recent: "Recent Purchases",
-  visitors: "Live Visitor Count",
-  stock: "Low Stock Alerts",
-  reviews: "Product Reviews",
-  cart: "Cart Activity",
   flash: "Flash Sale Bars",
-  announcement: "Announcements",
-  geo: "Geo Messaging",
 };
+
+const pageOptions = [
+  { label: "All Pages", value: "allpage" },
+  { label: "Home Page", value: "home" },
+  { label: "Product Page", value: "product" },
+  { label: "Collection Page", value: "collection" },
+  { label: "Pages", value: "pages" },
+  { label: "Cart Page", value: "cart" },
+];
 
 const getAdminQS = () => {
   try {
@@ -60,6 +64,12 @@ function pretty(str) {
     .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
+// Helper to display showType label safely
+function showTypeLabel(val) {
+  const found = pageOptions.find((o) => o.value === val);
+  return found?.label || pretty(val);
+}
+
 // -------------------- Loader --------------------
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
@@ -75,7 +85,7 @@ export async function loader({ request }) {
   const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
   const pageSize = [10, 25, 50].includes(pageSizeRaw) ? pageSizeRaw : 10;
 
-  const where = { shop }; // 👈 scope by shop
+  const where = { shop };
   if (type !== "all") where.key = type;
   if (status === "enabled") where.enabled = true;
   if (status === "disabled") where.enabled = false;
@@ -118,17 +128,21 @@ export async function action({ request }) {
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
   const url = new URL(request.url);
-  const search = url.search;
-
+  const search = new URLSearchParams(url.search);
   const form = await request.formData();
   const _action = form.get("_action");
+
+  // Detect fetcher (no navigation) requests
+  const isFetch = request.headers.get("X-Remix-Request") === "yes";
 
   if (_action === "delete") {
     const id = Number(form.get("id"));
     if (id) {
-      await prisma.notificationConfig.deleteMany({ where: { id, shop } }); // 👈 shop-scoped
+      await prisma.notificationConfig.deleteMany({ where: { id, shop } });
     }
-    return redirect(`/app/dashboard${search}`);
+    if (isFetch) return json({ ok: true });
+    search.set("deleted", "1");
+    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
   if (_action === "update") {
@@ -140,11 +154,13 @@ export async function action({ request }) {
 
     if (id) {
       await prisma.notificationConfig.updateMany({
-        where: { id, shop }, // 👈 shop-scoped
+        where: { id, shop },
         data: { messageTitle, messageText, showType, enabled },
       });
     }
-    return redirect(`/app/dashboard${search}`);
+    if (isFetch) return json({ ok: true, saved: true });
+    search.set("saved", "1");
+    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
   if (_action === "toggle-enabled") {
@@ -152,11 +168,12 @@ export async function action({ request }) {
     const enabled = form.get("enabled") === "on";
     if (id) {
       await prisma.notificationConfig.updateMany({
-        where: { id, shop }, // 👈 shop-scoped
+        where: { id, shop },
         data: { enabled },
       });
     }
-    return redirect(`/app/dashboard${search}`);
+    if (isFetch) return json({ ok: true });
+    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
   return null;
@@ -168,23 +185,47 @@ export default function NotificationList() {
   const navigation = useNavigation();
   const submit = useSubmit();
   const navigate = useNavigate();
-  const location = useLocation();               // 👈 NEW
+  const location = useLocation();
+  const delFetcher = useFetcher();
+  const { revalidate } = useRevalidator(); // 👈 NEW
 
   const isBusy = navigation.state !== "idle";
 
-  // ✅ Toast: show when redirected with ?saved=1
+  // ===== Toast: saved (from redirects) =====
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; }
     catch { return false; }
   });
   useEffect(() => {
     if (showSaved) {
-      // clean the flag from URL after showing toast
       const sp = new URLSearchParams(location.search);
       sp.delete("saved");
       navigate(`${location.pathname}?${sp.toString()}`, { replace: true });
     }
   }, [showSaved, location.pathname, location.search, navigate]);
+
+  // ===== Toast: deleted (redirect flag OR fetcher success) =====
+  const [showDeleted, setShowDeleted] = useState(() => {
+    try { return new URLSearchParams(location.search).get("deleted") === "1"; }
+    catch { return false; }
+  });
+  useEffect(() => {
+    if (showDeleted) {
+      const sp = new URLSearchParams(location.search);
+      sp.delete("deleted");
+      navigate(`${location.pathname}?${sp.toString()}`, { replace: true });
+    }
+  }, [showDeleted, location.pathname, location.search, navigate]);
+
+  // ===== Optimistic hidden rows =====
+  const [deletedIds, setDeletedIds] = useState(new Set());
+
+  // After fetcher delete completes, force revalidate loader
+  useEffect(() => {
+    if (delFetcher.state === "idle" && delFetcher.data?.ok) {
+      revalidate(); // pull fresh rows from server
+    }
+  }, [delFetcher.state, delFetcher.data, revalidate]);
 
   // Delete confirm state
   const [delRow, setDelRow] = useState(null);
@@ -192,11 +233,23 @@ export default function NotificationList() {
   const closeDelete = useCallback(() => setDelRow(null), []);
   const confirmDelete = useCallback(() => {
     if (!delRow) return;
+    const id = delRow.id;
+
+    // 1) Close modal
+    setDelRow(null);
+    // 2) Optimistic toast + hide
+    setShowDeleted(true);
+    setDeletedIds((prev) => {
+      const n = new Set(prev);
+      n.add(id);
+      return n;
+    });
+    // 3) Submit via fetcher (no navigation)
     const fd = new FormData();
     fd.set("_action", "delete");
-    fd.set("id", String(delRow.id));
-    submit(fd, { method: "post" });
-  }, [delRow, submit]);
+    fd.set("id", String(id));
+    delFetcher.submit(fd, { method: "post" });
+  }, [delRow, delFetcher]);
 
   // ----- styles -----
   const styles = `
@@ -236,7 +289,6 @@ export default function NotificationList() {
   useEffect(() => setQuery(initialQ), [initialQ]);
 
   // paging
-  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
   const baseIndex = (page - 1) * pageSize;
 
   // helper submit preserving params
@@ -260,6 +312,9 @@ export default function NotificationList() {
     } catch {}
     return String(val).replace(/,\s*/g, ",\n");
   };
+
+  // visible rows (optimistic hide)
+  const visibleRows = rows.filter((r) => !deletedIds.has(r.id));
 
   return (
     <Frame>
@@ -351,19 +406,19 @@ export default function NotificationList() {
             <IndexTable
               selectable={false}
               resourceName={{ singular: "config", plural: "configs" }}
-              itemCount={rows.length}
+              itemCount={visibleRows.length}
               headings={[
-                { title: "#" },
-                { title: "Message Title" },
-                { title: "Message Text" },
-                { title: "Notification Type" },
-                { title: "Show Type" },
-                { title: "Enabled" },
+                { title: "No" },
+                { title: "Popup Title" },
+                { title: "Notification Message" },
+                { title: "Popup Type" },
+                { title: "Show On Pages" },
+                { title: "Status" },
                 { title: "Actions" },
               ]}
               stickyHeader
             >
-              {rows.map((row, index) => {
+              {visibleRows.map((row, index) => {
                 const titleDisplay = formatLines(row.messageTitlesJson);
                 const textDisplay =
                   row.key === "flash"
@@ -389,7 +444,7 @@ export default function NotificationList() {
                       {TITLES[row.key] || pretty(row.key)}
                     </IndexTable.Cell>
 
-                    <IndexTable.Cell>{row.showType}</IndexTable.Cell>
+                    <IndexTable.Cell>{showTypeLabel(row.showType)}</IndexTable.Cell>
 
                     <IndexTable.Cell>
                       <Form method="post">
@@ -410,7 +465,6 @@ export default function NotificationList() {
 
                     <IndexTable.Cell>
                       <InlineStack align="start" gap="200">
-                        {/* 👇 key-wise edit URL */}
                         <Button onClick={() => navigate(appendQS(`/app/notification/${row.key}/edit/${row.id}`))}>
                           Edit
                         </Button>
@@ -430,7 +484,9 @@ export default function NotificationList() {
         <Card>
           <InlineStack align="space-between" blockAlign="center" padding="400">
             <Text as="span" tone="subdued">
-              {total === 0 ? "No results" : `Showing ${total === 0 ? 0 : baseIndex + 1}–${baseIndex + rows.length} of ${total}`}
+              {total === 0
+                ? "No results"
+                : `Showing ${total === 0 ? 0 : baseIndex + 1}–${baseIndex + visibleRows.length} of ${total}`}
             </Text>
 
             <InlineStack gap="200" align="center">
@@ -453,7 +509,7 @@ export default function NotificationList() {
             content: "Yes, delete",
             destructive: true,
             onAction: confirmDelete,
-            disabled: isBusy,
+            disabled: isBusy || delFetcher.state !== "idle",
           }}
           secondaryActions={[{ content: "No", onAction: closeDelete, disabled: isBusy }]}
         >
@@ -471,9 +527,12 @@ export default function NotificationList() {
         </Modal>
       </Page>
 
-      {/* ✅ Toast */}
+      {/* ✅ Toasts */}
       {showSaved && (
         <Toast content="Saved successfully" duration={2200} onDismiss={() => setShowSaved(false)} />
+      )}
+      {showDeleted && (
+        <Toast content="Deleted successfully" duration={2200} onDismiss={() => setShowDeleted(false)} />
       )}
     </Frame>
   );

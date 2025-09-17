@@ -45,10 +45,10 @@ export async function action({ request }) {
   const iconSvg = iconKey && SVGS[iconKey] ? SVGS[iconKey] : null;
 
   // Arrays from client
-  const titleArr   = Array.isArray(form.messageTitlesJson) ? form.messageTitlesJson : [];
-  const locationArr= Array.isArray(form.locationsJson)     ? form.locationsJson     : [];
-  const namesArr   = Array.isArray(form.namesJson)         ? form.namesJson         : [];
-  const mobilePosArr = Array.isArray(form.mobilePosition)  ? form.mobilePosition    : [];
+  const titleArr = Array.isArray(form.messageTitlesJson) ? form.messageTitlesJson : [];
+  const locationArr = Array.isArray(form.locationsJson) ? form.locationsJson : [];
+  const namesArr = Array.isArray(form.namesJson) ? form.namesJson : [];
+  const mobilePosArr = Array.isArray(form.mobilePosition) ? form.mobilePosition : [];
 
   const selProdJson =
     Array.isArray(form.selectedProductsJson) && form.selectedProductsJson.length
@@ -63,8 +63,8 @@ export async function action({ request }) {
 
     // JSON strings for DB
     messageTitlesJson: JSON.stringify(titleArr),
-    locationsJson:     JSON.stringify(locationArr),
-    namesJson:         JSON.stringify(namesArr),
+    locationsJson: JSON.stringify(locationArr),
+    namesJson: JSON.stringify(namesArr),
     selectedProductsJson: selProdJson,
     mobilePositionJson: JSON.stringify(mobilePosArr),
 
@@ -131,7 +131,6 @@ const SVGS = {
   <g>
     <path class="fil0" d="M3.41333 0c1.88514,0 3.41333,1.52819 3.41333,3.41333 0,1.88514 -1.52819,3.41333 -3.41333,3.41333 -1.88514,0 -3.41333,-1.52819 -3.41333,-3.41333 0,-1.88514 1.52819,-3.41333 3.41333,-3.41333z"/>
     <g style={{clipPath:"url(#id0)"}}>
-      <!-- trimmed polys -->
       <polygon class="fil3" points="2.82094,3.56298 2.48625,3.56343 2.41006,3.56353 2.40948,3.48696 2.3952,1.62404 2.39461,1.54667 2.47197,1.54667 4.05295,1.54667 4.18926,1.54667 4.11889,1.66348 3.58319,2.55274 "/>
       <polygon class="fil4" points="2.8313,3.56296 2.82158,3.56298 2.82094,3.56298 3.58319,2.55274 3.57208,2.57117 3.47211,2.73713 4.2933,2.73713 4.43205,2.73713 4.35833,2.85485 2.98014,5.05561 2.83962,5.28 2.83833,5.01526 "/>
     </g>
@@ -156,46 +155,7 @@ const SVGS = {
 		<path class="st1" d="M18,53.5c-0.276,0-0.5-0.224-0.5-0.5v-8.511c0-3.609,1.818-6.921,4.863-8.858L28.069,32l-5.706-3.631    c-3.045-1.938-4.863-5.249-4.863-8.858V11c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v8.511c0,3.266,1.645,6.262,4.4,8.015    l6.369,4.053C29.413,31.67,29.5,31.829,29.5,32s-0.087,0.33-0.231,0.422L22.9,36.475c-2.755,1.753-4.4,4.749-4.4,8.015V53    C18.5,53.276,18.276,53.5,18,53.5z"/>
 	</g>
 	<g>
-		<path class="st1" d="M46,53.5c-0.276,0-0.5-0.224-0.5-0.5v-8.511c0-3.265-1.645-6.261-4.399-8.015l-6.369-4.053    C34.587,32.33,34.5,32.171,34.5,32s0.087-0.33,0.231-0.422l6.369-4.053c2.755-1.753,4.399-4.75,4.399-8.015V11    c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v8.511c0,3.609-1.817,6.92-4.862,8.858L35.932,32l5.706,3.631    c3.045,1.938,4.862,5.25,4.862,8.858V53C46.5,53.276,46.276,53.5,46,53.5z"/>
-	</g>
-	<g>
-		<path class="st0" d="M47,5H17c-1.105,0-2,0.895-2,2c0,1.105,0.895,2,2,2h30c1.105,0,2-0.895,2-2C49,5.895,48.105,5,47,5z"/>
-		<path class="st1" d="M47,9.5H17c-1.378,0-2.5-1.122-2.5-2.5s1.122-2.5,2.5-2.5h30c1.379,0,2.5,1.122,2.5,2.5S48.379,9.5,47,9.5z     M17,5.5c-0.827,0-1.5,0.673-1.5,1.5s0.673,1.5,1.5,1.5h30c0.827,0,1.5-0.673,1.5-1.5S47.827,5.5,47,5.5H17z"/>
-	</g>
-	<g>
-		<path class="st0" d="M17,59h30c1.105,0,2-0.895,2-2v0c0-1.105-0.895-2-2-2H17c-1.105,0-2,0.895-2,2v0C15,58.105,15.895,59,17,59z"/>
-		<path class="st1" d="M47,59.5H17c-1.378,0-2.5-1.122-2.5-2.5s1.122-2.5,2.5-2.5h30c1.379,0,2.5,1.122,2.5,2.5S48.379,59.5,47,59.5    z M17,55.5c-0.827,0-1.5,0.673-1.5,1.5s0.673,1.5,1.5,1.5h30c0.827,0,1.5-0.673,1.5-1.5s-0.673-1.5-1.5-1.5H17z"/>
-	</g>
-	<g>
-		<path class="st2" d="M21,53l6.968-9.502c1.998-2.724,6.066-2.724,8.064,0L43,53"/>
-		<path class="st1" d="M43,53.5c-0.153,0-0.306-0.071-0.403-0.204l-6.968-9.502c-0.857-1.169-2.18-1.839-3.629-1.839    s-2.771,0.67-3.628,1.839l-6.968,9.502c-0.164,0.223-0.476,0.271-0.699,0.107c-0.223-0.164-0.271-0.477-0.107-0.699l6.968-9.502    c1.047-1.428,2.664-2.247,4.435-2.247c1.772,0,3.388,0.819,4.436,2.247l6.968,9.502c0.163,0.223,0.115,0.536-0.107,0.699    C43.207,53.469,43.103,53.5,43,53.5z"/>
-	</g>
-	<g>
-		<path class="st1" d="M32,30.388c-0.561,0-1.121-0.156-1.61-0.467l-7.342-4.672c-1.595-1.016-2.547-2.75-2.547-4.64v-1.275    c0-0.276,0.224-0.5,0.5-0.5h22c0.276,0,0.5,0.224,0.5,0.5v1.275c0,1.891-0.952,3.625-2.547,4.64l-7.343,4.672l-0.269-0.422    l0.269,0.422C33.121,30.232,32.561,30.388,32,30.388z M21.5,19.833v0.775c0,1.546,0.779,2.966,2.084,3.796l7.342,4.672    c0.653,0.416,1.495,0.415,2.147,0l7.343-4.672c1.305-0.831,2.084-2.25,2.084-3.796v-0.775H21.5z"/>
-	</g>
-	<g>
-		<path class="st1" d="M56,32.5H46c-0.276,0-0.5-0.224-0.5-0.5s0.224-0.5,0.5-0.5h10c0.276,0,0.5,0.224,0.5,0.5S56.276,32.5,56,32.5    z"/>
-	</g>
-	<g>
-		<path class="st1" d="M59,32.5h-1c-0.276,0-0.5-0.224-0.5-0.5s0.224-0.5,0.5-0.5h1c0.276,0,0.5,0.224,0.5,0.5S59.276,32.5,59,32.5z    "/>
-	</g>
-	<g>
-		<path class="st1" d="M18,32.5H8c-0.276,0-0.5-0.224-0.5-0.5s0.224-0.5,0.5-0.5h10c0.276,0,0.5,0.224,0.5,0.5S18.276,32.5,18,32.5z    "/>
-	</g>
-	<g>
-		<path class="st1" d="M6,32.5H5c-0.276,0-0.5-0.224-0.5-0.5s0.224-0.5,0.5-0.5h1c0.276,0,0.5,0.224,0.5,0.5S6.276,32.5,6,32.5z"/>
-	</g>
-	<g>
-		<path class="st1" d="M59,17.5h-4c-0.276,0-0.5-0.224-0.5-0.5s0.224-0.5,0.5-0.5h4c0.276,0,0.5,0.224,0.5,0.5S59.276,17.5,59,17.5z    "/>
-	</g>
-	<g>
-		<path class="st1" d="M57,19.5c-0.276,0-0.5-0.224-0.5-0.5v-4c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v4    C57.5,19.276,57.276,19.5,57,19.5z"/>
-	</g>
-	<g>
-		<path class="st1" d="M54,24h-4c-0.276,0-0.5-0.224-0.5-0.5S49.724,23,50,23h4c0.276,0,0.5,0.224,0.5,0.5S54.276,24,54,24z"/>
-	</g>
-	<g>
-		<path class="st1" d="M52,26c-0.276,0-0.5-0.224-0.5-0.5v-4c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v4    C52.5,25.776,52.276,26,52,26z"/>
+		<path class="st1" d="M46,53.5c-0.276,0-0.224-0.5-0.5-0.5v-8.511c0-3.265-1.645-6.261-4.399-8.015l-6.369-4.053    C34.587,32.33,34.5,32.171,34.5,32s0.087-0.33,0.231-0.422l6.369-4.053c2.755-1.753,4.399-4.75,4.399-8.015V11    c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v8.511c0,3.609-1.817,6.92-4.862,8.858L35.932,32l5.706,3.631    c3.045,1.938,4.862,5.25,4.862,8.858V53C46.5,53.276,46.276,53.5,46,53.5z"/>
 	</g>
 </g>
 </svg>
@@ -484,17 +444,11 @@ export default function FlashConfigPage() {
   const onDurationChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 1 : Math.min(60, Math.max(1, n)); setForm(f => ({ ...f, durationSeconds: x })); };
   const onAlternateChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 0 : Math.min(3600, Math.max(0, n)); setForm(f => ({ ...f, alternateSeconds: x })); };
 
-  const countsMatch = (titlesList.length === locationsList.length) && (locationsList.length === namesList.length);
-
   const titlesDraft = useTokenDraft(titlesList, setTitlesList);
   const locationsDraft = useTokenDraft(locationsList, setLocationsList);
   const namesDraft = useTokenDraft(namesList, setNamesList);
 
   const save = async () => {
-    if (!countsMatch) {
-      setToast({ active: true, error: true, msg: `Counts must match. Now Banner Title: ${titlesList.length}, Notification Name: ${locationsList.length}, Banner Text: ${namesList.length}.` });
-      return;
-    }
     try {
       setSaving(true);
       const payload = {
@@ -556,7 +510,7 @@ export default function FlashConfigPage() {
       <Page
         title="Configuration – Flash Sale Bars"
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
-        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving || !countsMatch }}
+        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving }}
       >
         <Layout>
           {/* Live Preview */}
@@ -577,18 +531,18 @@ export default function FlashConfigPage() {
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%">
                       <ChoiceList
-                        title="Show Popup"
+                        title="Enable Flash Sale Bar"
                         choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
                         selected={form.enabled}
                         onChange={onField("enabled")}
                         alignment="horizontal"
                       />
                     </Box>
-                    <Box width="50%"><Select label="Show Type" options={pageOptions} value={form.showType} onChange={onField("showType")} /></Box>
+                    <Box width="50%"><Select label="Display On Pages" options={pageOptions} value={form.showType} onChange={onField("showType")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><TextField label="Display notification for" type="number" value={String(form.durationSeconds)} onChange={onDurationChange} suffix="S" min={1} max={60} step={1} autoComplete="off" /></Box>
-                    <Box width="50%"><TextField label="Alternate time" type="number" value={String(form.alternateSeconds)} onChange={onAlternateChange} suffix="S" min={0} max={3600} step={1} autoComplete="off" /></Box>
+                    <Box width="50%"><TextField label="Popup Display Duration (seconds)" type="number" value={String(form.durationSeconds)} onChange={onDurationChange} suffix="S" min={1} max={60} step={1} autoComplete="off" /></Box>
+                    <Box width="50%"><TextField label="Interval Between Sale Bars (seconds)" type="number" value={String(form.alternateSeconds)} onChange={onAlternateChange} suffix="S" min={0} max={3600} step={1} autoComplete="off" /></Box>
                   </InlineStack>
                 </BlockStack>
               </Box>
@@ -604,21 +558,11 @@ export default function FlashConfigPage() {
                     <Text as="h3" variant="headingMd">Message</Text>
                   </InlineStack>
 
-                  {!countsMatch && (
-                    <Box paddingBlockStart="100">
-                      <div role="alert" style={{ border: '1px solid #E0B3B2', background: '#FFF6F6', borderRadius: 8, padding: 12 }}>
-                        <Text tone="critical">
-                          Counts must match. Banner Title: {titlesList.length}, Notification Name: {locationsList.length}, Banner Text: {namesList.length}
-                        </Text>
-                      </div>
-                    </Box>
-                  )}
-
                   {/* Banner Title */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={titlesDraft.onKeyDown}>
                       <TextField
-                        label="Banner Title (add multiple)"
+                        label="Flash Sale Headline / Banner Title (add multiple)"
                         value={titlesDraft.draft}
                         onChange={titlesDraft.onInputChange}
                         autoComplete="off"
@@ -635,7 +579,7 @@ export default function FlashConfigPage() {
                   <BlockStack gap="150">
                     <div onKeyDownCapture={locationsDraft.onKeyDown}>
                       <TextField
-                        label="Notification Name (add multiple)"
+                        label="Offer Title / Discount Name (add multiple)"
                         value={locationsDraft.draft}
                         onChange={locationsDraft.onInputChange}
                         autoComplete="off"
@@ -652,7 +596,7 @@ export default function FlashConfigPage() {
                   <BlockStack gap="150">
                     <div onKeyDownCapture={namesDraft.onKeyDown}>
                       <TextField
-                        label="Banner Text (add multiple)"
+                        label="Countdown Text / Urgency Message (add multiple)"
                         value={namesDraft.draft}
                         onChange={namesDraft.onInputChange}
                         autoComplete="off"
@@ -676,18 +620,18 @@ export default function FlashConfigPage() {
                 <BlockStack gap="400">
                   <Text as="h3" variant="headingMd">Customize</Text>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
-                    <Box width="50%"><Select label="Font Weight" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
+                    <Box width="50%"><Select label="Flash Bar Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
+                    <Box width="50%"><Select label="Text Weight / Style" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><Select label="Notification position" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Notification animation" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
+                    <Box width="50%"><Select label="Bar Position on Desktop" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
+                    <Box width="50%"><Select label="Popup Animation Style" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><Select label="Notification size on mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
+                    <Box width="50%"><Select label="Mobile Bar Size" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
                     <Box width="50%">
                       <Select
-                        label="Mobile Position"
+                        label="Bar Position on Mobile"
                         options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
                         value={(form.mobilePosition && form.mobilePosition[0]) || "top"}
                         onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
@@ -697,10 +641,10 @@ export default function FlashConfigPage() {
 
                   {/* Icon + Font size */}
                   <InlineStack gap="400" wrap={false} width="100%" alignItems="center">
-                    <Box width="50%"><Select label="Choose Icon" options={svgOptions} value={form.iconKey} onChange={onField("iconKey")} /></Box>
+                    <Box width="50%"><Select label="Flash Sale Icon" options={svgOptions} value={form.iconKey} onChange={onField("iconKey")} /></Box>
                     <Box width="50%">
                       <BlockStack gap="150">
-                        <Text>Font Size (px)</Text>
+                        <Text>Text Size (px)</Text>
                         <TextField
                           label=" "
                           labelHidden
@@ -723,30 +667,19 @@ export default function FlashConfigPage() {
 
                   {/* Colors */}
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><ColorInput label="Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
-                    <Box width="50%"><ColorInput label="Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Banner Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Bar Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><ColorInput label="Message Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Offer Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
                   </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
           </Layout.Section>
 
-          {/* Footer */}
-          <Layout.Section oneHalf>
-            <Card>
-              <Box padding="4">
-                <BlockStack gap="400">
-                  <InlineStack gap="200">
-                    <Button onClick={() => navigate("/app/notification")}>Cancel</Button>
-                    <Button primary onClick={save} loading={saving} disabled={saving || !countsMatch}>Save</Button>
-                  </InlineStack>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
+          {/* Footer (kept hidden as in original) */}
+          <Layout.Section oneHalf>{/* ... */}</Layout.Section>
         </Layout>
       </Page>
 

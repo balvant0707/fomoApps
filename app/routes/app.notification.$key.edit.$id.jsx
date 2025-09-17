@@ -740,7 +740,7 @@ export default function NotificationEditGeneric() {
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ChoiceList
-                        title="Show Popup"
+                        title="Enable Sales Notification Popup"
                         choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
                         selected={form.enabled}
                         onChange={onField("enabled")}
@@ -748,13 +748,13 @@ export default function NotificationEditGeneric() {
                       />
                     </Box>
                     <Box width="50%">
-                      <Select label="Show Type" options={PAGES} value={form.showType} onChange={onField("showType")} />
+                      <Select label="Display On Pages" options={PAGES} value={form.showType} onChange={onField("showType")} />
                     </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
-                        label="Display notification for"
+                        label="Popup Display Duration (seconds)"
                         type="number"
                         value={String(form.durationSeconds)}
                         onChange={onNum("durationSeconds", 1, 60)}
@@ -763,7 +763,7 @@ export default function NotificationEditGeneric() {
                     </Box>
                     <Box width="50%">
                       <TextField
-                        label="Alternate time"
+                        label="Interval Between Popups (seconds)"
                         type="number"
                         value={String(form.alternateSeconds)}
                         onChange={onNum("alternateSeconds", 0, 3600)}
@@ -799,7 +799,7 @@ export default function NotificationEditGeneric() {
                   {/* Names */}
                   <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); titlesInput.commitDraft(); } }}>
                     <TextField
-                      label={isFlash ? "Banner Title (add multiple)" : "Customer Name (add multiple)"}
+                      label={isFlash ? "Flash Sale Headline / Banner Title (add multiple)" : "Buyer Name / Shopper Identity (add multiple)"}
                       value={titlesInput.draft}
                       onChange={titlesInput.onChange}
                       onBlur={titlesInput.commitDraft}
@@ -816,7 +816,7 @@ export default function NotificationEditGeneric() {
                   {/* Body */}
                   {!isFlash && (
                     <TextField
-                      label="Message Body"
+                      label="Purchase Message / Action Text"
                       value={form.messageText}
                       onChange={onField("messageText")}
                       multiline={1}
@@ -826,7 +826,7 @@ export default function NotificationEditGeneric() {
                   {/* Locations */}
                   <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); locationsInput.commitDraft(); } }}>
                     <TextField
-                      label={isFlash ? "Notification Name (multiple)" : "Location (add multiple)"}
+                      label={isFlash ? "Offer Title / Discount Name (add multiple)" : "Customer Location / City (add multiple)"}
                       value={locationsInput.draft}
                       onChange={locationsInput.onChange}
                       onBlur={locationsInput.commitDraft}
@@ -843,7 +843,7 @@ export default function NotificationEditGeneric() {
                   {/* Times */}
                   <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); namesInput.commitDraft(); } }}>
                     <TextField
-                      label={isFlash ? "Banner Text (multiple)" : "Times (add multiple)"}
+                      label={isFlash ? "Countdown Text / Urgency Message (add multiple)" : "Purchase Time / Activity Timestamp (add multiple)"}
                       value={namesInput.draft}
                       onChange={namesInput.onChange}
                       onBlur={namesInput.commitDraft}
@@ -867,7 +867,7 @@ export default function NotificationEditGeneric() {
               <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
-                    <Text as="h3" variant="headingMd">Products</Text>
+                    <Text as="h3" variant="headingMd">Select Product(s) for Notification</Text>
                     {!(selectedHandles.length) && <Text tone="critical">Please select at least one product.</Text>}
                     <InlineStack gap="200">
                       <Button onClick={() => { setPickerOpen(true); setPage(1); fetcher.load(`/app/products-picker?page=1`); }}>
@@ -899,14 +899,14 @@ export default function NotificationEditGeneric() {
                 <BlockStack gap="400">
                   <Text as="h3" variant="headingMd">Customize</Text>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Font Family" options={[
+                    <Box width="50%"><Select label="Popup Font Family" options={[
                       { label: "System", value: "System" },
                       { label: "Inter", value: "Inter" },
                       { label: "Roboto", value: "Roboto" },
                       { label: "Montserrat", value: "Montserrat" },
                       { label: "Poppins", value: "Poppins" },
                     ]} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
-                    <Box width="50%"><Select label="Font weight" options={[
+                    <Box width="50%"><Select label="Popup Font Weight / Style" options={[
                       { label: "100 - Thin", value: "100" }, { label: "200 - Extra Light", value: "200" },
                       { label: "300 - Light", value: "300" }, { label: "400 - Normal", value: "400" },
                       { label: "500 - Medium", value: "500" }, { label: "600 - Semi Bold", value: "600" },
@@ -914,13 +914,13 @@ export default function NotificationEditGeneric() {
                     ]} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Desktop position" options={[
+                    <Box width="50%"><Select label="Desktop Popup Position" options={[
                       { label: "Top Left", value: "top-left" },
                       { label: "Top Right", value: "top-right" },
                       { label: "Bottom Left", value: "bottom-left" },
                       { label: "Bottom Right", value: "bottom-right" },
                     ]} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Notification animation" options={[
+                    <Box width="50%"><Select label="Notification Animation Style" options={[
                       { label: "Fade", value: "fade" },
                       { label: "Slide", value: "slide" },
                       { label: "Bounce", value: "bounce" },
@@ -928,14 +928,14 @@ export default function NotificationEditGeneric() {
                     ]} value={form.animation} onChange={onField("animation")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Notification size on mobile" options={[
+                    <Box width="50%"><Select label="Mobile Popup Size" options={[
                       { label: "Compact", value: "compact" },
                       { label: "Comfortable", value: "comfortable" },
                       { label: "Large", value: "large" },
                     ]} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
                     <Box width="50%">
                       <Select
-                        label="Mobile Position"
+                        label="Mobile Popup Position"
                         options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
                         value={(form.mobilePosition && form.mobilePosition[0]) || "bottom"}
                         onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
@@ -946,17 +946,17 @@ export default function NotificationEditGeneric() {
                   {/* Size + colors */}
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%"><TextField type="number" label="Font Size (px)" value={String(form.rounded)} onChange={onField("rounded")} autoComplete="off" /></Box>
-                    <Box width="50%"><ColorInput label="Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Headline Text Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><ColorInput label="Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
-                    <Box width="50%"><ColorInput label="Message Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Popup Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Message Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
                   </InlineStack>
 
                   {/* Icon (flash only) */}
                   {isFlash && (
                     <InlineStack gap="400" wrap={false}>
-                      <Box width="50%"><Select label="Icon" options={SVG_OPTIONS} value={form.iconKey} onChange={onField("iconKey")} /></Box>
+                      <Box width="50%"><Select label="Notification Icon" options={SVG_OPTIONS} value={form.iconKey} onChange={onField("iconKey")} /></Box>
                     </InlineStack>
                   )}
                 </BlockStack>

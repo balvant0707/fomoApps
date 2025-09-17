@@ -56,27 +56,7 @@ export async function action({ request }) {
     ? form.selectedProducts.map((s) => String(s).trim()).filter(Boolean)
     : [];
 
-  // Counts must be >0 and ALL equal
-  const nTitles = titles.length;
-  const nLocs = locations.length;
-  const nNames = names.length;
-  const nProds = productHandles.length;
-
-  if (!nTitles || !nLocs || !nNames || !nProds) {
-    return json(
-      { success: false, error: "Please add at least 1 Title, 1 Location, 1 Name and select 1 Product." },
-      { status: 400 }
-    );
-  }
-  if (!(nTitles === nLocs && nLocs === nNames && nNames === nProds)) {
-    return json(
-      {
-        success: false,
-        error: `Counts must match (e.g., 4/4/4/4). You have ${nTitles} title(s), ${nLocs} location(s), ${nNames} name(s), ${nProds} product(s).`,
-      },
-      { status: 400 }
-    );
-  }
+  // ❌ Removed counts validation completely
 
   // mobilePositionJson column is String? → store a simple string/JSON string
   const mobilePositionJson = Array.isArray(form.mobilePosition)
@@ -160,10 +140,10 @@ function hsvToRgb({ hue: h, saturation: s, brightness: v }) {
   else if (60 <= h && h < 120) [R, G, B] = [x, c, 0];
   else if (120 <= h && h < 180) [R, G, B] = [0, c, x];
   else if (180 <= h && h < 240) [R, G, B] = [0, x, c];
-  else[R, G, B] = [x, 0, c];
+  else [R, G, B] = [x, 0, c];
   return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) };
 }
-const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16)).map(s=>s.padStart(2,"0")).join("")}`.toUpperCase();
 const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
 const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
@@ -598,21 +578,8 @@ export default function RecentConfigPage() {
   const locationsInput = useTokenInput("locations", form, setForm);
   const namesInput = useTokenInput("names", form, setForm);
 
-  // client-side strict counts validation
-  const validateCounts = () => {
-    const nTitles = (form.messageTitles || []).length;
-    const nLocs = (form.locations || []).length;
-    const nNames = (form.names || []).length;
-    const nProds = (form.selectedProducts || []).length; // HANDLES count
-
-    if (!nTitles || !nLocs || !nNames || !nProds) {
-      return "Please add at least 1 Title, 1 Location, 1 Name and select 1 Product.";
-    }
-    if (!(nTitles === nLocs && nLocs === nNames && nNames === nProds)) {
-      return `Counts must match (e.g., 4/4/4/4). You currently have ${nTitles} title(s), ${nLocs} location(s), ${nNames} name(s) and ${nProds} product(s).`;
-    }
-    return "";
-  };
+  // ❌ client-side strict counts validation removed (no-op)
+  const validateCounts = () => "";
 
   // SAVE
   const save = async () => {
@@ -690,7 +657,7 @@ export default function RecentConfigPage() {
     { label: "Comfortable", value: "comfortable" },
     { label: "Large", value: "large" },
   ];
-    const mobilePosition = [
+  const mobilePosition = [
     { label: "Top", value: "top" },
     { label: "Bottom", value: "bottom" },
   ];
@@ -703,7 +670,6 @@ export default function RecentConfigPage() {
     { label: "600 - Semi Bold", value: "600" },
     { label: "700 - Bold", value: "700" },
   ];
-
 
   return (
     <Frame>
@@ -740,7 +706,7 @@ export default function RecentConfigPage() {
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ChoiceList
-                        title="Show Popup"
+                        title="Enable Sales Notification Popup"
                         choices={[
                           { label: "Enabled", value: "enabled" },
                           { label: "Disabled", value: "disabled" },
@@ -751,13 +717,13 @@ export default function RecentConfigPage() {
                       />
                     </Box>
                     <Box width="50%">
-                      <Select label="Show Type" options={pageOptions} value={form.showType} onChange={onField("showType")} />
+                      <Select label="Display On Pages" options={pageOptions} value={form.showType} onChange={onField("showType")} />
                     </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
-                        label="Display notification for"
+                        label="Popup Display Duration (seconds)"
                         type="number"
                         value={String(form.durationSeconds)}
                         onChange={onDurationChange}
@@ -770,7 +736,7 @@ export default function RecentConfigPage() {
                     </Box>
                     <Box width="50%">
                       <TextField
-                        label="Alternate time"
+                        label="Interval Between Popups (seconds)"
                         type="number"
                         value={String(form.alternateSeconds)}
                         onChange={onAlternateChange}
@@ -813,12 +779,12 @@ export default function RecentConfigPage() {
                       }}
                     >
                       <TextField
-                        label="Customer Name (add multiple)"
+                        label="Buyer Name / Shopper Identity (add multiple)"
                         value={titlesInput.draft}
                         onChange={titlesInput.onChange}
                         onBlur={titlesInput.commitDraft}
                         autoComplete="off"
-                        placeholder="Write like: Name1, Name2,Name3 ... then press Enter to add"
+                        placeholder="Write like:Buyer Name1,Buyer Name2,Buyer Name3 ... then press Enter to add"
                       />
                     </div>
                     <InlineStack gap="150" wrap>
@@ -830,7 +796,7 @@ export default function RecentConfigPage() {
 
                   {/* Body */}
                   <TextField
-                    label="Message Body"
+                    label="Purchase Message / Action Text"
                     value={form.messageText}
                     onChange={onText("messageText")}
                     multiline={1}
@@ -848,7 +814,7 @@ export default function RecentConfigPage() {
                       }}
                     >
                       <TextField
-                        label="Location (add multiple)"
+                        label="Customer Location / City (add multiple)"
                         value={locationsInput.draft}
                         onChange={locationsInput.onChange}
                         onBlur={locationsInput.commitDraft}
@@ -874,7 +840,7 @@ export default function RecentConfigPage() {
                       }}
                     >
                       <TextField
-                        label="Times (add multiple)"
+                        label="Purchase Time / Activity Timestamp (add multiple)"
                         value={namesInput.draft}
                         onChange={namesInput.onChange}
                         onBlur={namesInput.commitDraft}
@@ -898,7 +864,7 @@ export default function RecentConfigPage() {
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingMd">Products</Text>
+                  <Text as="h3" variant="headingMd">Select Product(s) for Notification</Text>
                   {!hasProduct && (<Text tone="critical">Please select at least one product.</Text>)}
 
                   <InlineStack gap="200">
@@ -935,31 +901,31 @@ export default function RecentConfigPage() {
                 <BlockStack gap="400">
                   <Text as="h3" variant="headingMd">Customize</Text>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
-                    <Box width="50%"><Select label="Font weight" options={weightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
+                    <Box width="50%"><Select label="Notification Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
+                    <Box width="50%"><Select label="Font Weight / Style" options={weightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Desktop position" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Notification animation" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
+                    <Box width="50%"><Select label="Popup Position on Desktop" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
+                    <Box width="50%"><Select label="Popup Animation Style" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Notification size on mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
-                    <Box width="50%"><Select label="Mobile Position" options={mobilePosition} value={form.mobilePosition} onChange={onField("mobilePosition")} /></Box>
+                    <Box width="50%"><Select label="Compact / Full Size on Mobile" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
+                    <Box width="50%"><Select label="Popup Position on Mobile" options={mobilePosition} value={form.mobilePosition} onChange={onField("mobilePosition")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
-                      <TextField type="number" label="Font Size (px) (Name & Location Only)" value={form.rounded} onChange={onText("rounded")} autoComplete="off" />
+                      <TextField type="number" label="Font Size for Name & Location" value={form.rounded} onChange={onText("rounded")} autoComplete="off" />
                     </Box>
                     <Box width="50%">
-                      <ColorInput label="Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} />
+                      <ColorInput label="Name / Location Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} />
                     </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
-                      <ColorInput label="Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} />
+                      <ColorInput label="Popup Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} />
                     </Box>
                     <Box width="50%">
-                      <ColorInput label="Message Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} />
+                      <ColorInput label="Message Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} />
                     </Box>
                   </InlineStack>
                 </BlockStack>
