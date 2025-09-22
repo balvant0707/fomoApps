@@ -4,7 +4,7 @@ import {
   Page, Card, Button, TextField, Select, ChoiceList, Box,
   BlockStack, InlineStack, Text, Frame, Loading, Layout,
   Modal, IndexTable, Thumbnail, Badge, Pagination, Divider, Icon,
-  Tag, Popover, ColorPicker, ButtonGroup, Toast
+  Tag, Popover, ColorPicker, ButtonGroup, Toast, DropZone
 } from "@shopify/polaris";
 import { SearchIcon } from "@shopify/polaris-icons";
 import {
@@ -91,7 +91,7 @@ const SVGS = {
 	<g><path class="st0" d="M47,5H17c-1.105,0-2,0.895-2,2c0,1.105,0.895,2,2,2h30c1.105,0,2-0.895,2-2C49,5.895,48.105,5,47,5z"/></g>
 	<g><path class="st0" d="M17,59h30c1.105,0,2-0.895,2-2v0c0-1.105-0.895-2-2-2H17c-1.105,0-2,0.895-2,2v0C15,58.105,15.895,59,17,59z"/></g>
 	<g><path class="st2" d="M21,53l6.968-9.502c1.998-2.724,6.066-2.724,8.064,0L43,53"/></g>
-	<g><path class="st1" d="M32,30.388c-0.561,0-1.121-0.156-1.61-0.467l-7.342-4.672c-1.595-1.016-2.547-2.75-2.547-4.64v-1.275c0-0.276,0.224-0.5,0.5-0.5h22c0.276,0,0.5,0.224,0.5,0.5v1.275c0,1.891-0.952,3.625-2.547,4.64l-7.343,4.672l-0.269-0.422l0.269,0.422C33.121,30.232,32.561,30.388,32,30.388z"/></g>
+	<g><path class="st1" d="M32,30.388c-0.561,0-1.121-0.156-1.61-0.467l-7.342-4.672c-1.595-1.016-2.547-2.75-2.547-4.64v-1.275c0-0.276,0.224-0.5,0.5-0.5h22c0.276,0,0.5,0.224,0.5,0.5v1.275c0,1.891-0.952,3.625-2.547,4.64લ-7.343 4.672"/></g>
 </g>
 </svg>
 `,
@@ -106,8 +106,8 @@ const SVGS = {
  </defs>
  <g>
   <rect class="fil0" width="6.82666" height="6.82666"/>
-  <path class="fil1" d="M2.2782 3.43181l0.477831 -0.000645669 0.10574 -0.000145669 0.000511811 0.10598 0.00847638 1.74953 1.61087 -2.5723 -1.13312 0 -0.188642 0 0.0973898 -0.161669 0.895118 -1.48589 -1.8923 0 0.018126 2.36515zm0.372091 0.212l-0.477531 0.000645669 -0.105437 0.000141732 -0.000814961 -0.105976 -0.0197559 -2.57821 -0.000818898 -0.107087 0.107071 0 2.18801 0 0.188642 3.93701e-006 -0.0973898 0.161665 -0.895118 1.48589 1.1365 0 0.192024 0 -0.102024 0.162921 -1.90737 3.04577 -0.194476 0.310547 -0.00177559 -0.366382 -0.00974016 -2.00993z"/>
-  <path class="fil2" d="M3.39739 1.49333l-0.151972 0 -0.555811 0 0.00803937 1.04871 0 0.525819 -0.011252 0.0186772 -0.194606 0.323055 -0.00289764 -0.377638 -0.0126063 -1.64488 -0.000818898 -0.107087 0.107071 0 1.0035 0 0.188642 0 -0.0973898 0.161669 -0.031126 0.0516693 -0.248768 0zm-0.110917 1.61484l7.87402e-006 0.000326772 -7.87402e-006 -0.000448819 0 0.000122047zm-0.212488 0.00449213l-7.87402e-006 0 -0.00173228 -0.0763622 -0.00246457 -0.108752 0.108717 0 0.725177 0 0.192024 0 -0.102024 0.162921 -0.718264 1.14696 -0.194472 0.310547 -0.00177953 -0.366382 -0.000192913 -0.0399173 0.210921 -0.327594 0 0.000295276 0.00684252 -0.0109252 0.113465 -0.176232c0.00487402,-0.00756693 0.00875984,-0.0154961 0.0117008,-0.0236378l0.289752 -0.462693 -0.330972 0c-0.00176378,-7.87402e-005 -0.00353543,-0.000125984 -0.0053189,-0.000125984l-0.301236 0 -0.000133858 -0.0280984z"/>
+  <path class="fil1" d="M2.2782 3.43181l0.477831 -0.000645669 ..."/>
+  <path class="fil2" d="M3.39739 1.49333l-0.151972 0 ..."/>
  </g>
 </svg>
 `,
@@ -137,6 +137,31 @@ const appendQS = (url) => {
   if (!qs) return url;
   return url.includes("?") ? `${url}&${qs.slice(1)}` : `${url}${qs}`;
 };
+
+/* ───────────── SVG sanitize / extract / normalize ───────────── */
+function sanitizeSvg(svg) {
+  return String(svg)
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, "");
+}
+function extractFirstSvg(raw) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  const m = s.match(/<svg[\s\S]*?<\/svg>/i);
+  if (!m) return "";
+  return sanitizeSvg(m[0]);
+}
+function normalizeSvgSize(svg, size = 50) {
+  if (!svg) return "";
+  let out = svg;
+  const hasW = /\swidth="[^"]*"/i.test(out);
+  const hasH = /\sheight="[^"]*"/i.test(out);
+  if (hasW) out = out.replace(/\swidth="[^"]*"/i, ` width="${size}"`);
+  else out = out.replace(/<svg/i, `<svg width="${size}"`);
+  if (hasH) out = out.replace(/\sheight="[^"]*"/i, ` height="${size}"`);
+  else out = out.replace(/<svg/i, `<svg height="${size}"`);
+  return out;
+}
 
 /* ───────────────── loader ──────────────── */
 export async function loader({ request, params }) {
@@ -196,7 +221,6 @@ export async function loader({ request, params }) {
   // recent: preview first product by handle (server-side)
   let previewProduct = null;
   if (key === "recent" && Array.isArray(data.selectedProducts) && data.selectedProducts.length) {
-    const firstHandle = data.selectedProducts[0];
     try {
       const q = `
         query ProductByHandle($handle: String!) {
@@ -205,7 +229,7 @@ export async function loader({ request, params }) {
             featuredImage { url altText }
           }
         }`;
-      const resp = await admin.graphql(q, { variables: { handle: firstHandle } });
+      const resp = await admin.graphql(q, { variables: { handle: data.selectedProducts[0] } });
       const js = await resp.json();
       const p = js?.data?.productByHandle;
       if (p) {
@@ -214,7 +238,7 @@ export async function loader({ request, params }) {
           status: p.status, featuredImage: p.featuredImage?.url || null
         };
       }
-    } catch { /* ignore preview errors */ }
+    } catch { /* ignore */ }
   }
 
   return json({ ok: true, key, title: TITLES[key], data, previewProduct });
@@ -256,29 +280,34 @@ export async function action({ request, params }) {
   const mobilePosition = form.getAll("mobilePosition");
   const mobilePositionJson = JSON.stringify(mobilePosition.length ? mobilePosition : ["bottom"]);
 
-  // arrays
+  // arrays (no validation now)
   const messageTitles = form.getAll("messageTitles").map(s => String(s).trim()).filter(Boolean);
   const locations = form.getAll("locations").map(s => String(s).trim()).filter(Boolean);
   const names = form.getAll("names").map(s => String(s).trim()).filter(Boolean);
 
-  // key-specific
-  let selectedProducts = [];
-  let iconKey = nullIfBlank(form.get("iconKey"));
-  let iconSvg = nullIfBlank(form.get("iconSvg"));
+  // icon fields (flash only logic)
+  let iconKeyIn = nullIfBlank(form.get("iconKey"));
+  const rawSvg = nullIfBlank(form.get("iconSvg"));
+  const uploadedSvg = extractFirstSvg(rawSvg || "");
 
-  if (key === "recent") {
-    selectedProducts = form.getAll("selectedProducts").map(s => String(s).trim()).filter(Boolean); // HANDLES
-    if (!messageTitles.length || !locations.length || !names.length || !selectedProducts.length) {
-      return json({ ok: false, message: "Please add at least 1 Title, 1 Location, 1 Time and select 1 Product." }, { status: 400 });
+  // recent-only
+  let selectedProducts = form.getAll("selectedProducts").map(s => String(s).trim()).filter(Boolean);
+
+  // Build final icon fields
+  let finalIconKey = null;
+  let finalIconSvg = null;
+
+  if (key === "flash") {
+    if (uploadedSvg) {
+      // Uploaded wins
+      finalIconKey = "upload_svg";
+      finalIconSvg = uploadedSvg;
+    } else {
+      // No upload → use dropdown; fallback to reshot
+      const k = iconKeyIn || "reshot";
+      finalIconKey = k;
+      finalIconSvg = SVGS[k] || SVGS["reshot"];
     }
-    if (!(messageTitles.length === locations.length && locations.length === names.length && names.length === selectedProducts.length)) {
-      return json({ ok: false, message: `Counts must match. Now ${messageTitles.length}/${locations.length}/${names.length}/${selectedProducts.length}` }, { status: 400 });
-    }
-  } else {
-    if (!(messageTitles.length && messageTitles.length === locations.length && locations.length === names.length)) {
-      return json({ ok: false, message: `Counts must match. Now ${messageTitles.length}/${locations.length}/${names.length}` }, { status: 400 });
-    }
-    if (iconKey && !iconSvg && SVGS[iconKey]) iconSvg = SVGS[iconKey];
   }
 
   const data = {
@@ -304,15 +333,15 @@ export async function action({ request, params }) {
     namesJson: toJson(names),
     // key-specific fields
     selectedProductsJson: key === "recent" ? (selectedProducts.length ? JSON.stringify(selectedProducts) : null) : null,
-    iconKey: key === "flash" ? iconKey : nullIfBlank(form.get("iconKey")),
-    iconSvg: key === "flash" ? iconSvg : nullIfBlank(form.get("iconSvg")),
+    iconKey: key === "flash" ? finalIconKey : null,
+    iconSvg: key === "flash" ? finalIconSvg : null,
   };
 
   await prisma.notificationConfig.update({ where: { id }, data });
 
-  // ✅ Redirect to dashboard with Toast flag & preserve admin QS
+  // Redirect back to dashboard with toast
   const prev = new URL(request.url);
-  const qs = prev.search; // keep admin/embedded params
+  const qs = prev.search;
   const dest = `/app/dashboard${qs ? `${qs}&saved=1` : "?saved=1"}`;
   return redirect(dest);
 }
@@ -369,7 +398,7 @@ const getAnimationStyle = (a) =>
   a === "slide" ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" } :
     a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
       a === "zoom" ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" } :
-        { opacity: 0, animation: "notif-fade-in 220ms ease-out forwards" };
+        { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
 
 const posToFlex = (pos) => {
   switch (pos) {
@@ -430,7 +459,12 @@ function RecentBubble({ form, product, isMobile = false, drafts = {} }) {
 
 function FlashBubble({ form, isMobile = false, drafts = {} }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
-  const svgMarkup = useMemo(() => SVGS[form.iconKey] || "", [form.iconKey]);
+
+  const svgMarkup = useMemo(() => {
+    const uploaded = extractFirstSvg(form.iconSvg || "");
+    const base = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
+    return base ? normalizeSvgSize(base, 50) : "";
+  }, [form.iconSvg, form.iconKey]);
 
   const firstTitle = (drafts.title || "").trim() || form?.messageTitles?.[0] || "Flash Sale";
   const firstName = (drafts.location || "").trim() || form?.locations?.[0] || "Flash Sale 20% OFF";
@@ -449,8 +483,8 @@ function FlashBubble({ form, isMobile = false, drafts = {} }) {
       maxWidth: isMobile ? mobileSizeToWidth(form?.mobileSize) : 560, ...animStyle
     }}>
       {svgMarkup ? (
-        <span aria-hidden="true" style={{ display: "block", flexShrink: 0 }}
-          dangerouslySetInnerHTML={{ __html: svgMarkup.replace('width="60"', 'width="50"').replace('height="60"', 'height="50"') }} />
+        <span aria-hidden="true" style={{ display: "flex", flexShrink: 0,width: 60, height: 60, alignItems: "center"}}
+          dangerouslySetInnerHTML={{ __html: svgMarkup }} />
       ) : null}
       <div style={{ display: "grid", gap: 4 }}>
         <p style={{ margin: 0, color: form.titleColor, fontWeight: Number(form.fontWeight || 600), fontSize: sized }}>{firstTitle}</p>
@@ -564,8 +598,6 @@ export default function NotificationEditGeneric() {
     );
   }
 
-  // ⚠️ URLમાંથી id-hide કરતું history.replace દૂર કર્યું — refresh પર 404 આવતું હતું.
-
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; } catch { return false; }
   });
@@ -615,7 +647,7 @@ export default function NotificationEditGeneric() {
     durationSeconds: Number(data.durationSeconds ?? 8),
     alternateSeconds: Number(data.alternateSeconds ?? 10),
     fontWeight: String(data.fontWeight ?? 600),
-    iconKey: data.iconKey || "",
+    iconKey: data.iconKey || "reshot",
     iconSvg: data.iconSvg || "",
     selectedProducts: Array.isArray(data.selectedProducts) ? data.selectedProducts : [],
   }));
@@ -661,19 +693,56 @@ export default function NotificationEditGeneric() {
     });
   };
 
-  const countsOk = useMemo(() => {
-    const t = form.messageTitles?.length || 0;
-    const l = form.locations?.length || 0;
-    const n = form.names?.length || 0;
-    if (isRecent) {
-      const p = selectedHandles.length;
-      return t && t === l && l === n && n === p;
-    }
-    return t && t === l && l === n;
-  }, [form, selectedHandles, isRecent]);
+  // ⛔ no counts warning anymore (validation removed)
 
   const formRef = useRef(null);
   const doSave = () => formRef.current?.requestSubmit();
+
+  // 🔼 Flash: upload UI
+  const [svgName, setSvgName] = useState("");
+  const [uploadError, setUploadError] = useState("");
+
+  const handleSvgDrop = useCallback((_drop, accepted, rejected) => {
+    setUploadError("");
+    if (rejected?.length) {
+      setUploadError("Only .svg files are allowed.");
+      return;
+    }
+    const file = accepted?.[0];
+    if (!file) return;
+    if (file.type !== "image/svg+xml") {
+      setUploadError("File must be an SVG.");
+      return;
+    }
+    if (file.size > 200 * 1024) {
+      setUploadError("SVG too large. Keep under 200KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = String(reader.result || "");
+      const svg = extractFirstSvg(raw);
+      if (!svg) {
+        setUploadError("Invalid SVG content.");
+        return;
+      }
+      setForm(f => ({ ...f, iconSvg: svg, iconKey: "upload_svg" })); // ✅ prefer upload
+      setSvgName(file.name);
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const clearUploadedSvg = () => {
+    setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" }));
+    setSvgName("");
+    setUploadError("");
+  };
+
+  const iconOptions = useMemo(() => {
+    return form.iconSvg
+      ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...SVG_OPTIONS]
+      : SVG_OPTIONS;
+  }, [form.iconSvg]);
 
   return (
     <Frame>
@@ -688,7 +757,7 @@ export default function NotificationEditGeneric() {
         <Layout>
 
           {/* Record summary */}
-          <Layout.Section>
+          {/* <Layout.Section style="display:none;">
             <Card>
               <Box padding="4">
                 <InlineStack align="space-between" wrap>
@@ -711,7 +780,7 @@ export default function NotificationEditGeneric() {
                 </InlineStack>
               </Box>
             </Card>
-          </Layout.Section>
+          </Layout.Section> */}
 
           {/* Live Preview */}
           <Layout.Section oneHalf>
@@ -782,19 +851,6 @@ export default function NotificationEditGeneric() {
               <Box padding="4">
                 <BlockStack gap="300">
                   <Text as="h3" variant="headingMd">Message</Text>
-
-                  {!countsOk && (
-                    <Box paddingBlockStart="200">
-                      <div role="alert" style={{ border: '1px solid #E0B3B2', background: '#FFF6F6', borderRadius: 8, padding: 12 }}>
-                        <Text tone="critical">
-                          {isRecent
-                            ? `Counts must match (Names/Locations/Times/Products). Now ${form.messageTitles?.length || 0}/${form.locations?.length || 0}/${form.names?.length || 0}/${selectedHandles.length}`
-                            : `Counts must match (Banner Title/Notification Name/Banner Text). Now ${form.messageTitles?.length || 0}/${form.locations?.length || 0}/${form.names?.length || 0}`
-                          }
-                        </Text>
-                      </div>
-                    </Box>
-                  )}
 
                   {/* Names */}
                   <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); titlesInput.commitDraft(); } }}>
@@ -868,7 +924,6 @@ export default function NotificationEditGeneric() {
                 <Box padding="4">
                   <BlockStack gap="300">
                     <Text as="h3" variant="headingMd">Select Product(s) for Notification</Text>
-                    {!(selectedHandles.length) && <Text tone="critical">Please select at least one product.</Text>}
                     <InlineStack gap="200">
                       <Button onClick={() => { setPickerOpen(true); setPage(1); fetcher.load(`/app/products-picker?page=1`); }}>
                         Pick products
@@ -955,9 +1010,34 @@ export default function NotificationEditGeneric() {
 
                   {/* Icon (flash only) */}
                   {isFlash && (
-                    <InlineStack gap="400" wrap={false}>
-                      <Box width="50%"><Select label="Notification Icon" options={SVG_OPTIONS} value={form.iconKey} onChange={onField("iconKey")} /></Box>
-                    </InlineStack>
+                    <BlockStack gap="250">
+                      <InlineStack gap="400" wrap={false} align="start">
+                        <Box width="50%">
+                          <Select
+                            label={`Notification Icon${form.iconSvg ? " (using Uploaded)" : ""}`}
+                            options={iconOptions}
+                            value={form.iconKey}
+                            onChange={onField("iconKey")}
+                          />
+                        </Box>
+                        <Box width="50%">
+                          <Text as="h4" variant="headingSm">Custom SVG Icon (optional)</Text>
+                          <DropZone accept="image/svg+xml" allowMultiple={false} onDrop={handleSvgDrop}>
+                            <DropZone.FileUpload actionHint="Upload a .svg (max 200KB)" />
+                          </DropZone>
+                          {svgName && (
+                            <InlineStack gap="200" blockAlign="center">
+                              <Text variant="bodySm">Uploaded: {svgName}</Text>
+                              <Button onClick={clearUploadedSvg} tone="critical" variant="plain">Remove</Button>
+                            </InlineStack>
+                          )}
+                          {uploadError && <Text tone="critical" variant="bodySm">{uploadError}</Text>}
+                          <Text as="p" tone="subdued" variant="bodySm">
+                            Upload thaya pachhi uploaded icon use thashe. Remove કરશો તો built-in પર પાછું જશે.
+                          </Text>
+                        </Box>
+                      </InlineStack>
+                    </BlockStack>
                   )}
                 </BlockStack>
               </Box>
@@ -986,7 +1066,7 @@ export default function NotificationEditGeneric() {
             <input type="hidden" name="durationSeconds" value={form.durationSeconds} />
             <input type="hidden" name="alternateSeconds" value={form.alternateSeconds} />
             <input type="hidden" name="fontWeight" value={form.fontWeight} />
-            {/* icon fields: harmless for recent */}
+            {/* icon fields (used for flash) */}
             <input type="hidden" name="iconKey" value={form.iconKey || ""} />
             <input type="hidden" name="iconSvg" value={form.iconSvg || ""} />
             {(form.messageTitles || []).map((v, i) => (<input key={`t-h-${i}`} type="hidden" name="messageTitles" value={v} />))}

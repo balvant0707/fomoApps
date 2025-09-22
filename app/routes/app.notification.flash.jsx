@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Page, Card, Button, TextField, Select, ChoiceList, Box,
   BlockStack, InlineStack, Text, ColorPicker, Frame,
-  Toast, Loading, Layout, Popover, Tag, ButtonGroup
+  Toast, Loading, Layout, Popover, Tag, ButtonGroup, DropZone
 } from "@shopify/polaris";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -12,18 +12,8 @@ import { prisma } from "../db.server";
 /* ───────── Loader & Action ───────── */
 const KEY = "flash";
 
-/* Safe JSON list parse (kept for future use) */
-function parseList(str) {
-  if (!str || typeof str !== "string") return [];
-  try { const v = JSON.parse(str); return Array.isArray(v) ? v : []; }
-  catch { return []; }
-}
-
 export async function loader({ request }) {
-  // Auth still required, but we DON'T read/return DB values at all.
   await authenticate.admin(request);
-
-  // IMPORTANT: return nothing from DB — UI will never prefill with saved values.
   return json({ existing: null, key: KEY, title: "Flash Sale Bars" });
 }
 
@@ -41,8 +31,16 @@ export async function action({ request }) {
       ? Number(form.fontWeight)
       : null;
 
-  const iconKey = form.iconKey ?? null;
-  const iconSvg = iconKey && SVGS[iconKey] ? SVGS[iconKey] : null;
+  // 🟢 Priority: 1) Uploaded SVG → iconKey="upload_svg"  2) Builtin by key  3) Fallback "reshot"
+  const incomingKey = form.iconKey ?? null;
+  const incomingSvgRaw = typeof form.iconSvg === "string" ? form.iconSvg : "";
+  const uploadedSvg = extractFirstSvg(incomingSvgRaw); // "" if invalid
+
+  const builtinByKey = incomingKey && SVGS[incomingKey] ? SVGS[incomingKey] : null;
+  const defaultBuiltin = SVGS["reshot"];
+
+  const usedIconSvg = uploadedSvg || builtinByKey || defaultBuiltin;   // always persist something
+  const usedIconKey = uploadedSvg ? "upload_svg" : (incomingKey || "reshot"); // ✅ key reflects "upload_svg" on upload
 
   // Arrays from client
   const titleArr = Array.isArray(form.messageTitlesJson) ? form.messageTitlesJson : [];
@@ -84,19 +82,16 @@ export async function action({ request }) {
     durationSeconds: form.durationSeconds != null ? Number(form.durationSeconds) : null,
     alternateSeconds: form.alternateSeconds != null ? Number(form.alternateSeconds) : null,
 
-    iconKey,
-    iconSvg,
+    // 🟢 Persist icon
+    iconKey: usedIconKey,    // "upload_svg" if uploaded
+    iconSvg: usedIconSvg,    // uploaded svg or builtin svg string
   };
 
-  // INSERT-ONLY: koi check nathi, koi update nathi
   await prisma.notificationConfig.create({ data });
-
-  // save pachhi pan koi data echo back nathi — UI show na thay
   return json({ success: true });
 }
 
-
-/* ───────── SVG options ───────── */
+/* ───────── Built-in SVGs (short demo) ───────── */
 const SVGS = {
   reshot: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 64 64">
@@ -183,8 +178,7 @@ const SVGS = {
 </svg>
 `,
 };
-
-const svgOptions = [
+const baseSvgOptions = [
   { label: "Reshot", value: "reshot" },
   { label: "Reshot Flash", value: "reshotFlash" },
   { label: "Reshot Flash On", value: "reshotflashon" },
@@ -199,6 +193,31 @@ function hsvToRgb({ hue: h, saturation: s, brightness: v }) { const c = v * s, x
 const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
 const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
+
+/* ───────── SVG utils ───────── */
+function sanitizeSvg(svg) {
+  return String(svg)
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, "");
+}
+function extractFirstSvg(raw) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  const m = s.match(/<svg[\s\S]*?<\/svg>/i);
+  if (!m) return "";
+  return sanitizeSvg(m[0]);
+}
+function normalizeSvgSize(svg, size = 50) {
+  if (!svg) return "";
+  let out = svg;
+  const hasW = /\swidth="[^"]*"/i.test(out);
+  const hasH = /\sheight="[^"]*"/i.test(out);
+  if (hasW) out = out.replace(/\swidth="[^"]*"/i, ` width="${size}"`);
+  else out = out.replace(/<svg/i, `<svg width="${size}"`);
+  if (hasH) out = out.replace(/\sheight="[^"]*"/i, ` height="${size}"`);
+  else out = out.replace(/<svg/i, `<svg height="${size}"`);
+  return out;
+}
 
 /* ───────── ColorInput ───────── */
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
@@ -234,10 +253,6 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
 }
 
 /* ───────── Multi-value helpers ───────── */
-const splitTokens = (raw) =>
-  String(raw || "").split(/[,|\n]+/g).map((p) => p.trim()).filter(Boolean);
-
-/** ALLOW DUPLICATES — includes check nathi */
 function useTokenDraft(list, setList) {
   const [draft, setDraft] = useState("");
   const splitOnComma = (raw) => String(raw || "").split(",").map((p) => p.trim()).filter(Boolean);
@@ -281,7 +296,13 @@ const posToFlex = (pos) => {
 /* ───────── Notification bubble ───────── */
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
-  const svgMarkup = useMemo(() => SVGS[form.iconKey] || "", [form.iconKey]);
+
+  // UI Preview: uploaded > builtin (fallback "reshot")
+  const svgMarkup = useMemo(() => {
+    const uploaded = extractFirstSvg(form.iconSvg || "");
+    const base = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
+    return base ? normalizeSvgSize(base, 50) : "";
+  }, [form.iconSvg, form.iconKey]);
 
   const base = Number(form.rounded ?? 14) || 14;
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
@@ -305,8 +326,10 @@ function NotificationPreview({ form, isMobile = false }) {
         ...animStyle
       }}>
         {svgMarkup ? (
-          <span aria-hidden="true" style={{ display: "block", flexShrink: 0 }}
-            dangerouslySetInnerHTML={{ __html: svgMarkup.replace('width="60"', 'width="50"').replace('height="60"', 'height="50"') }}
+          <span
+            aria-hidden="true"
+            style={{ display: "block", flexShrink: 0, width: 60, height: 60 }}
+            dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />
         ) : null}
         <div style={{ display: "grid", gap: 4 }}>
@@ -393,7 +416,7 @@ function LivePreview({ form }) {
 /* ───────── Page ───────── */
 export default function FlashConfigPage() {
   const navigate = useNavigate();
-  const { title } = useLoaderData(); // existing is purposely ignored
+  const { title } = useLoaderData();
 
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
@@ -426,9 +449,13 @@ export default function FlashConfigPage() {
     rounded: 14,
     durationSeconds: 10,
     alternateSeconds: 5,
-    iconKey: "reshot",
+    iconKey: "reshot", // default builtin
+    iconSvg: "",       // uploaded svg string (optional)
     ctaBgColor: null,
   });
+
+  const [svgName, setSvgName] = useState("");
+  const [uploadError, setUploadError] = useState("");
 
   // keep preview first values in sync (preview only)
   useEffect(() => {
@@ -447,6 +474,54 @@ export default function FlashConfigPage() {
   const titlesDraft = useTokenDraft(titlesList, setTitlesList);
   const locationsDraft = useTokenDraft(locationsList, setLocationsList);
   const namesDraft = useTokenDraft(namesList, setNamesList);
+
+  // Dynamic icon options (show "Custom (uploaded)" when iconSvg exists)
+  const iconOptions = useMemo(() => {
+    return form.iconSvg
+      ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...baseSvgOptions] // ✅ value = upload_svg
+      : baseSvgOptions;
+  }, [form.iconSvg]);
+
+  // Handle SVG drop
+  const handleSvgDrop = useCallback((_drop, accepted, rejected) => {
+    setUploadError("");
+
+    if (rejected?.length) {
+      setUploadError("Only .svg files are allowed.");
+      return;
+    }
+    const file = accepted?.[0];
+    if (!file) return;
+
+    if (file.type !== "image/svg+xml") {
+      setUploadError("File must be an SVG.");
+      return;
+    }
+    if (file.size > 200 * 1024) {
+      setUploadError("SVG too large. Keep under 200KB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const raw = String(reader.result || "");
+      const svg = extractFirstSvg(raw);
+      if (!svg) {
+        setUploadError("Invalid SVG content.");
+        return;
+      }
+      // ✅ Use uploaded: set iconKey to "upload_svg"
+      setForm(f => ({ ...f, iconSvg: svg, iconKey: "upload_svg" }));
+      setSvgName(file.name);
+    };
+    reader.readAsText(file);
+  }, []);
+
+  const clearUploadedSvg = () => {
+    setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" })); // back to default builtin
+    setSvgName("");
+    setUploadError("");
+  };
 
   const save = async () => {
     try {
@@ -472,7 +547,6 @@ export default function FlashConfigPage() {
     } finally { setSaving(false); }
   };
 
-  /* Select options */
   const pageOptions = [
     { label: "All Pages", value: "allpage" },
     { label: "Home Page", value: "home" },
@@ -481,7 +555,6 @@ export default function FlashConfigPage() {
     { label: "Pages", value: "pages" },
     { label: "Cart Page", value: "cart" },
   ];
-
   const fontOptions = [
     { label: "System", value: "System" }, { label: "Inter", value: "Inter" }, { label: "Roboto", value: "Roboto" },
     { label: "Montserrat", value: "Montserrat" }, { label: "Poppins", value: "Poppins" }
@@ -549,7 +622,7 @@ export default function FlashConfigPage() {
             </Card>
           </Layout.Section>
 
-          {/* Message – multi value (independent) */}
+          {/* Message */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
@@ -567,7 +640,7 @@ export default function FlashConfigPage() {
                         onChange={titlesDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="Flash Sale, Flash Sale 2, Flash Sale 3 … (press Enter to add)"
+                        placeholder="Flash Sale, Flash Sale 2 … (press Enter to add)"
                       />
                     </div>
                     <InlineStack gap="150" wrap>
@@ -575,7 +648,7 @@ export default function FlashConfigPage() {
                     </InlineStack>
                   </BlockStack>
 
-                  {/* Notification Name */}
+                  {/* Offer Title */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={locationsDraft.onKeyDown}>
                       <TextField
@@ -584,7 +657,7 @@ export default function FlashConfigPage() {
                         onChange={locationsDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF … (press Enter to add)"
+                        placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF …"
                       />
                     </div>
                     <InlineStack gap="150" wrap>
@@ -592,7 +665,7 @@ export default function FlashConfigPage() {
                     </InlineStack>
                   </BlockStack>
 
-                  {/* Banner Text */}
+                  {/* Urgency Text */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={namesDraft.onKeyDown}>
                       <TextField
@@ -601,7 +674,7 @@ export default function FlashConfigPage() {
                         onChange={namesDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="ends in 01:15 hours, ends in 02:15 hours … (press Enter to add)"
+                        placeholder="ends in 01:15 hours, ends in 02:15 hours …"
                       />
                     </div>
                     <InlineStack gap="150" wrap>
@@ -641,7 +714,14 @@ export default function FlashConfigPage() {
 
                   {/* Icon + Font size */}
                   <InlineStack gap="400" wrap={false} width="100%" alignItems="center">
-                    <Box width="50%"><Select label="Flash Sale Icon" options={svgOptions} value={form.iconKey} onChange={onField("iconKey")} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label={`Flash Sale Icon${form.iconSvg ? " (using Uploaded)" : ""}`}
+                        options={iconOptions}
+                        value={form.iconKey}
+                        onChange={onField("iconKey")}
+                      />
+                    </Box>
                     <Box width="50%">
                       <BlockStack gap="150">
                         <Text>Text Size (px)</Text>
@@ -665,12 +745,28 @@ export default function FlashConfigPage() {
                     </Box>
                   </InlineStack>
 
+                  {/* Custom SVG Upload */}
+                  <BlockStack gap="150">
+                    <Text as="h4" variant="headingSm">Custom SVG Icon (optional)</Text>
+                    <DropZone accept="image/svg+xml" allowMultiple={false} onDrop={handleSvgDrop}>
+                      <DropZone.FileUpload actionHint="Upload a .svg (max 200KB)" />
+                    </DropZone>
+                    {svgName && (
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text variant="bodySm">Uploaded: {svgName}</Text>
+                        <Button onClick={clearUploadedSvg} tone="critical" variant="plain">Remove</Button>
+                      </InlineStack>
+                    )}
+                    {uploadError && <Text tone="critical" variant="bodySm">{uploadError}</Text>}
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      Upload karta sathe uploaded icon use thashe. Remove karsho to default/built-in par vāpas.
+                    </Text>
+                  </BlockStack>
+
                   {/* Colors */}
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%"><ColorInput label="Banner Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
                     <Box width="50%"><ColorInput label="Bar Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
                     <Box width="50%"><ColorInput label="Offer Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
                   </InlineStack>
                 </BlockStack>
@@ -678,7 +774,7 @@ export default function FlashConfigPage() {
             </Card>
           </Layout.Section>
 
-          {/* Footer (kept hidden as in original) */}
+          {/* Footer (kept hidden) */}
           <Layout.Section oneHalf>{/* ... */}</Layout.Section>
         </Layout>
       </Page>

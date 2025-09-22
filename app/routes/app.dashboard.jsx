@@ -263,7 +263,7 @@ export default function NotificationList() {
       border: 1px solid rgba(0,0,0,0.05); border-radius: 999px; padding: 6px 10px; text-align: center; backdrop-filter: blur(2px); }
     .rk-switch { width: 42px; height: 24px; border-radius: 999px; background: rgba(0,0,0,0.2); border: none; padding: 0; position: relative; cursor: pointer; transition: background .15s; }
     .rk-switch .knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.2); transition: left .15s; }
-    .rk-switch.is-on { background: #22c55e; }
+    .rk-switch.is-on { background: #4f0d4dff; }
     .rk-switch.is-on .knob { left: 20px; }
     .rk-switch:disabled { opacity: .5; cursor: not-allowed; }
   `;
