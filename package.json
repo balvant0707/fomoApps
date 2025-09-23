@@ -16,14 +16,18 @@
     "shopify": "shopify",
     "prisma": "prisma",
     "graphql-codegen": "graphql-codegen",
-    "vite": "vite"
+    "vite": "vite",
+    "postinstall": "prisma generate"
   },
   "type": "module",
+
   "engines": {
-    "node": "20.11.1"
+    "node": ">=20 <21",
+    "npm": ">=10"
   },
+
   "dependencies": {
-    "@prisma/client": "^6.15.0",
+    "@prisma/client": "6.16.2",
     "@remix-run/dev": "^2.16.1",
     "@remix-run/fs-routes": "^2.16.1",
     "@remix-run/node": "^2.17.0",
@@ -53,16 +57,12 @@
     "eslint": "^8.42.0",
     "eslint-config-prettier": "^10.0.1",
     "prettier": "^3.2.4",
-    "prisma": "^6.15.0",
+    "prisma": "6.16.2",
     "typescript": "^5.2.2",
     "vite": "^6.2.2"
   },
-  "workspaces": [
-    "extensions/*"
-  ],
-  "trustedDependencies": [
-    "@shopify/plugin-cloudflare"
-  ],
+  "workspaces": ["extensions/*"],
+  "trustedDependencies": ["@shopify/plugin-cloudflare"],
   "resolutions": {
     "@graphql-tools/url-loader": "8.0.16",
     "@graphql-codegen/client-preset": "4.7.0",

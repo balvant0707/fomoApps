@@ -10,14 +10,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     try { const v = JSON.parse(raw ?? "[]"); return Array.isArray(v) ? v : (v ? [v] : []); }
     catch { return raw ? [raw] : []; }
   };
-  const pageType   = () => (window.meta && window.meta.page?.pageType) || "allpage";
+  const pageType = () => (window.meta && window.meta.page?.pageType) || "allpage";
   const currHandle = () => (window.meta && window.meta.product?.handle) || "";
 
   const BREAKPOINT = 750, isMobile = () => window.innerWidth <= BREAKPOINT;
   const mobileTokens = (s) => {
     s = (s || "comfortable").toLowerCase();
     if (s === "compact") return { w: "min(92vw,340px)", pad: 10, img: 50, rad: 14, fs: 13 };
-    if (s === "large")   return { w: "min(92vw,380px)", pad: 14, img: 64, rad: 18, fs: 15 };
+    if (s === "large") return { w: "min(92vw,380px)", pad: 14, img: 64, rad: 18, fs: 15 };
     return { w: "min(92vw,360px)", pad: 12, img: 58, rad: 16, fs: 14 };
   };
   const normMB = (v, fb = "bottom") => { v = String(v || "").trim().toLowerCase(); return (v === "top" || v === "bottom") ? v : fb; };
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const dec = atob(String(s));
       if (/^<svg/i.test(dec)) return svgToDataUrl(dec);
-    } catch {}
+    } catch { }
     return "";
   }
 
@@ -96,7 +96,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (svg1) return svg1;
 
     // 3) URLs in DB
-    if (it.iconUrl)  return it.iconUrl;
+    if (it.iconUrl) return it.iconUrl;
     if (it.imageUrl) return it.imageUrl;
 
     // 4) nothing
@@ -133,12 +133,12 @@ document.addEventListener("DOMContentLoaded", async function () {
         const pos = (cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
         const isLeft = pos.includes("left");
         return isLeft ? { inAnim: "fSlideInLeft", outAnim: "fSlideOutLeft" }
-                      : { inAnim: "fSlideInRight", outAnim: "fSlideOutRight" };
+          : { inAnim: "fSlideInRight", outAnim: "fSlideOutRight" };
       }
       return { inAnim: "fIn", outAnim: "fOut" };
     }
-    if (val === "fade")   return { inAnim: "fFadeIn",   outAnim: "fFadeOut" };
-    if (val === "zoom")   return { inAnim: "fZoomIn",   outAnim: "fZoomOut" };
+    if (val === "fade") return { inAnim: "fFadeIn", outAnim: "fFadeOut" };
+    if (val === "zoom") return { inAnim: "fZoomIn", outAnim: "fZoomOut" };
     if (val === "bounce") return { inAnim: "fBounceIn", outAnim: "fBounceOut" };
     return { inAnim: "fIn", outAnim: "fOut" };
   }
@@ -327,7 +327,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.appendChild(card);
 
     const barWrap = document.createElement("div"); barWrap.style.cssText = `height:4px;width:100%;background:rgba(0,0,0,.08)`;
-    const bar = document.createElement("div");     bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || "#3b82f6"};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
+    const bar = document.createElement("div"); bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || "#3b82f6"};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
     barWrap.appendChild(bar); wrap.appendChild(barWrap);
 
     wrap.addEventListener("click", e => { if (e.target === close) return; if (cfg.productUrl) window.location.href = cfg.productUrl; });
@@ -379,7 +379,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
   }
 
-  const Flash  = createStream("flash",  renderFlash);
+  const Flash = createStream("flash", renderFlash);
   const Recent = createStream("recent", renderRecent);
   window.addEventListener("resize", () => { Flash.resize(); Recent.resize(); });
   window.addEventListener("orientationchange", () => setTimeout(() => { Flash.resize(); Recent.resize(); }, 0));
@@ -406,10 +406,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       // source arrays
       const titlesArr = parseList(it.messageTitlesJson); // flash: title | recent: name
-      const timesArr  = parseList(it.namesJson);         // flash: timeText | recent: timeText
-      const locsArr   = parseList(it.locationsJson);     // both: location
-      let handlesArr  = parseList(it.selectedProductsJson);
-      const mbPosArr  = parseList(it.mobilePositionJson);
+      const timesArr = parseList(it.namesJson);         // flash: timeText | recent: timeText
+      const locsArr = parseList(it.locationsJson);     // both: location
+      let handlesArr = parseList(it.selectedProductsJson);
+      const mbPosArr = parseList(it.mobilePositionJson);
 
       // randomize products order so they vary
       if (handlesArr.length > 1) handlesArr = shuffled(handlesArr);
@@ -437,17 +437,17 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (it.key === "flash") {
         const n = Math.max(
           titlesArr.length || 0,
-          locsArr.length   || 0,
-          timesArr.length  || 0,
-          mbPosArr.length  || 0,
+          locsArr.length || 0,
+          timesArr.length || 0,
+          mbPosArr.length || 0,
           1
         );
         for (let i = 0; i < n; i++) {
-          const title    = pickSmart(titlesArr, i, safe(it.messageText, "Flash Sale"));
-          const location = pickSmart(locsArr,   i, "Limited time");
-          const timeText = pickSmart(timesArr,  i, safe(it.relativeTimeText, "Just now"));
-          const mbPos    = pickSmart(mbPosArr,  i, defaultMB);
-          const iconSrc  = resolveIconForIndex(it, i) || ""; // DB iconSvg/iconsJson/url
+          const title = pickSmart(titlesArr, i, safe(it.messageText, "Flash Sale"));
+          const location = pickSmart(locsArr, i, "Limited time");
+          const timeText = pickSmart(timesArr, i, safe(it.relativeTimeText, "Just now"));
+          const mbPos = pickSmart(mbPosArr, i, defaultMB);
+          const iconSrc = resolveIconForIndex(it, i) || ""; // DB iconSvg/iconsJson/url
 
           flashConfigs.push({
             title,
@@ -504,10 +504,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const n = Math.max(
         handlesArr.length || 0,
-        titlesArr.length  || 0,
-        locsArr.length    || 0,
-        timesArr.length   || 0,
-        mbPosArr.length   || 0,
+        titlesArr.length || 0,
+        locsArr.length || 0,
+        timesArr.length || 0,
+        mbPosArr.length || 0,
         1
       );
 
@@ -538,15 +538,15 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // start streams
     const clone = (a) => Array.isArray(a) ? a.slice() : [];
-    const FlashStream  = window.FlashStream  || createStream("flash",  renderFlash);
+    const FlashStream = window.FlashStream || createStream("flash", renderFlash);
     const RecentStream = window.RecentStream || createStream("recent", renderRecent);
     window.FlashStream = FlashStream;
     window.RecentStream = RecentStream;
 
-    FlashStream.seqDesktop  = clone(flashConfigs);
-    FlashStream.seqMobile   = clone(flashConfigs);
+    FlashStream.seqDesktop = clone(flashConfigs);
+    FlashStream.seqMobile = clone(flashConfigs);
     RecentStream.seqDesktop = clone(recentConfigs);
-    RecentStream.seqMobile  = clone(recentConfigs);
+    RecentStream.seqMobile = clone(recentConfigs);
 
     FlashStream.start(false);
     RecentStream.start(false);
