@@ -13,5 +13,5 @@ module.exports = {
   serverModuleFormat: "cjs",
   dev: { port: process.env.HMR_SERVER_PORT || 8002 },
   future: {},
-  routes: "app/routes.ts",   // <- programmatic RouteConfig file (JS-style content inside .ts)
+  routes: "app/routes.js",   // <- programmatic RouteConfig file (JS-style content inside .ts)
 };
