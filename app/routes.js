@@ -3,6 +3,6 @@
 // export default flatRoutes();
 // app/routes.js
 // app/routes.js
-import { flatRoutes } from "@remix-run/fs-routes";
+import { flatRoutes } from "@remix-run/dev";
 export default flatRoutes("routes");
 
