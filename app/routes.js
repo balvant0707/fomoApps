@@ -4,7 +4,5 @@
 // app/routes.js
 // app/routes.js
 import { flatRoutes } from "@remix-run/fs-routes";
-
-/** @type {import('@remix-run/route-config').RouteConfig} */
 export default flatRoutes("routes");
 
