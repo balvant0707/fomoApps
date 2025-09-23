@@ -26,8 +26,6 @@
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",
-    "@remix-run/dev": "^2.16.1",
-    "@remix-run/fs-routes": "^2.16.1",
     "@remix-run/node": "^2.17.0",
     "@remix-run/react": "^2.17.0",
     "@remix-run/serve": "^2.17.0",
@@ -45,7 +43,9 @@
     "vite-tsconfig-paths": "^5.0.1"
   },
   "devDependencies": {
+    "@remix-run/dev": "^2.17.0",
     "@remix-run/eslint-config": "^2.16.1",
+    "@remix-run/fs-routes": "^2.17.0",
     "@remix-run/route-config": "^2.16.1",
     "@shopify/api-codegen-preset": "^1.1.1",
     "@types/eslint": "^9.6.1",
