@@ -1,2 +1,2 @@
 import { flatRoutes } from "@remix-run/fs-routes";
-export default flatRoutes("app/routes");
+export default flatRoutes("app/routes",true);
