@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider          = "mysql"
   url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model Session {
@@ -37,6 +38,7 @@ model Shop {
   installed      Boolean   @default(false)
   uninstalledAt  DateTime?
   onboardedAt   DateTime? 
+  themeExtensionEnabled Boolean @default(false)  // New field to control theme extension
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 }

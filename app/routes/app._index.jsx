@@ -2,124 +2,203 @@
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
-import { prisma } from "../db.server";
-
-import { Card, Layout, Page, Text, BlockStack } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
-import { useEffect, useState } from "react";
 import {
-  Chart as ChartJS,
-  LineElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Legend,
-  Tooltip,
-} from "chart.js";
+  Page,
+  Card,
+  BlockStack,
+  Text,
+  Button,
+  InlineStack,
+  Badge,
+} from "@shopify/polaris";
+import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { Redirect } from "@shopify/app-bridge/actions";
 
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Legend, Tooltip);
-
-// Loader: re-auth `next` honor + first-time redirect
 export const loader = async ({ request }) => {
-  const { session, redirect } = await authenticate.admin(request);
-
-  // came back from re-auth? → go to target page
-  const url = new URL(request.url);
-  const next = url.searchParams.get("next");
-  if (next) return redirect(next);
-
-  // ensure shop row + first-time onboarding
-  const shop = session.shop.toLowerCase();
-  const rec = await prisma.shop.upsert({
-    where: { shop },
-    update: {},
-    create: { shop, installed: true },
-  });
-
-  if (!rec.onboardedAt) return redirect("/app/theme-embed");
-
-  return json({ ok: true });
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop || "";
+  const slug = shop.replace(".myshopify.com", "");
+  return json({ slug });
 };
 
-export default function HomeOverview() {
-  useLoaderData();
+export default function AppIndex() {
+  const { slug } = useLoaderData();
+  const app = useAppBridge();
 
-  // lazy-load react-chartjs-2 on client
-  const [LineComp, setLineComp] = useState(null);
-  useEffect(() => {
-    import("react-chartjs-2").then((mod) => setLineComp(() => mod.Line));
-  }, []);
-
-  const stats = [
-    { popup_type: "recent_purchase", visitors: 5,  views: 2, engagements: 1, date: "2025-08-28" },
-    { popup_type: "flash_sale",      visitors: 7,  views: 3, engagements: 2, date: "2025-08-28" },
-    { popup_type: "recent_purchase", visitors: 10, views: 4, engagements: 1, date: "2025-08-29" },
-    { popup_type: "flash_sale",      visitors: 12, views: 6, engagements: 3, date: "2025-08-29" },
-    { popup_type: "recent_purchase", visitors: 8,  views: 5, engagements: 2, date: "2025-08-30" },
-    { popup_type: "flash_sale",      visitors: 15, views: 9, engagements: 4, date: "2025-08-30" },
-  ];
-
-  const dates = [...new Set(stats.map((s) => s.date))];
-  const extractData = (popup, key) =>
-    dates.map((d) => stats.find((s) => s.date === d && s.popup_type === popup)?.[key] || 0);
-
-  const data = {
-    labels: dates,
-    datasets: [
-      { label: "Recent Purchases - Visitors",    data: extractData("recent_purchase", "visitors"),    borderColor: "blue",  backgroundColor: "blue" },
-      { label: "Recent Purchases - Views",       data: extractData("recent_purchase", "views"),       borderColor: "cyan",  backgroundColor: "cyan" },
-      { label: "Recent Purchases - Engagements", data: extractData("recent_purchase", "engagements"), borderColor: "navy",  backgroundColor: "navy" },
-      { label: "Flash Sale - Visitors",          data: extractData("flash_sale", "visitors"),         borderColor: "green", backgroundColor: "green" },
-      { label: "Flash Sale - Views",             data: extractData("flash_sale", "views"),            borderColor: "lime",  backgroundColor: "lime" },
-      { label: "Flash Sale - Engagements",       data: extractData("flash_sale", "engagements"),      borderColor: "darkgreen", backgroundColor: "darkgreen" },
-    ],
+  const openThemeCustomize = () => {
+    const redirect = Redirect.create(app);
+    redirect.dispatch(
+      Redirect.Action.ADMIN_PATH,
+      "/themes/current/editor?context=apps"
+    );
   };
 
-  const sum = (arr, k) => arr.reduce((a, b) => a + b[k], 0);
-  const recent = (() => {
-    const rs = stats.filter(s => s.popup_type === "recent_purchase");
-    return { visitors: sum(rs, "visitors"), views: sum(rs, "views"), engagements: sum(rs, "engagements") };
-  })();
-  const flash = (() => {
-    const fs = stats.filter(s => s.popup_type === "flash_sale");
-    return { visitors: sum(fs, "visitors"), views: sum(fs, "views"), engagements: sum(fs, "engagements") };
-  })();
+  const openFallback = () => {
+    window.open(
+      `https://admin.shopify.com/store/${slug}/themes/current/editor?context=apps`,
+      "_blank"
+    );
+  };
+
+  // ---- inline styles for popup previews ----
+  const wrap = {
+    padding: 16,
+    borderRadius: 12,
+    background:
+      "linear-gradient(135deg, rgb(33,150,243) 0%, rgb(233,30,99) 50%, rgb(255,87,34) 100%)",
+  };
+  const row = {
+    display: "flex",
+    gap: 16,
+    flexWrap: "wrap",
+  };
+  const popupBase = {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "14px 44px 14px 14px",
+    minWidth: 320,
+    borderRadius: 16,
+    boxShadow: "0 8px 24px rgba(0,0,0,.25)",
+  };
+  const close = {
+    position: "absolute",
+    right: 12,
+    top: 8,
+    fontWeight: 700,
+    fontSize: 16,
+    opacity: 0.9,
+  };
+  const iconCircle = {
+    width: 52,
+    height: 52,
+    borderRadius: "50%",
+    display: "grid",
+    placeItems: "center",
+    flex: "0 0 52px",
+  };
+  const title = { fontWeight: 700, lineHeight: 1.2, marginBottom: 2 };
+  const line = { margin: 0, lineHeight: 1.35, fontSize: 13.5 };
+  const small = { opacity: 0.8, marginTop: 4, fontSize: 12.5 };
 
   return (
-    <Page>
-      <TitleBar title="home" />
-      <Layout>
-        <Layout.Section variant="oneThird">
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">Recent Purchases</Text>
-              <Text>Visitors: {recent.visitors}</Text>
-              <Text>Views: {recent.views}</Text>
-              <Text>Engagements: {recent.engagements}</Text>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+    <Page title="M2 Web Fomo">
+      <TitleBar title="M2 Web Fomo" />
 
-        <Layout.Section variant="oneThird">
-          <Card>
-            <BlockStack gap="200">
-              <Text as="h2" variant="headingMd">Flash Sale Bars</Text>
-              <Text>Visitors: {flash.visitors}</Text>
-              <Text>Views: {flash.views}</Text>
-              <Text>Engagements: {flash.engagements}</Text>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+      <BlockStack gap="400">
+        {/* Open Theme Editor */}
+        <Card>
+          <BlockStack gap="300">
+            <Text as="p">
+              Click the button below to open App embeds inside the Theme Editor.
+            </Text>
+            <InlineStack gap="300" align="start">
+              <Button variant="primary" onClick={openThemeCustomize}>
+                Enable apps
+              </Button>
+              <Button variant="secondary" onClick={openFallback}>
+                Open in new tab (fallback)
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
 
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="300">
-              <Text as="h2" variant="headingLg">Popup Performance (Date Wise)</Text>
-              {LineComp ? <LineComp data={data} /> : <Text>Loading chart…</Text>}
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-      </Layout>
+        {/* Flex Preview – Popup Content (English only) */}
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between">
+              <Text as="h2" variant="headingLg">
+                Preview – Popup Content
+              </Text>
+            </InlineStack>
+
+            <div style={wrap}>
+              <div style={row}>
+                {/* Flash Sale popup */}
+                <div
+                  style={{
+                    ...popupBase,
+                    color: "#fff",
+                    background: "#0e0e0e",
+                  }}
+                >
+                  <div style={{ ...iconCircle, background: "#f6d59d" }}>
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#1f2937"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20.59 13.41 12 22l-9-9 8.59-8.59A2 2 0 0 1 13 4h5v5a2 2 0 0 1-.59 1.41Z"></path>
+                      <path d="M7 7h.01"></path>
+                      <path d="M10 10l4 4"></path>
+                      <path d="M14 10l-4 4"></path>
+                    </svg>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={title}>Flash Sale</div>
+                    <p style={line}>
+                      <strong>Flash Sale: 15% OFF</strong> — ends in{" "}
+                      <strong>02:15 hours</strong>
+                    </p>
+                  </div>
+
+                  <span style={close}>×</span>
+                </div>
+
+                {/* Recent Purchase popup */}
+                <div
+                  style={{
+                    ...popupBase,
+                    color: "#fff",
+                    background: "#6c1676", // deep purple
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 54,
+                      height: 54,
+                      borderRadius: 12,
+                      background: "#ffffff",
+                      display: "grid",
+                      placeItems: "center",
+                      overflow: "hidden",
+                      flex: "0 0 54px",
+                    }}
+                  >
+                    <svg
+                      width="28"
+                      height="28"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#6c1676"
+                      strokeWidth="1.8"
+                    >
+                      <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                      <circle cx="8.5" cy="9" r="1.5" />
+                      <path d="M3 17l5.5-5.5L14 17l3-3 4 3" />
+                    </svg>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={title}>Ankit from Bhavnagar Gujarat</div>
+                    <p style={line}>bought this product recently</p>
+                    <p style={small}>12 Hours Ago</p>
+                  </div>
+
+                  <span style={close}>×</span>
+                </div>
+              </div>
+            </div>
+          </BlockStack>
+        </Card>
+      </BlockStack>
     </Page>
   );
 }

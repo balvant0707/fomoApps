@@ -1,7 +1,9 @@
 document.addEventListener("DOMContentLoaded", async function () {
   if (window.__fomoOneFile) return; window.__fomoOneFile = true;
 
-  const ENDPOINT = `/apps/fomo/popup?shop=${(window.Shopify && Shopify.shop) || ""}`;
+  const SHOP = (window.Shopify && Shopify.shop) || "";
+  const ENDPOINT = `/apps/fomo/popup?shop=${SHOP}`;
+  const SESSION_ENDPOINT = `/apps/fomo/session?shop=${SHOP}`;
 
   /* ========== helpers ========== */
   const safe = (v, fb = "") => (v === undefined || v === null) ? fb : String(v);
@@ -384,12 +386,63 @@ document.addEventListener("DOMContentLoaded", async function () {
   window.addEventListener("resize", () => { Flash.resize(); Recent.resize(); });
   window.addEventListener("orientationchange", () => setTimeout(() => { Flash.resize(); Recent.resize(); }, 0));
 
-  /* ========== fetch & build (DB iconSvg + rotation) ========== */
+  /* ========== session check & fetch & build (DB iconSvg + rotation) ========== */
   try {
+    // Check session readiness first
+    let sessionReady = false;
+    let retries = 0;
+    const maxRetries = 3;
+    const retryDelay = 2000; // 2 seconds
+
+    while (!sessionReady && retries < maxRetries) {
+      try {
+        const sessionResponse = await fetch(SESSION_ENDPOINT, { headers: { "Content-Type": "application/json" } });
+        if (sessionResponse.ok) {
+          try {
+            const sessionData = await sessionResponse.json();
+            sessionReady = sessionData.sessionReady;
+            console.log("[FOMO] Session check:", sessionData);
+          } catch (jsonError) {
+            console.error("[FOMO] Session response not JSON:", jsonError);
+            sessionReady = false;
+          }
+          if (!sessionReady) {
+            console.warn("[FOMO] Session not ready, retrying in", retryDelay, "ms");
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            retries++;
+          }
+        } else {
+          console.warn("[FOMO] Session check failed:", sessionResponse.status);
+          retries++;
+          if (retries < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+      } catch (e) {
+        console.warn("[FOMO] Session check error:", e);
+        retries++;
+        if (retries < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+      }
+    }
+
+    if (!sessionReady) {
+      console.error("[FOMO] Session not ready after retries, aborting");
+      return;
+    }
+
     let data = { records: [] };
     try {
       const r = await fetch(ENDPOINT, { headers: { "Content-Type": "application/json" } });
-      if (r.ok) data = await r.json();
+      if (r.ok) {
+        try {
+          data = await r.json();
+        } catch (jsonError) {
+          console.error("[FOMO] Popup response not JSON:", jsonError);
+          data = { records: [] };
+        }
+      }
     } catch (e) { console.warn("[FOMO] fetch failed", e); }
 
     const recs = Array.isArray(data?.records) ? data.records : [];
@@ -484,21 +537,30 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       if (isPd && includeCurrent && ch) {
         try {
-          const p = await fetch(`/products/${ch}.js`).then(r => r.json());
-          const iconSrc0 = resolveIconForIndex(it, 0);
-          recentConfigs.push({
-            productTitle: p?.title || ch,
-            name: pickSmart(titlesArr, 0, "Someone"),
-            location: pickSmart(locsArr, 0, "Somewhere"),
-            message: safe(it.messageText, "bought this product recently"),
-            image: (p?.images && p.images[0]) || "",
-            productUrl: p?.url || `/products/${ch}`,
-            uploadedImage: iconSrc0,
-            timeText: pickSmart(timesArr, 0, safe(it.relativeTimeText, "Just now")),
-            mobilePosition: normMB(pickSmart(mbPosArr, 0, defaultMB), defaultMB),
-            durationSeconds: Number(it.currentFirstDelaySeconds ?? it.durationSeconds ?? 0),
-            ...COMMON_RECENT
-          });
+          const response = await fetch(`/products/${ch}.js`);
+          if (response.ok) {
+            try {
+              const p = await response.json();
+              const iconSrc0 = resolveIconForIndex(it, 0);
+              recentConfigs.push({
+                productTitle: p?.title || ch,
+                name: pickSmart(titlesArr, 0, "Someone"),
+                location: pickSmart(locsArr, 0, "Somewhere"),
+                message: safe(it.messageText, "bought this product recently"),
+                image: (p?.images && p.images[0]) || "",
+                productUrl: p?.url || `/products/${ch}`,
+                uploadedImage: iconSrc0,
+                timeText: pickSmart(timesArr, 0, safe(it.relativeTimeText, "Just now")),
+                mobilePosition: normMB(pickSmart(mbPosArr, 0, defaultMB), defaultMB),
+                durationSeconds: Number(it.currentFirstDelaySeconds ?? it.durationSeconds ?? 0),
+                ...COMMON_RECENT
+              });
+            } catch (jsonError) {
+              console.warn("[FOMO] Current product JSON parse failed", jsonError);
+            }
+          } else {
+            console.warn("[FOMO] Current product fetch not ok", response.status);
+          }
         } catch (e) { console.warn("[FOMO] current product fetch failed", e); }
       }
 
@@ -515,7 +577,18 @@ document.addEventListener("DOMContentLoaded", async function () {
         const handle = (handlesArr.length ? handlesArr[i % handlesArr.length] : "");
         try {
           let p = null;
-          if (handle) p = await fetch(`/products/${handle}.js`).then(r => r.json());
+          if (handle) {
+            const response = await fetch(`/products/${handle}.js`);
+            if (response.ok) {
+              try {
+                p = await response.json();
+              } catch (jsonError) {
+                console.warn("[FOMO] Product JSON parse failed for", handle, jsonError);
+              }
+            } else {
+              console.warn("[FOMO] Product fetch not ok for", handle, response.status);
+            }
+          }
 
           const iconSrc = resolveIconForIndex(it, i);
 

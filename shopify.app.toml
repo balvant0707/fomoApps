@@ -2,7 +2,7 @@
 
 client_id = "19bf03bfbf8995bb1bb05e7a45b1b062"
 name = "M2 Web Fomo Popup"
-application_url = "https://median-server-harold-ed.trycloudflare.com"
+application_url = "https://fomoapp.smartreminder.in"
 embedded = true
 handle = "m2-web-fomo-popup"
 
@@ -22,18 +22,19 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_themes,write_themes,read_script_tags,write_script_tags,read_customers,write_customers,read_orders,write_orders"
+scopes = "read_customers,read_orders,read_products,read_script_tags,read_themes,write_customers,write_orders,write_products,write_script_tags,write_themes"
 
 [auth]
-redirect_urls = ["https://median-server-harold-ed.trycloudflare.com/auth/callback", "https://median-server-harold-ed.trycloudflare.com/auth/shopify/callback", "https://median-server-harold-ed.trycloudflare.com/api/auth/callback"]
+redirect_urls = [
+  "https://fomoapp.smartreminder.in/auth/callback",
+  "https://fomoapp.smartreminder.in/auth/shopify/callback",
+  "https://fomoapp.smartreminder.in/api/auth/callback"
+]
+
+[app_proxy]
+url = "https://fomoapp.smartreminder.in/proxy/fomo"
+subpath = "fomo"
+prefix = "apps"
 
 [pos]
-embedded = false
-
-# ------------------------------
-# ✅ App Proxy configuration
-# ------------------------------
-[app_proxy]
-prefix  = "apps"   # storefront prefix: /apps
-subpath = "fomo"   # storefront path:   /apps/fomo/...
-url     = "https://shoulder-depot-stan-boundary.trycloudflare.com/proxy/fomo"
+embedded = true

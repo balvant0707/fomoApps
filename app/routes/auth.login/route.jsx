@@ -68,13 +68,29 @@ import { authenticate } from "../../shopify.server";
 
 // Loader: Shopify helper redirect use કરો જેથી context (host, shop) preserve રહે
 export const loader = async ({ request }) => {
-  const { redirect } = await authenticate.admin(request);
+  const { redirect, session } = await authenticate.admin(request);
+
+  // Log auth result for debugging redirect loop
+  console.log('Auth result in /auth.login loader:', {
+    hasSession: !!session,
+    shop: session?.shop || null,
+    url: request.url
+  });
+
   return redirect("/app"); // /app index loader first-time /app/theme-embed પર મોકલી દેશે
 };
 
 // (optional safety) જો POST થઈ જાય તો પણ એ જ રીતે redirect કરો
 export const action = async ({ request }) => {
-  const { redirect } = await authenticate.admin(request);
+  const { redirect, session } = await authenticate.admin(request);
+
+  // Log auth result for debugging redirect loop
+  console.log('Auth result in /auth.login action:', {
+    hasSession: !!session,
+    shop: session?.shop || null,
+    url: request.url
+  });
+
   return redirect("/app");
 };
 
