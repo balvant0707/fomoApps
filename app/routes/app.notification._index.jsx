@@ -192,12 +192,12 @@ export default function NotificationDashboardIndex() {
           }}
         >
           <Text as="h2" variant="headingLg">
-            Boost conversions with Shopify sales popups
+           Recent Purchases & Flash Sale Bars
           </Text>
           <Text as="p" tone="subdued">
             Use <strong>recent sales notifications</strong> for social proof and{" "}
-            <strong>flash sale countdown bars</strong> to create urgency. Build
-            trust, increase CTR, and lift your store’s <em>conversion rate</em>.
+            <strong>flash sale bars</strong> to create urgency. Build
+            trust, and lift your store’s <em>conversion rate</em>.
           </Text>
         </div>
 
@@ -216,7 +216,7 @@ export default function NotificationDashboardIndex() {
             isNew={true}
             emoji="🛒"
             thumbBg="linear-gradient(135deg, #2196F3 0%, #E91E63 50%, #FF5722 100%)"
-            previewText="Harsh from Ahmedabad bought ‘Classic Tote’ 3 mins ago"
+            previewText="Someone from Location bought ‘Classic Tote’ 3 mins ago"
             onConfigure={() => go('/app/notification/recent', 'recent')}
             loading={loadingKey === 'recent'}
           />

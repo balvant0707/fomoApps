@@ -17,7 +17,7 @@ import {
 } from "@remix-run/react";
 import { json, redirect } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
-import { prisma } from "../db.server";
+import prisma from "../db.server";
 
 /* ───────────────── constants ──────────────── */
 const TITLES = { recent: "Recent Purchases", flash: "Flash Sale Bars" };
@@ -30,8 +30,17 @@ const PAGES = [
   { label: "Pages", value: "pages" },
   { label: "Cart Page", value: "cart" },
 ];
+const HIDE_CHOICES = [
+  { label: "Customer Name", value: "name" },
+  { label: "City", value: "city" },
+  { label: "State", value: "state" },
+  { label: "Country", value: "country" },
+  { label: "Product Name", value: "productTitle" },
+  { label: "Product Image", value: "productImage" },
+  { label: "Order Time", value: "time" },
+];
 
-/* SVG icon set */
+/* SVGs (Flash) */
 const SVGS = {
   reshot: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 64 64">
@@ -39,13 +48,6 @@ const SVGS = {
     <path d="M38.719,63a17.825,17.825,0,0,0,7.422-1.5A14.41,14.41,0,0,0,55,48c0-9-2-11-5-17s0-12,0-12a10.819,10.819,0,0,0-6,4C44,2,30,1,30,1a15.091,15.091,0,0,1-2,14c-5,7-10,11-12,19,0,0-4-2-3-6,0,0-4,7-4,18,0,12.062,9.662,15.6,14.418,16.61a18.53,18.53,0,0,0,3.846.39Z" style="fill:#febd55"/>
     <path d="M24.842,63S14.526,59.132,14.526,47.526C14.526,34.632,23.474,30,23.474,30s-2.5,4.632.079,5.921c0,0,4.315-14.053,15.921-17.921,0,0-4.053,4.263-1.474,12s11.316,9.474,11.474,18v1a14.54,14.54,0,0,1-2.2,8.213C45.286,60.31,42.991,63,37.737,63Z" style="fill:#fc9e20"/>
     <path d="M26,63a13.024,13.024,0,0,1-8-12c0-10,5-14,5-14s0,4,2,5c0,0,2-14,11-17,0,0-3,2-1,8s11,8,11,18v.871a12.287,12.287,0,0,1-1.831,6.641A9.274,9.274,0,0,1,36,63Z" style="fill:#e03e3e"/>
-    <path d="M10.174,42.088l-1.992-.177c-.059.663-.106,1.344-.137,2.045l2,.087C10.072,43.375,10.117,42.722,10.174,42.088Z"/>
-    <path d="M12.44,31.768A7.317,7.317,0,0,0,15.553,34.9a1,1,0,0,0,1.417-.652c1.385-5.541,4.3-9.125,7.665-13.276,1.356-1.67,2.759-3.4,4.178-5.386A16.069,16.069,0,0,0,31.45,2.293c2.8.77,8.637,3.489,10.761,12.927l1.951-.44C41.048.944,30.181.01,30.071,0a1,1,0,0,0-.991,1.39,13.975,13.975,0,0,1-1.893,13.027c-1.385,1.938-2.768,3.641-4.105,5.288-3.241,3.992-6.076,7.483-7.67,12.675a4.04,4.04,0,0,1-1.442-4.139,1,1,0,0,0-1.838-.739,36.649,36.649,0,0,0-3.72,12.362l1.983.268A40.112,40.112,0,0,1,12.44,31.768Z"/>
-    <path d="M52.276,33.212c-.431-.812-.893-1.682-1.381-2.659-2.731-5.461-.027-11.052,0-11.106a1,1,0,0,0-1.137-1.417,11.826,11.826,0,0,0-4.824,2.511c-.071-1.284-.2-2.52-.38-3.694l-1.977.306A38.39,38.39,0,0,1,43,23a1,1,0,0,0,1.83.558,9.836,9.836,0,0,1,3.483-2.874,14.847,14.847,0,0,0,.792,10.763c.5.993.966,1.878,1.405,2.7C52.687,38.251,54,40.727,54,48a13.458,13.458,0,0,1-8.275,12.59,14.922,14.922,0,0,1-2.838.938,11.536,11.536,0,0,0,2.124-2.476A13.259,13.259,0,0,0,47,51.871V51H45v.871a11.262,11.262,0,0,1-1.673,6.1A8.25,8.25,0,0,1,36,62H27.264c-.409,0-.8-.034-1.2-.06A11.861,11.861,0,0,1,19,51c0-6.017,1.9-9.755,3.269-11.661A5.025,5.025,0,0,0,24.553,42.9a1,1,0,0,0,1.437-.753c.017-.117,1.556-10.322,7.511-14.717a11,11,0,0,0,.551,5.891c.862,2.588,2.807,4.409,4.868,6.337a21,21,0,0,1,4.845,5.8l1.791-.89a22.864,22.864,0,0,0-5.27-6.366c-1.869-1.75-3.636-3.4-4.338-5.509-1.7-5.11.526-6.793.607-6.852a1,1,0,0,0-.871-1.781C28.353,26.5,25.429,35.457,24.441,39.666A9.122,9.122,0,0,1,24,37a1,1,0,0,0-1.625-.78C22.156,36.4,17,40.639,17,51a13.4,13.4,0,0,0,4.232,9.988C16.241,59.379,10,55.478,10,46H8C8,58.958,18.637,62.616,23.21,63.587a18.919,18.919,0,0,0,2.39.33l.048.02.007-.017c.531.041,1.064.08,1.609.08H38.719a18.737,18.737,0,0,0,7.838-1.59A15.389,15.389,0,0,0,56,48C56,40.229,54.519,37.438,52.276,33.212Z"/>
-    <rect x="23.515" y="50" width="16.971" height="2" transform="translate(-26.69 37.565) rotate(-45)"/>
-    <path d="M32,56a3,3,0,1,0,3-3A3,3,0,0,0,32,56Zm4,0a1,1,0,1,1-1-1A1,1,0,0,1,36,56Z"/>
-    <path d="M32,46a3,3,0,1,0-3,3A3,3,0,0,0,32,46Zm-4,0a1,1,0,1,1,1,1A1,1,0,0,1,28,46Z"/>
-    <path d="M46.862,48.868a13.991,13.991,0,0,0-.459-2.157l-1.916.57a12.126,12.126,0,0,1,.393,1.851Z"/>
   </g>
 </svg>
 `,
@@ -73,28 +75,6 @@ const SVGS = {
   </g>
 </svg>
 `,
-  deadline: `
-<svg xmlns="http://www.w3.org/2000/svg" width ="60" height="60" viewBox="0 0 64 64">
-<style type="text/css">
-	.st0{fill:#40C4FF;}
-	.st1{fill:#263238;}
-	.st2{fill:#FFD740;}
-	.st3{fill:#FF5252;}
-	.st4{fill:#4DB6AC;}
-	.st5{fill:#FFFFFF;}
-	.st6{fill:#4FC3F7;}
-	.st7{fill:#37474F;}
-</style>
-<g>
-	<g><path class="st1" d="M18,53.5c-0.276,0-0.5-0.224-0.5-0.5v-8.511c0-3.609,1.818-6.921,4.863-8.858L28.069,32l-5.706-3.631c-3.045-1.938-4.863-5.249-4.863-8.858V11c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v8.511c0,3.266,1.645,6.262,4.4,8.015l6.369,4.053C29.413,31.67,29.5,31.829,29.5,32s-0.087,0.33-0.231,0.422L22.9,36.475c-2.755,1.753-4.4,4.749-4.4,8.015V53C18.5,53.276,18.276,53.5,18,53.5z"/></g>
-	<g><path class="st1" d="M46,53.5c-0.276,0-0.5-0.224-0.5-0.5v-8.511c0-3.265-1.645-6.261-4.399-8.015l-6.369-4.053C34.587,32.33,34.5,32.171,34.5,32s0.087-0.33,0.231-0.422l6.369-4.053c2.755-1.753,4.399-4.75,4.399-8.015V11c0-0.276,0.224-0.5,0.5-0.5s0.5,0.224,0.5,0.5v8.511c0,3.609-1.817,6.92-4.862,8.858L35.932,32l5.706,3.631c3.045,1.938,4.862,5.25,4.862,8.858V53C46.5,53.276,46.276,53.5,46,53.5z"/></g>
-	<g><path class="st0" d="M47,5H17c-1.105,0-2,0.895-2,2c0,1.105,0.895,2,2,2h30c1.105,0,2-0.895,2-2C49,5.895,48.105,5,47,5z"/></g>
-	<g><path class="st0" d="M17,59h30c1.105,0,2-0.895,2-2v0c0-1.105-0.895-2-2-2H17c-1.105,0-2,0.895-2,2v0C15,58.105,15.895,59,17,59z"/></g>
-	<g><path class="st2" d="M21,53l6.968-9.502c1.998-2.724,6.066-2.724,8.064,0L43,53"/></g>
-	<g><path class="st1" d="M32,30.388c-0.561,0-1.121-0.156-1.61-0.467l-7.342-4.672c-1.595-1.016-2.547-2.75-2.547-4.64v-1.275c0-0.276,0.224-0.5,0.5-0.5h22c0.276,0,0.5,0.224,0.5,0.5v1.275c0,1.891-0.952,3.625-2.547,4.64લ-7.343 4.672"/></g>
-</g>
-</svg>
-`,
   reshotflashon: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 6.82666 6.82666">
  <defs>
@@ -106,9 +86,16 @@ const SVGS = {
  </defs>
  <g>
   <rect class="fil0" width="6.82666" height="6.82666"/>
-  <path class="fil1" d="M2.2782 3.43181l0.477831 -0.000645669 ..."/>
-  <path class="fil2" d="M3.39739 1.49333l-0.151972 0 ..."/>
+  <!-- Keep valid numeric path data here if you use this icon -->
+  <path class="fil1" d="M2.278 3.432l0.478 -0.001 0.22 -0.36 0.18 0.36h0.8l-0.62 0.95 0.35 -0.02 -1.408 1.98z"/>
+  <path class="fil2" d="M3.397 1.493l-0.152 0.3h0.65l-0.95 1.37h0.69l-1.38 2.2 0.85 -1.35 -0.76 0 0.89 -1.36h-0.57z"/>
  </g>
+</svg>
+`,
+  deadline: `
+<svg xmlns="http://www.w3.org/2000/svg" width ="60" height="60" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="30" fill="#40C4FF"/>
+  <path d="M32 14v18l12 8" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
 </svg>
 `,
 };
@@ -119,8 +106,8 @@ const SVG_OPTIONS = [
   { label: "Deadline", value: "deadline" },
 ];
 
-/* ───────────────── helpers ──────────────── */
-const parseArr = (s, fallback = []) => { try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : fallback; } catch { return fallback; } };
+/* ───────────────── misc helpers ──────────────── */
+const parseArr = (s, fb = []) => { try { const v = JSON.parse(s || "[]"); return Array.isArray(v) ? v : fb; } catch { return fb; } };
 const toJson = (a) => JSON.stringify(Array.isArray(a) ? a : []);
 const nullIfBlank = (v) => (v == null || String(v).trim() === "" ? null : String(v));
 const intOrNull = (v, min = null, max = null) => {
@@ -129,7 +116,7 @@ const intOrNull = (v, min = null, max = null) => {
   if (!Number.isFinite(n)) return null;
   if (min != null) n = Math.max(min, n);
   if (max != null) n = Math.min(max, n);
-  return n;
+  return Math.trunc(n);
 };
 const getAdminQS = () => { try { return typeof window !== "undefined" ? (window.location.search || "") : ""; } catch { return ""; } };
 const appendQS = (url) => {
@@ -138,7 +125,31 @@ const appendQS = (url) => {
   return url.includes("?") ? `${url}&${qs.slice(1)}` : `${url}${qs}`;
 };
 
-/* ───────────── SVG sanitize / extract / normalize ───────────── */
+/* ───────── HEX helpers (STRICT) ───────── */
+const HEX_FULL = /^#[0-9A-F]{6}$/i;
+const HEX_PART = /^#?[0-9A-F]{0,6}$/i;
+function expandShorthand(hex) {
+  const s = String(hex || "").toUpperCase();
+  if (/^#[0-9A-F]{3}$/i.test(s)) {
+    return `#${s[1]}${s[1]}${s[2]}${s[2]}${s[3]}${s[3]}`;
+  }
+  return s;
+}
+function coerceHexDraft(v, prev = "#111111") {
+  if (v == null) return prev;
+  let s = String(v).toUpperCase().trim();
+  s = s.replace(/[^#0-9A-F]/g, "");
+  if (!s.startsWith("#")) s = "#" + s.replace(/^#*/, "");
+  if (s.length > 7) s = s.slice(0, 7);
+  if (!HEX_PART.test(s)) return prev;
+  return s;
+}
+function normalizeHexOrDefault(v, def = "#111111") {
+  const up = expandShorthand(String(v || "").toUpperCase());
+  return HEX_FULL.test(up) ? up : def.toUpperCase();
+}
+
+/* sanitize any SVGs pasted */
 function sanitizeSvg(svg) {
   return String(svg)
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -163,6 +174,205 @@ function normalizeSvgSize(svg, size = 50) {
   return out;
 }
 
+/* ───────────────── date & orders helpers (RECENT) ───────── */
+const trimIso = (iso) => {
+  const i = String(iso || "");
+  const [date, time] = i.split("T");
+  if (!time) return i;
+  const [hms] = time.split(".");
+  return `${date}T${(hms || "00:00:00Z").replace(/Z?$/, "Z")}`;
+};
+function zonedStartOfDay(date, timeZone) {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const parts = fmt.formatToParts(date);
+  const Y = Number(parts.find(p => p.type === "year")?.value || "1970");
+  const M = Number(parts.find(p => p.type === "month")?.value || "01");
+  const D = Number(parts.find(p => p.type === "day")?.value || "01");
+  return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
+}
+function daysRangeZoned(days, timeZone) {
+  const now = new Date();
+  const endISO = trimIso(now.toISOString());
+  const daysClamped = Math.max(1, Number(days || 1));
+  const base = new Date(now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000);
+  const start = zonedStartOfDay(base, timeZone || "UTC");
+  return { startISO: trimIso(start.toISOString()), endISO };
+}
+async function getShopTimezone(admin) {
+  try {
+    const q = `query{ shop { ianaTimezone } }`;
+    const r = await admin.graphql(q);
+    const js = await r.json();
+    return js?.data?.shop?.ianaTimezone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+/* ───── Orders query with pagination + 100 lineItems ───── */
+const Q_ORDERS_FULL = `
+  query Orders($first:Int!, $query:String, $after:String) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        cursor
+        node {
+          id
+          createdAt
+          customer { firstName lastName }
+          shippingAddress { city province provinceCode country }
+          billingAddress  { city province provinceCode country }
+          lineItems(first: 100) {
+            edges {
+              node {
+                title
+                product { handle title featuredImage { url } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+function mapEdgesToOrders(edges) {
+  return (edges || []).map((e) => {
+    const o = e?.node || {};
+    const addr = o.shippingAddress || o.billingAddress || {};
+    const lines = o.lineItems?.edges || [];
+    const products = lines.map((li) => ({
+      title: li?.node?.product?.title || li?.node?.title || "",
+      image: li?.node?.product?.featuredImage?.url || null,
+      handle: li?.node?.product?.handle || "",
+    }));
+    return {
+      id: o.id,
+      createdAt: o.createdAt,
+      firstName: o.customer?.firstName || "",
+      lastName: o.customer?.lastName || "",
+      city: addr?.city || "",
+      state: addr?.province || addr?.provinceCode || "",
+      country: addr?.country || "",
+      products,
+    };
+  });
+}
+async function fetchOrdersWithinWindow(admin, startISO, endISO) {
+  const search = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  const FIRST = 100;
+  let after = null;
+  let all = [];
+  for (let page = 0; page < 20; page++) {
+    const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: FIRST, query: search, after } });
+    const js = await resp.json();
+    const block = js?.data?.orders;
+    const edges = block?.edges || [];
+    all = all.concat(mapEdgesToOrders(edges));
+    const hasNext = block?.pageInfo?.hasNextPage;
+    after = block?.pageInfo?.endCursor || null;
+    if (!hasNext || !after) break;
+  }
+  return all;
+}
+
+/* Buckets (unique for UI convenience only) */
+function deriveBucketsFromOrders(orders) {
+  const uniqStrings = (arr) => {
+    const seen = new Set(); const out = [];
+    for (const v of arr) { const k = String(v || "").trim(); if (!k || seen.has(k)) continue; seen.add(k); out.push(k); }
+    return out;
+  };
+  const uniqLocations = (arr) => {
+    const seen = new Set(); const out = [];
+    for (const loc of arr) {
+      const c = String(loc.city || "").trim();
+      const s = String(loc.state || "").trim();
+      const y = String(loc.country || "").trim();
+      if (!c && !s && !y) continue;
+      const key = `${c}|${s}|${y}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ city: c, state: s, country: y });
+    }
+    return out;
+  };
+  let productHandles = [], locations = [], customerNames = [];
+  for (const o of orders || []) {
+    const full = [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
+    if (full) customerNames.push(full);
+    const l = { city: o.city, state: o.state, country: o.country };
+    if (l.city || l.state || l.country) locations.push(l);
+    for (const p of o.products || []) if (p.handle) productHandles.push(p.handle);
+  }
+  return {
+    productHandles: uniqStrings(productHandles),
+    locations: uniqLocations(locations),
+    customerNames: uniqStrings(customerNames),
+  };
+}
+
+/* ALL handles (duplicates preserved) */
+function collectAllProductHandles(orders) {
+  const out = [];
+  for (const o of orders || []) for (const p of o.products || []) {
+    const h = String(p?.handle || "").trim();
+    if (h) out.push(h);
+  }
+  return out;
+}
+
+/* Optional persistence of compact rows + per-order-handle map */
+function flattenCustomerProductRows(shop, orders) {
+  const seen = new Set();
+  const rows = [];
+  for (const o of orders || []) {
+    const created = o?.createdAt ? new Date(o.createdAt) : null;
+    const orderId = String(o?.id || "").trim();
+    const first = (o?.firstName || "").trim();
+    const last  = (o?.lastName  || "").trim();
+    const customerName = (first || last) ? `${first} ${last}`.trim() : "Anonymous";
+    if (!orderId || !created) continue;
+    for (const p of o?.products || []) {
+      const handle = String(p?.handle || "").trim();
+      if (!handle) continue;
+      const key = `${shop}|${orderId}|${handle}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({ shop, orderId, productHandle: handle, customerName, orderCreatedAt: created });
+    }
+  }
+  return rows;
+}
+async function persistCustomerProductHandles(prismaClient, shop, orders) {
+  try {
+    if (!prismaClient) return { inserted: 0, total: 0 };
+    const table = prismaClient.customerproducthandle || prismaClient.customerProductHandle;
+    if (!table) return { inserted: 0, total: 0 };
+    const rows = flattenCustomerProductRows(shop, orders);
+    if (!rows.length) return { inserted: 0, total: 0 };
+    const CHUNK = 200;
+    let done = 0;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const slice = rows.slice(i, i + CHUNK);
+      await prismaClient.$transaction(
+        slice.map((row) =>
+          table.upsert({
+            where: { shop_orderId_productHandle: { shop: row.shop, orderId: row.orderId, productHandle: row.productHandle } },
+            create: row,
+            update: {},
+          })
+        ),
+        { timeout: 20000 }
+      );
+      done += slice.length;
+    }
+    return { inserted: done, total: rows.length };
+  } catch {
+    return { inserted: 0, total: 0 };
+  }
+}
+
 /* ───────────────── loader ──────────────── */
 export async function loader({ request, params }) {
   const { admin, session } = await authenticate.admin(request);
@@ -173,21 +383,19 @@ export async function loader({ request, params }) {
   if (!ALLOWED_KEYS.includes(key)) {
     return json({ ok: false, message: "Invalid key" }, { status: 400 });
   }
-
   const id = Number(params.id);
   if (!Number.isFinite(id) || id <= 0) {
     return json({ ok: false, message: "Bad ID" }, { status: 400 });
   }
 
   const where = { id, shop, key };
-  const row = await prisma.notificationConfig.findFirst({ where });
+  const row = await prisma.notificationconfig.findFirst({ where });
+  if (!row) return json({ ok: false, message: "Record not found." }, { status: 404 });
 
-  if (!row) {
-    return json({ ok: false, message: "Record not found." }, { status: 404 });
-  }
+  const url = new URL(request.url);
+  const urlDays = Number(url.searchParams.get("days"));
 
-  // Common data shape
-  const data = {
+  const base = {
     id: row.id,
     key,
     enabled: row.enabled ? ["enabled"] : ["disabled"],
@@ -195,58 +403,101 @@ export async function loader({ request, params }) {
     messageTitles: parseArr(row.messageTitlesJson),
     locations: parseArr(row.locationsJson),
     names: parseArr(row.namesJson),
-    messageText: key === "recent" ? (row.messageText ?? "bought this product recently") : null,
+    messageText: row.messageText ?? "",
     fontFamily: row.fontFamily ?? "System",
     position: row.position ?? (key === "flash" ? "top-right" : "bottom-left"),
-    animation: row.animation ?? (key === "flash" ? "slide" : "fade"),
+    animation: row.animation ?? "fade",
     mobileSize: row.mobileSize ?? "compact",
     mobilePosition: (() => {
-      try { const v = JSON.parse(row.mobilePositionJson || "null"); if (Array.isArray(v) && v.length) return v; } catch { }
+      try { const v = JSON.parse(row.mobilePositionJson || "null"); if (Array.isArray(v) && v.length) return v; } catch {}
       return ["bottom"];
     })(),
-    titleColor: row.titleColor ?? (key === "flash" ? "#111111" : "#6E62FF"),
-    bgColor: row.bgColor ?? (key === "flash" ? "#FFF8E1" : "#FFFFFF"),
-    msgColor: row.msgColor ?? "#111111",
-    ctaBgColor: row.ctaBgColor ?? null,
+    titleColor: normalizeHexOrDefault(row.titleColor, "#111111"),
+    bgColor:    normalizeHexOrDefault(row.bgColor,    "#FFFFFF"),
+    msgColor:   normalizeHexOrDefault(row.msgColor,   "#111111"),
+    ctaBgColor: normalizeHexOrDefault(row.ctaBgColor || "", "#000000"),
     rounded: row.rounded ?? 14,
-    durationSeconds: row.durationSeconds ?? (key === "flash" ? 10 : 8),
-    alternateSeconds: row.alternateSeconds ?? (key === "flash" ? 5 : 10),
+    durationSeconds: row.durationSeconds ?? 8,
+    alternateSeconds: row.alternateSeconds ?? 10,
     fontWeight: String(row.fontWeight ?? 600),
-    iconKey: row.iconKey ?? (key === "flash" ? "reshot" : ""),
+    iconKey: row.iconKey ?? "reshot",
     iconSvg: row.iconSvg ?? "",
-    // recent-only
     selectedProducts: key === "recent" ? parseArr(row.selectedProductsJson) : [],
+    orderDays: Number.isFinite(Number(row.orderDays)) ? Number(row.orderDays) : 1,
+    createOrderTime: row.createOrderTime ?? null,
   };
 
-  // recent: preview first product by handle (server-side)
   let previewProduct = null;
-  if (key === "recent" && Array.isArray(data.selectedProducts) && data.selectedProducts.length) {
+  let strictOrders = [];
+  let buckets = { productHandles: [], locations: [], customerNames: [] };
+  let newestCreatedAt = null;
+  let usedDays = null;
+  let allHandles = [];
+
+  if (key === "recent") {
     try {
-      const q = `
-        query ProductByHandle($handle: String!) {
-          productByHandle(handle: $handle) {
-            id title handle status
-            featuredImage { url altText }
-          }
-        }`;
-      const resp = await admin.graphql(q, { variables: { handle: data.selectedProducts[0] } });
-      const js = await resp.json();
-      const p = js?.data?.productByHandle;
-      if (p) {
-        previewProduct = {
-          id: p.id, title: p.title, handle: p.handle,
-          status: p.status, featuredImage: p.featuredImage?.url || null
-        };
+      const days = (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60) ? urlDays : base.orderDays;
+      usedDays = days;
+      const shopTZ = await getShopTimezone(admin);
+      const { startISO, endISO } = daysRangeZoned(days, shopTZ);
+
+      strictOrders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+      allHandles = collectAllProductHandles(strictOrders);
+
+      try { await persistCustomerProductHandles(prisma, shop, strictOrders); } catch {}
+
+      if (strictOrders.length > 0) {
+        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
+      } else {
+        const r = await admin.graphql(Q_ORDERS_FULL, { variables: { first: 1, query: "status:any" } });
+        const j = await r.json();
+        strictOrders = mapEdgesToOrders(j?.data?.orders?.edges || []);
+        if (strictOrders[0]?.createdAt) newestCreatedAt = trimIso(String(strictOrders[0].createdAt));
       }
-    } catch { /* ignore */ }
+
+      buckets = deriveBucketsFromOrders(strictOrders);
+
+      const first = strictOrders[0]?.products?.[0];
+      if (first?.handle) {
+        const q = `
+          query ProductByHandle($handle: String!) {
+            productByHandle(handle: $handle) {
+              id title handle status
+              featuredImage { url altText }
+            }
+          }`;
+        const resp = await admin.graphql(q, { variables: { handle: first.handle } });
+        const js = await resp.json();
+        const p = js?.data?.productByHandle;
+        if (p) previewProduct = { id: p.id, title: p.title, handle: p.handle, status: p.status, featuredImage: p.featuredImage?.url || null };
+      }
+    } catch (e) {
+      console.error("[Recent loader] orders/buckets failed", e);
+    }
   }
 
-  return json({ ok: true, key, title: TITLES[key], data, previewProduct });
+  if (key === "recent") base.selectedProducts = allHandles;
+
+  const headline = (key === "recent")
+    ? ((Array.isArray(base.messageTitles) && base.messageTitles[0]) ? String(base.messageTitles[0]) : "")
+    : "";
+
+  return json({
+    ok: true,
+    key,
+    title: TITLES[key],
+    data: { ...base, headline },
+    previewProduct,
+    orders: strictOrders,
+    buckets,
+    newestCreatedAt,
+    usedDays,
+  });
 }
 
 /* ───────────────── action (save/update) ──────────────── */
 export async function action({ request, params }) {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
@@ -267,46 +518,91 @@ export async function action({ request, params }) {
   const position = nullIfBlank(form.get("position"));
   const animation = nullIfBlank(form.get("animation"));
   const mobileSize = nullIfBlank(form.get("mobileSize"));
-  const titleColor = nullIfBlank(form.get("titleColor"));
-  const bgColor = nullIfBlank(form.get("bgColor"));
-  const msgColor = nullIfBlank(form.get("msgColor"));
-  const ctaBgColor = nullIfBlank(form.get("ctaBgColor"));
+
+  const titleColor = normalizeHexOrDefault(form.get("titleColor"), "#111111");
+  const bgColor    = normalizeHexOrDefault(form.get("bgColor"),    "#FFFFFF");
+  const msgColor   = normalizeHexOrDefault(form.get("msgColor"),   "#111111");
+  const ctaBgColor = normalizeHexOrDefault(form.get("ctaBgColor") || "#000000", "#000000");
 
   const rounded = intOrNull(form.get("rounded"), 10, 72);
   const durationSeconds = intOrNull(form.get("durationSeconds"), 1, 60);
   const alternateSeconds = intOrNull(form.get("alternateSeconds"), 0, 3600);
   const fontWeight = intOrNull(form.get("fontWeight"), 100, 900);
 
-  const mobilePosition = form.getAll("mobilePosition");
-  const mobilePositionJson = JSON.stringify(mobilePosition.length ? mobilePosition : ["bottom"]);
+  const mobilePositionArr = form.getAll("mobilePosition");
+  const mobilePositionJson = JSON.stringify(mobilePositionArr.length ? mobilePositionArr : ["bottom"]);
 
-  // arrays (no validation now)
-  const messageTitles = form.getAll("messageTitles").map(s => String(s).trim()).filter(Boolean);
-  const locations = form.getAll("locations").map(s => String(s).trim()).filter(Boolean);
-  const names = form.getAll("names").map(s => String(s).trim()).filter(Boolean);
+  let messageTitlesArr = [];
+  let locationsArr = [];
+  let namesArr = [];
 
-  // icon fields (flash only logic)
+  const orderDays = intOrNull(form.get("orderDays"), 1, 60) ?? 1;
+
   let iconKeyIn = nullIfBlank(form.get("iconKey"));
   const rawSvg = nullIfBlank(form.get("iconSvg"));
   const uploadedSvg = extractFirstSvg(rawSvg || "");
+  let finalIconKey = iconKeyIn || "reshot";
+  let finalIconSvg = uploadedSvg ? uploadedSvg : (SVGS[finalIconKey] || SVGS["reshot"]);
 
-  // recent-only
-  let selectedProducts = form.getAll("selectedProducts").map(s => String(s).trim()).filter(Boolean);
+  if (key === "recent") {
+    const headline = (form.get("headline") || "").toString().trim();
+    messageTitlesArr = headline ? [headline] : [];
+    locationsArr = form.getAll("locations").map(s => String(s).trim()).filter(Boolean);
+    namesArr = form.getAll("names").map(s => String(s).trim()).filter(Boolean); // hide keys
+  } else {
+    messageTitlesArr = form.getAll("messageTitles").map(s => String(s).trim()).filter(Boolean);
+    locationsArr = form.getAll("locations").map(s => String(s).trim()).filter(Boolean);
+    namesArr = form.getAll("names").map(s => String(s).trim()).filter(Boolean);
+  }
 
-  // Build final icon fields
-  let finalIconKey = null;
-  let finalIconSvg = null;
+  let createOrderTime = null;
+  let recentFullNames = [];
+  let recentLocationStrings = [];
+  let allHandles = [];
 
-  if (key === "flash") {
-    if (uploadedSvg) {
-      // Uploaded wins
-      finalIconKey = "upload_svg";
-      finalIconSvg = uploadedSvg;
-    } else {
-      // No upload → use dropdown; fallback to reshot
-      const k = iconKeyIn || "reshot";
-      finalIconKey = k;
-      finalIconSvg = SVGS[k] || SVGS["reshot"];
+  if (key === "recent") {
+    try {
+      const shopTZ = await getShopTimezone(admin);
+      const { startISO, endISO } = daysRangeZoned(orderDays, shopTZ);
+      const orders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+
+      try { await persistCustomerProductHandles(prisma, shop, orders); } catch {}
+
+      if (orders?.[0]?.createdAt) createOrderTime = trimIso(String(orders[0].createdAt));
+
+      const namesSet = new Set();
+      const locSet = new Set();
+
+      for (const o of orders) {
+        const full = [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
+        if (full) namesSet.add(full);
+        const loc = [o.city, o.state, o.country].filter(Boolean).join(", ").trim();
+        if (loc) locSet.add(loc);
+      }
+
+      recentFullNames = Array.from(namesSet).slice(0, 100);
+      recentLocationStrings = Array.from(locSet).slice(0, 100);
+
+      allHandles = collectAllProductHandles(orders);
+
+      try {
+        const compact = orders.map(o => ({
+          id: o.id,
+          createdAt: o.createdAt,
+          name: [o.firstName, o.lastName].filter(Boolean).join(" "),
+          city: o.city, state: o.state, country: o.country,
+          products: (o.products || []).slice(0, 3).map(p => ({
+            title: p.title, handle: p.handle, image: p.image
+          }))
+        }));
+        await prisma.recentordercache?.upsert?.({
+          where: { shop_notifId: { shop, notifId: id } },
+          create: { shop, notifId: id, startISO, endISO, rowsJson: JSON.stringify(compact) },
+          update: { startISO, endISO, rowsJson: JSON.stringify(compact) }
+        });
+      } catch {}
+    } catch (e) {
+      console.error("[Recent action] compute window lists failed", e);
     }
   }
 
@@ -327,59 +623,130 @@ export async function action({ request, params }) {
     durationSeconds,
     alternateSeconds,
     fontWeight,
-    // json arrays
-    messageTitlesJson: toJson(messageTitles),
-    locationsJson: toJson(locations),
-    namesJson: toJson(names),
-    // key-specific fields
-    selectedProductsJson: key === "recent" ? (selectedProducts.length ? JSON.stringify(selectedProducts) : null) : null,
-    iconKey: key === "flash" ? finalIconKey : null,
-    iconSvg: key === "flash" ? finalIconSvg : null,
+
+    messageTitlesJson: key === "recent"
+      ? JSON.stringify(recentFullNames)
+      : toJson(messageTitlesArr),
+
+    locationsJson: key === "recent"
+      ? JSON.stringify(recentLocationStrings)
+      : toJson(locationsArr),
+
+    namesJson: toJson(namesArr),
+
+    selectedProductsJson: key === "recent"
+      ? JSON.stringify(allHandles)
+      : null,
+
+    ...(key === "flash" ? { iconKey: (finalIconKey || "reshot"), iconSvg: finalIconSvg } : {}),
+    ...(key === "recent" ? { orderDays, createOrderTime } : {}),
   };
 
-  await prisma.notificationConfig.update({ where: { id }, data });
+  await prisma.notificationconfig.update({ where: { id }, data });
 
-  // Redirect back to dashboard with toast
   const prev = new URL(request.url);
   const qs = prev.search;
   const dest = `/app/dashboard${qs ? `${qs}&saved=1` : "?saved=1"}`;
   return redirect(dest);
 }
 
-/* ───────────────── ColorInput ──────────────── */
-const hex6 = (v) => /^#[0-9A-F]{6}$/i.test(String(v || ""));
+/* ───────────────── ColorInput (STRICT) ──────────────── */
 function hexToRgb(hex) { const c = hex.replace("#", ""); const n = parseInt(c, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: (n & 255) }; }
 function rgbToHsv({ r, g, b }) { r /= 255; g /= 255; b /= 255; const m = Math.max(r, g, b), n = Math.min(r, g, b), d = m - n; let h = 0; if (d) { switch (m) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4 } h *= 60 } const s = m ? d / m : 0; return { hue: h, saturation: s, brightness: m } }
-function hsvToRgb({ hue: h, saturation: s, brightness: v }) { const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; let R = 0, G = 0, B = 0; if (0 <= h && h < 60) [R, G, B] = [c, x, 0]; else if (60 <= h && h < 120) [R, G, B] = [x, c, 0]; else if (120 <= h && h < 180) [R, G, B] = [0, c, x]; else if (180 <= h && h < 240) [R, G, B] = [0, x, c]; else[R, G, B] = [x, 0, c]; return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) } }
+function hsvToRgb({ hue: h, saturation: s, brightness: v }) { const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; let R = 0, G = 0, B = 0; if (0 <= h && h < 60) [R, G, B] = [c, x, 0]; else if (60 <= h && h < 120) [R, G, B] = [x, c, 0]; else if (120 <= h && h < 180) [R, G, B] = [0, c, x]; else if (180 <= h && h < 240) [R, G, B] = [0, x, c]; else [R, G, B] = [x, 0, c]; return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) } }
 const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex)); const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
+const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
+const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
+  const initial = HEX_FULL.test(value || "") ? value.toUpperCase()
+                 : /^#[0-9A-F]{3}$/i.test(String(value || "")) ? expandShorthand(value)
+                 : "#111111";
   const [open, setOpen] = useState(false);
-  const [hsb, setHsb] = useState(hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 });
-  useEffect(() => { if (hex6(value)) setHsb(hexToHSB(value)); }, [value]);
+  const [draft, setDraft] = useState(initial);
+  const [hsb, setHsb] = useState(hexToHSB(initial));
+  const lastValidRef = useRef(initial);
 
-  const swatch = (<div onClick={() => setOpen(true)} style={{ width: 28, height: 28, borderRadius: 10, cursor: "pointer", border: "1px solid rgba(0,0,0,0.08)", background: hex6(value) ? value : "#ffffff" }} />);
+  useEffect(() => {
+    const norm = normalizeHexOrDefault(value, lastValidRef.current);
+    setDraft(norm);
+    lastValidRef.current = norm;
+    setHsb(hexToHSB(norm));
+  }, [value]);
+
+  const handleText = (v) => {
+    const cleaned = coerceHexDraft(v, lastValidRef.current);
+    setDraft(cleaned);
+    if (HEX_FULL.test(cleaned)) {
+      const up = cleaned.toUpperCase();
+      lastValidRef.current = up;
+      onChange(up);
+      setHsb(hexToHSB(up));
+    }
+  };
+
+  const handleBlur = () => {
+    const expanded = expandShorthand(draft);
+    const valid = HEX_FULL.test(expanded) ? expanded : lastValidRef.current;
+    const up = valid.toUpperCase();
+    setDraft(up);
+    if (up !== value) onChange(up);
+    setHsb(hexToHSB(up));
+  };
+
+  const swatch = (
+    <div
+      onClick={() => setOpen(true)}
+      title="Pick color"
+      style={{
+        width: 28, height: 28, borderRadius: 10, cursor: "pointer",
+        border: "1px solid rgba(0,0,0,0.08)",
+        background: HEX_FULL.test(draft) ? draft : "#ffffff"
+      }}
+    />
+  );
 
   return (
-    <Popover active={open} onClose={() => setOpen(false)} preferredAlignment="right"
+    <Popover
+      active={open}
+      onClose={() => setOpen(false)}
+      preferredAlignment="right"
       activator={
-        <TextField label={label} value={value} onChange={(v) => { const next = String(v).toUpperCase(); onChange(next); if (hex6(next)) setHsb(hexToHSB(next)); }}
-          autoComplete="off" placeholder={placeholder} suffix={swatch} onFocus={() => setOpen(true)} />
-      }>
+        <TextField
+          label={label}
+          value={draft}
+          onChange={handleText}
+          onBlur={handleBlur}
+          autoComplete="off"
+          placeholder={placeholder}
+          suffix={swatch}
+          inputMode="text"
+        />
+      }
+    >
       <Box padding="300" minWidth="260px">
-        <ColorPicker color={hsb} onChange={(c) => { setHsb(c); onChange(hsbToHEX(c)); }} allowAlpha={false} />
+        <ColorPicker
+          color={hsb}
+          onChange={(c) => {
+            setHsb(c);
+            const hex = hsbToHEX(c).toUpperCase();
+            lastValidRef.current = hex;
+            setDraft(hex);
+            onChange(hex);
+          }}
+          allowAlpha={false}
+        />
       </Box>
     </Popover>
   );
 }
 
-/* ───────────────── Token Input Helper ──────────────── */
+/* ───────────────── Token helpers ──────────────── */
 function useTokenInput(listKey, form, setForm) {
   const [draft, setDraft] = useState("");
   const add = useCallback((val) => {
     const v = String(val || "").trim(); if (!v) return;
-    setForm(f => { const arr = [...(f[listKey] || [])]; arr.push(v); return { ...f, [listKey]: arr }; });
+    setForm(f => { const arr = [...(f[listKey] || [])]; if (!arr.includes(v)) arr.push(v); return { ...f, [listKey]: arr }; });
   }, [listKey, setForm]);
   const removeAt = useCallback((idx) => {
     setForm(f => { const arr = [...(f[listKey] || [])]; arr.splice(idx, 1); return { ...f, [listKey]: arr }; });
@@ -393,12 +760,57 @@ function useTokenInput(listKey, form, setForm) {
   return { draft, setDraft, add, removeAt, onChange, commitDraft };
 }
 
+/* UPDATED TokenField: Enter to add works reliably */
+function TokenField({ label, placeholder, tokens, onAdd, onRemove, draft, onDraft, onCommit }) {
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      onCommit();
+    }
+  };
+
+  return (
+    <BlockStack gap="150">
+      <div onKeyDown={handleKeyDown}>
+        <InlineStack gap="200" wrap={false} align="start" blockAlign="center">
+          <Box width="100%">
+            <TextField
+              label={label}
+              placeholder={placeholder}
+              value={draft}
+              onChange={onDraft}
+              autoComplete="off"
+              onBlur={onCommit}
+            />
+          </Box>
+          {/* <Box width="20%" minWidth="100px">
+            <Button onClick={onCommit} size="medium" variant="primary">
+              Add
+            </Button>
+          </Box> */}
+        </InlineStack>
+      </div>
+
+      <InlineStack gap="150" wrap>
+        {(tokens || []).map((t, i) => (
+          <Tag key={`${t}-${i}`} onRemove={() => onRemove(i)}>{t}</Tag>
+        ))}
+      </InlineStack>
+
+      <Text tone="subdued" variant="bodySm">
+        Press Enter or click Add to append multiple. Use comma “,” or “|” for many at once.
+      </Text>
+    </BlockStack>
+  );
+}
+
 /* ───────────────── Anim + Preview helpers ──────────────── */
 const getAnimationStyle = (a) =>
   a === "slide" ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" } :
-    a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
-      a === "zoom" ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" } :
-        { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
+  a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
+  a === "zoom" ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" } :
+  { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
 
 const posToFlex = (pos) => {
   switch (pos) {
@@ -413,62 +825,85 @@ const mobilePosToFlex = (pos) => ({ justifyContent: "center", alignItems: pos ==
 const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large" ? 360 : 330);
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : size === "large" ? 1.06 : 1);
 
-/* ───────────────── Notification bubbles ──────────────── */
-function RecentBubble({ form, product, isMobile = false, drafts = {} }) {
+/* ───────────────── Unified bubbles ──────────────── */
+function RecentBubble({ form, order, product, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
+  const hide = new Set(form.hideKeys || []);
 
-  const firstTitle = (drafts.title || "").trim() || form?.messageTitles?.[0] || "Someone";
-  const firstLoc = (drafts.location || "").trim() || form?.locations?.[0] || "Ahmedabad";
-  const firstName = (drafts.name || "").trim() || form?.names?.[0] || "2 hours ago";
+  const sizeBase = Number(form.rounded ?? 14) || 14;
+  const sized = Math.max(10, Math.min(28, Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1))));
 
-  const baseFont = Number(form?.rounded ?? 14) || 14;
-  const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
-  const sized = Math.max(10, Math.min(28, Math.round(baseFont * scale)));
+  const name = order
+    ? [order.firstName, order.lastName].filter(Boolean).join(" ")
+    : (form.headline || "Someone");
 
-  const bubbleStyle = {
-    display: "flex", alignItems: "center", gap: 12,
-    fontFamily: form?.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form?.fontFamily,
-    background: form?.bgColor, color: form?.msgColor, borderRadius: 14,
-    boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
-    maxWidth: isMobile ? mobileSizeToWidth(form?.mobileSize) : 560, ...animStyle
-  };
+  const locBits = order ? [
+    hide.has("city") ? null : order.city,
+    hide.has("state") ? null : order.state,
+    hide.has("country") ? null : order.country,
+  ].filter(Boolean) : [];
+  const loc = locBits.join(", ");
+
+  const firstProd = order?.products?.[0] || null;
+  const productTitle = hide.has("productTitle") ? "" : (firstProd?.title || product?.title || "");
+  const productImg = hide.has("productImage") ? null : (firstProd?.image || product?.featuredImage || null);
 
   return (
-    <div style={bubbleStyle}>
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
+      background: form.bgColor, color: form.msgColor, borderRadius: 14,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
+      maxWidth: isMobile ? mobileSizeToWidth(form.mobileSize) : 560, ...animStyle
+    }}>
       <div>
-        {product?.featuredImage ? (
-          <img src={product.featuredImage} alt={product.title || "Product"} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#f4f4f5" }} />
-        ) : (
-          <div style={{ width: 60, height: 60, borderRadius: 6, background: "#f4f4f5" }} />
-        )}
+        {productImg
+          ? <img src={productImg} alt={productTitle || "Product"} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#f4f4f5" }} />
+          : <div style={{ width: 60, height: 60, borderRadius: 6, background: "#f4f4f5" }} />
+        }
       </div>
       <div>
-        <p style={{ margin: 0 }}>
-          <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600), fontSize: sized }}>{firstTitle}</span>
-          <span style={{ fontSize: sized }}>{" "}from</span>
-          <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600), fontSize: sized }}>{" "}{firstLoc}</span><br />
-          <span style={{ margin: 0, fontSize: sized }}>{form?.messageText || "bought this product recently"}</span><br />
-          <span style={{ fontSize: sized, opacity: 0.9, display: 'block', textAlign: 'end' }}>
-            <small>{firstName}</small>
+        <p style={{ margin: 0, fontSize: sized }}>
+          {!hide.has("name") && (
+            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
+              {name || "Customer"}
+            </span>
+          )}
+          {!hide.has("name") && loc ? " from " : ""}
+          {loc && (
+            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
+              {loc}
+            </span>
+          )}
+          <br />
+          <span>
+            {productTitle ? `recently bought “${productTitle}”` : "placed an order"}
           </span>
+          {!hide.has("time") && (
+            <>
+              <br />
+              <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
+                <small>{order?.createdAt ? new Date(order.createdAt).toLocaleString() : "just now"}</small>
+              </span>
+            </>
+          )}
         </p>
       </div>
     </div>
   );
 }
 
-function FlashBubble({ form, isMobile = false, drafts = {} }) {
+function FlashBubble({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
-
   const svgMarkup = useMemo(() => {
     const uploaded = extractFirstSvg(form.iconSvg || "");
     const base = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
     return base ? normalizeSvgSize(base, 50) : "";
   }, [form.iconSvg, form.iconKey]);
 
-  const firstTitle = (drafts.title || "").trim() || form?.messageTitles?.[0] || "Flash Sale";
-  const firstName = (drafts.location || "").trim() || form?.locations?.[0] || "Flash Sale 20% OFF";
-  const firstText = (drafts.name || "").trim() || form?.names?.[0] || "ends in 02:15 hours";
+  const headline = (form?.messageTitles?.[0] || "Flash Sale");
+  const subline = (form?.locations?.[0] || "20% OFF");
+  const footnote = (form?.countdowns?.[0] || "Ends soon");
 
   const base = Number(form.rounded ?? 14) || 14;
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
@@ -483,21 +918,20 @@ function FlashBubble({ form, isMobile = false, drafts = {} }) {
       maxWidth: isMobile ? mobileSizeToWidth(form?.mobileSize) : 560, ...animStyle
     }}>
       {svgMarkup ? (
-        <span aria-hidden="true" style={{ display: "flex", flexShrink: 0,width: 60, height: 60, alignItems: "center"}}
+        <span aria-hidden="true" style={{ display: "flex", flexShrink: 0, width: 60, height: 60, alignItems: "center" }}
           dangerouslySetInnerHTML={{ __html: svgMarkup }} />
-      ) : null}
+      ) : <div style={{ width: 60, height: 60, borderRadius: 6, background: "#f4f4f5" }} />}
       <div style={{ display: "grid", gap: 4 }}>
-        <p style={{ margin: 0, color: form.titleColor, fontWeight: Number(form.fontWeight || 600), fontSize: sized }}>{firstTitle}</p>
-        <p style={{ margin: 0, fontSize: sized, lineHeight: 1.5 }}>
-          <small>{firstName} — {form?.messageText || firstText}</small>
-        </p>
+        <p style={{ margin: 0, color: form.titleColor, fontWeight: Number(form.fontWeight || 600), fontSize: sized }}>{headline}</p>
+        <p style={{ margin: 0, fontSize: sized, lineHeight: 1.45 }}>{subline}{form.messageText ? ` — ${form.messageText}` : ""}</p>
+        <p style={{ margin: 0, fontSize: sized * 0.9, opacity: 0.85 }}><small></small></p>
       </div>
     </div>
   );
 }
 
 /* Desktop frame */
-function DesktopPreview({ keyName, form, product, drafts }) {
+function DesktopPreview({ keyName, form, product, order }) {
   const flex = posToFlex(form?.position);
   return (
     <div
@@ -508,16 +942,16 @@ function DesktopPreview({ keyName, form, product, drafts }) {
       }}
     >
       {keyName === "recent" ? (
-        <RecentBubble form={form} product={product} isMobile={false} drafts={drafts} />
+        <RecentBubble form={form} product={product} order={order} isMobile={false} />
       ) : (
-        <FlashBubble form={form} isMobile={false} drafts={drafts} />
+        <FlashBubble form={form} isMobile={false} />
       )}
     </div>
   );
 }
 
 /* Mobile frame */
-function MobilePreview({ keyName, form, product, drafts }) {
+function MobilePreview({ keyName, form, product, order }) {
   const pos = (form?.mobilePosition && form.mobilePosition[0]) || "bottom";
   const flex = mobilePosToFlex(pos);
   return (
@@ -532,9 +966,9 @@ function MobilePreview({ keyName, form, product, drafts }) {
         <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 120, height: 18, borderRadius: 10, background: "#0f172a0f" }} />
         <div style={{ padding: 8 }}>
           {keyName === "recent" ? (
-            <RecentBubble form={form} product={product} isMobile drafts={drafts} />
+            <RecentBubble form={form} product={product} order={order} isMobile />
           ) : (
-            <FlashBubble form={form} isMobile drafts={drafts} />
+            <FlashBubble form={form} isMobile />
           )}
         </div>
       </div>
@@ -543,7 +977,7 @@ function MobilePreview({ keyName, form, product, drafts }) {
 }
 
 /* Wrapper */
-function LivePreview({ keyName, form, product, drafts }) {
+function LivePreview({ keyName, form, product, order }) {
   const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
@@ -556,17 +990,17 @@ function LivePreview({ keyName, form, product, drafts }) {
         </ButtonGroup>
       </InlineStack>
 
-      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} drafts={drafts} />}
-      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} drafts={drafts} />}
+      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} order={order} />}
+      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} order={order} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} drafts={drafts} /></Box>
-          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} drafts={drafts} /></Box>
+          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} order={order} /></Box>
+          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} order={order} /></Box>
         </InlineStack>
       )}
 
       <Text as="p" variant="bodySm" tone="subdued">
-        Desktop preview follows Desktop position. Mobile preview follows Mobile Position and Mobile size.
+        Recent: Strict order window (shop timezone). Preview shows latest order inside window (fallback to newest).
       </Text>
     </BlockStack>
   );
@@ -574,7 +1008,7 @@ function LivePreview({ keyName, form, product, drafts }) {
 
 /* ───────────────── Page ──────────────── */
 export default function NotificationEditGeneric() {
-  const { ok, key, title, data, previewProduct } = useLoaderData();
+  const { ok, key, title, data, previewProduct, orders, buckets, newestCreatedAt, usedDays } = useLoaderData();
   const navigate = useNavigate();
   const navigation = useNavigation();
   const location = useLocation();
@@ -608,11 +1042,8 @@ export default function NotificationEditGeneric() {
     }
   }, [showSaved, location.pathname, location.search, navigate]);
 
-  // selectedProducts objects for preview/pills (recent only)
   const [selectedProducts, setSelectedProducts] = useState(() => (previewProduct ? [previewProduct] : []));
   const [selectedProduct, setSelectedProduct] = useState(() => (previewProduct || null));
-
-  // product picker (recent only)
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -627,13 +1058,28 @@ export default function NotificationEditGeneric() {
     fetcher.load(`/app/products-picker?${params.toString()}`);
   }, [pickerOpen, search, page, isRecent, fetcher]);
 
+  const locFromBuckets = useMemo(() => {
+    if (!isRecent) return (Array.isArray(data.locations) ? data.locations : []);
+    const arr = (buckets?.locations || [])
+      .map(l => [l.city, l.state, l.country].filter(Boolean).join(", "))
+      .filter(Boolean);
+    return Array.from(new Set(arr));
+  }, [isRecent, buckets, data.locations]);
+
   const [form, setForm] = useState(() => ({
     enabled: data.enabled,
     showType: data.showType,
-    messageTitles: data.messageTitles,
-    locations: data.locations,
-    names: data.names,
-    messageText: key === "recent" ? String(data.messageText || "") : "",
+
+    // RECENT
+    headline: isRecent ? String(data.headline || "") : "",
+    hideKeys: isRecent ? (Array.isArray(data.names) ? data.names : []) : [],
+
+    // FLASH
+    messageTitles: isFlash ? (data.messageTitles || []) : [],
+    locations: isRecent ? locFromBuckets : (data.locations || []),
+    countdowns: isFlash ? (Array.isArray(data.names) ? data.names : []) : [],
+
+    messageText: String(data.messageText || ""),
     fontFamily: data.fontFamily,
     position: data.position,
     animation: data.animation,
@@ -642,15 +1088,24 @@ export default function NotificationEditGeneric() {
     titleColor: data.titleColor,
     bgColor: data.bgColor,
     msgColor: data.msgColor,
-    ctaBgColor: data.ctaBgColor || "",
+    ctaBgColor: data.ctaBgColor || "#000000",
     rounded: String(data.rounded ?? 14),
     durationSeconds: Number(data.durationSeconds ?? 8),
     alternateSeconds: Number(data.alternateSeconds ?? 10),
     fontWeight: String(data.fontWeight ?? 600),
     iconKey: data.iconKey || "reshot",
     iconSvg: data.iconSvg || "",
+
     selectedProducts: Array.isArray(data.selectedProducts) ? data.selectedProducts : [],
+    orderDays: Number(isRecent ? (usedDays ?? data.orderDays ?? 1) : 1),
+    createOrderTime: data.createOrderTime || newestCreatedAt || null,
   }));
+
+  useEffect(() => {
+    if (!isRecent) return;
+    const newest = orders?.[0]?.createdAt ? trimIso(String(orders[0].createdAt)) : null;
+    setForm(f => ({ ...f, createOrderTime: newest || f.createOrderTime }));
+  }, [isRecent, orders]);
 
   const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const onNum = (k, min, max) => (val) => {
@@ -659,11 +1114,10 @@ export default function NotificationEditGeneric() {
     setForm(f => ({ ...f, [k]: clamped }));
   };
 
-  const titlesInput = useTokenInput("messageTitles", form, setForm);
-  const locationsInput = useTokenInput("locations", form, setForm);
-  const namesInput = useTokenInput("names", form, setForm);
+  const titlesInput = isFlash ? useTokenInput("messageTitles", form, setForm) : null;
+  const offersInput  = isFlash ? useTokenInput("locations", form, setForm) : null;
+  const countInput   = isFlash ? useTokenInput("countdowns", form, setForm) : null;
 
-  // handles array from form
   const selectedHandles = useMemo(() => {
     const v = form?.selectedProducts;
     if (Array.isArray(v)) return v;
@@ -693,56 +1147,57 @@ export default function NotificationEditGeneric() {
     });
   };
 
-  // ⛔ no counts warning anymore (validation removed)
-
   const formRef = useRef(null);
   const doSave = () => formRef.current?.requestSubmit();
 
-  // 🔼 Flash: upload UI
+  // Upload SVG (Flash)
   const [svgName, setSvgName] = useState("");
   const [uploadError, setUploadError] = useState("");
-
   const handleSvgDrop = useCallback((_drop, accepted, rejected) => {
     setUploadError("");
-    if (rejected?.length) {
-      setUploadError("Only .svg files are allowed.");
-      return;
-    }
-    const file = accepted?.[0];
-    if (!file) return;
-    if (file.type !== "image/svg+xml") {
-      setUploadError("File must be an SVG.");
-      return;
-    }
-    if (file.size > 200 * 1024) {
-      setUploadError("SVG too large. Keep under 200KB.");
-      return;
-    }
+    if (rejected?.length) { setUploadError("Only .svg files are allowed."); return; }
+    const file = accepted?.[0]; if (!file) return;
+    if (file.type !== "image/svg+xml") { setUploadError("File must be an SVG."); return; }
+    if (file.size > 200 * 1024) { setUploadError("SVG too large. Keep under 200KB."); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const raw = String(reader.result || "");
       const svg = extractFirstSvg(raw);
-      if (!svg) {
-        setUploadError("Invalid SVG content.");
-        return;
-      }
-      setForm(f => ({ ...f, iconSvg: svg, iconKey: "upload_svg" })); // ✅ prefer upload
+      if (!svg) { setUploadError("Invalid SVG content."); return; }
+      setForm(f => ({ ...f, iconSvg: svg, iconKey: "upload_svg" }));
       setSvgName(file.name);
     };
     reader.readAsText(file);
   }, []);
+  const clearUploadedSvg = () => { setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" })); setSvgName(""); setUploadError(""); };
+  const iconOptions = useMemo(() => (form.iconSvg ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...SVG_OPTIONS] : SVG_OPTIONS), [form.iconSvg]);
 
-  const clearUploadedSvg = () => {
-    setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" }));
-    setSvgName("");
-    setUploadError("");
+  const previewOrder = isRecent ? (orders?.[0] || null) : null;
+
+  useEffect(() => {
+    if (!isRecent) return;
+    if (typeof usedDays === "number" && !Number.isNaN(usedDays)) {
+      setForm(f => ({ ...f, orderDays: usedDays }));
+    }
+  }, [isRecent, usedDays]);
+
+  useEffect(() => {
+    if (!isRecent) return;
+    const locStrings = (buckets?.locations || [])
+      .map(l => [l.city, l.state, l.country].filter(Boolean).join(", "))
+      .filter(Boolean);
+    const unique = Array.from(new Set(locStrings)).slice(0, 100);
+    setForm(f => ({ ...f, locations: unique }));
+  }, [isRecent, buckets]);
+
+  const onChangeDays = (v) => {
+    if (!isRecent) return;
+    const n = Number(v);
+    setForm(f => ({ ...f, orderDays: n }));
+    const sp = new URLSearchParams(window.location.search);
+    sp.set("days", String(n));
+    navigate(`${window.location.pathname}?${sp.toString()}`, { replace: true });
   };
-
-  const iconOptions = useMemo(() => {
-    return form.iconSvg
-      ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...SVG_OPTIONS]
-      : SVG_OPTIONS;
-  }, [form.iconSvg]);
 
   return (
     <Frame>
@@ -756,32 +1211,6 @@ export default function NotificationEditGeneric() {
       >
         <Layout>
 
-          {/* Record summary */}
-          {/* <Layout.Section style="display:none;">
-            <Card>
-              <Box padding="4">
-                <InlineStack align="space-between" wrap>
-                  <BlockStack gap="100">
-                    <Text as="h3" variant="headingSm">Record</Text>
-                    <Text tone="subdued">Key: {key}</Text>
-                  </BlockStack>
-                  <InlineStack gap="300">
-                    <Badge tone={(Array.isArray(form.enabled) && form.enabled.includes("enabled")) ? "success" : "critical"}>
-                      {(Array.isArray(form.enabled) && form.enabled.includes("enabled")) ? "Enabled" : "Disabled"}
-                    </Badge>
-                    <Badge>{form.showType}</Badge>
-                    <Badge>
-                      {isRecent
-                        ? `${form.messageTitles?.length || 0}/${form.locations?.length || 0}/${form.names?.length || 0}/${selectedHandles.length}`
-                        : `${form.messageTitles?.length || 0}/${form.locations?.length || 0}/${form.names?.length || 0}`
-                      }
-                    </Badge>
-                  </InlineStack>
-                </InlineStack>
-              </Box>
-            </Card>
-          </Layout.Section> */}
-
           {/* Live Preview */}
           <Layout.Section oneHalf>
             <Card>
@@ -790,11 +1219,7 @@ export default function NotificationEditGeneric() {
                   keyName={key}
                   form={form}
                   product={isRecent ? (selectedProduct || previewProduct) : null}
-                  drafts={{
-                    title: titlesInput.draft,
-                    location: locationsInput.draft,
-                    name: namesInput.draft,
-                  }}
+                  order={previewOrder}
                 />
               </Box>
             </Card>
@@ -809,7 +1234,7 @@ export default function NotificationEditGeneric() {
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ChoiceList
-                        title="Enable Sales Notification Popup"
+                        title="Enable Notification"
                         choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
                         selected={form.enabled}
                         onChange={onField("enabled")}
@@ -823,7 +1248,7 @@ export default function NotificationEditGeneric() {
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
-                        label="Popup Display Duration (seconds)"
+                        label="Popup Duration (seconds)"
                         type="number"
                         value={String(form.durationSeconds)}
                         onChange={onNum("durationSeconds", 1, 60)}
@@ -845,102 +1270,79 @@ export default function NotificationEditGeneric() {
             </Card>
           </Layout.Section>
 
-          {/* Message */}
-          <Layout.Section oneHalf>
-            <Card>
-              <Box padding="4">
-                <BlockStack gap="300">
-                  <Text as="h3" variant="headingMd">Message</Text>
-
-                  {/* Names */}
-                  <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); titlesInput.commitDraft(); } }}>
-                    <TextField
-                      label={isFlash ? "Flash Sale Headline / Banner Title (add multiple)" : "Buyer Name / Shopper Identity (add multiple)"}
-                      value={titlesInput.draft}
-                      onChange={titlesInput.onChange}
-                      onBlur={titlesInput.commitDraft}
-                      autoComplete="off"
-                      placeholder={isFlash ? "Flash Sale, Flash Sale 2 …" : "Name1, Name2 … then press Enter"}
-                    />
-                  </div>
-                  <InlineStack gap="150" wrap>
-                    {(form.messageTitles || []).map((t, i) => (
-                      <Tag key={`t-${i}`} onRemove={() => titlesInput.removeAt(i)}>{t}</Tag>
-                    ))}
-                  </InlineStack>
-
-                  {/* Body */}
-                  {!isFlash && (
-                    <TextField
-                      label="Purchase Message / Action Text"
-                      value={form.messageText}
-                      onChange={onField("messageText")}
-                      multiline={1}
-                      autoComplete="off"
-                    />
-                  )}
-                  {/* Locations */}
-                  <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); locationsInput.commitDraft(); } }}>
-                    <TextField
-                      label={isFlash ? "Offer Title / Discount Name (add multiple)" : "Customer Location / City (add multiple)"}
-                      value={locationsInput.draft}
-                      onChange={locationsInput.onChange}
-                      onBlur={locationsInput.commitDraft}
-                      autoComplete="off"
-                      placeholder={isFlash ? "Flash Sale 20% OFF …" : "Ahmedabad, Surat … then press Enter"}
-                    />
-                  </div>
-                  <InlineStack gap="150" wrap>
-                    {(form.locations || []).map((t, i) => (
-                      <Tag key={`l-${i}`} onRemove={() => locationsInput.removeAt(i)}>{t}</Tag>
-                    ))}
-                  </InlineStack>
-
-                  {/* Times */}
-                  <div onKeyDownCapture={(e) => { if (e.key === "Enter") { e.preventDefault(); namesInput.commitDraft(); } }}>
-                    <TextField
-                      label={isFlash ? "Countdown Text / Urgency Message (add multiple)" : "Purchase Time / Activity Timestamp (add multiple)"}
-                      value={namesInput.draft}
-                      onChange={namesInput.onChange}
-                      onBlur={namesInput.commitDraft}
-                      autoComplete="off"
-                      placeholder={isFlash ? "ends in 01:15 hours …" : "12 hours ago, 2 hours ago … then press Enter"}
-                    />
-                  </div>
-                  <InlineStack gap="150" wrap>
-                    {(form.names || []).map((t, i) => (
-                      <Tag key={`n-${i}`} onRemove={() => namesInput.removeAt(i)}>{t}</Tag>
-                    ))}
-                  </InlineStack>
-                </BlockStack>
-              </Box>
-            </Card>
-          </Layout.Section>
-
-          {/* Products (recent only) */}
+          {/* Orders & Fields (RECENT) */}
           {isRecent && (
             <Layout.Section oneHalf>
               <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
-                    <Text as="h3" variant="headingMd">Select Product(s) for Notification</Text>
-                    <InlineStack gap="200">
-                      <Button onClick={() => { setPickerOpen(true); setPage(1); fetcher.load(`/app/products-picker?page=1`); }}>
-                        Pick products
-                      </Button>
-                      {!!selectedHandles.length && (
-                        <Text variant="bodySm" tone="subdued">{selectedHandles.length} selected</Text>
-                      )}
-                    </InlineStack>
-                    {!!selectedHandles.length && (
-                      <InlineStack gap="150" wrap>
-                        {selectedHandles.map((handle) => (
-                          <Tag key={handle} onRemove={() => clearSelectedHandle(handle)}>
-                            @{handle}
-                          </Tag>
-                        ))}
-                      </InlineStack>
-                    )}
+                    <Text as="h3" variant="headingMd">Order Source & Fields</Text>
+
+                    <Select
+                      label="Show orders from last"
+                      options={Array.from({ length: 60 }, (_, i) => ({ label: `${i + 1} day${i ? "s" : ""}`, value: String(i + 1) }))}
+                      value={String(form.orderDays)}
+                      onChange={onChangeDays}
+                      helpText="1 Day = Today (current calendar day in shop timezone), up to 60 days."
+                    />
+
+                    <Text as="p" variant="bodySm" tone="subdued">
+                      Last newest order time: {form.createOrderTime ? new Date(form.createOrderTime).toLocaleString() : "—"}
+                    </Text>
+
+                    <ChoiceList
+                      title="Hide Fields"
+                      allowMultiple
+                      choices={HIDE_CHOICES}
+                      selected={form.hideKeys}
+                      onChange={onField("hideKeys")}
+                    />
+                  </BlockStack>
+                </Box>
+              </Card>
+            </Layout.Section>
+          )}
+
+          {/* Message (FLASH) */}
+          {isFlash && (
+            <Layout.Section oneHalf>
+              <Card>
+                <Box padding="4">
+                  <BlockStack gap="300">
+                    <Text as="h3" variant="headingMd">Message</Text>
+
+                    <TokenField
+                      label="Flash Sale Headline / Banner Title (add multiple)"
+                      placeholder="Flash Sale, Flash Sale 2 ..."
+                      tokens={form.messageTitles}
+                      onAdd={(v) => titlesInput?.add(v)}
+                      onRemove={(i) => titlesInput?.removeAt(i)}
+                      draft={titlesInput?.draft || ""}
+                      onDraft={titlesInput?.onChange || (()=>{})}
+                      onCommit={titlesInput?.commitDraft || (()=>{})}
+                    />
+
+                    <TokenField
+                      label="Offer Title / Discount Name (add multiple)"
+                      placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF ..."
+                      tokens={form.locations}
+                      onAdd={(v) => offersInput?.add(v)}
+                      onRemove={(i) => offersInput?.removeAt(i)}
+                      draft={offersInput?.draft || ""}
+                      onDraft={offersInput?.onChange || (()=>{})}
+                      onCommit={offersInput?.commitDraft || (()=>{})}
+                    />
+
+                    <TokenField
+                      label="Countdown Text / Urgency Message (add multiple)"
+                      placeholder="ends in 01:15 hours, ends in 02:15 hours ..."
+                      tokens={form.countdowns}
+                      onAdd={(v) => countInput?.add(v)}
+                      onRemove={(i) => countInput?.removeAt(i)}
+                      draft={countInput?.draft || ""}
+                      onDraft={countInput?.onChange || (()=>{})}
+                      onCommit={countInput?.commitDraft || (()=>{})}
+                    />
                   </BlockStack>
                 </Box>
               </Card>
@@ -961,7 +1363,7 @@ export default function NotificationEditGeneric() {
                       { label: "Montserrat", value: "Montserrat" },
                       { label: "Poppins", value: "Poppins" },
                     ]} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
-                    <Box width="50%"><Select label="Popup Font Weight / Style" options={[
+                    <Box width="50%"><Select label="Font Weight / Style" options={[
                       { label: "100 - Thin", value: "100" }, { label: "200 - Extra Light", value: "200" },
                       { label: "300 - Light", value: "300" }, { label: "400 - Normal", value: "400" },
                       { label: "500 - Medium", value: "500" }, { label: "600 - Semi Bold", value: "600" },
@@ -969,13 +1371,13 @@ export default function NotificationEditGeneric() {
                     ]} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Desktop Popup Position" options={[
+                    <Box width="50%"><Select label="Desktop Position" options={[
                       { label: "Top Left", value: "top-left" },
                       { label: "Top Right", value: "top-right" },
                       { label: "Bottom Left", value: "bottom-left" },
                       { label: "Bottom Right", value: "bottom-right" },
                     ]} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Notification Animation Style" options={[
+                    <Box width="50%"><Select label="Animation" options={[
                       { label: "Fade", value: "fade" },
                       { label: "Slide", value: "slide" },
                       { label: "Bounce", value: "bounce" },
@@ -983,14 +1385,14 @@ export default function NotificationEditGeneric() {
                     ]} value={form.animation} onChange={onField("animation")} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Mobile Popup Size" options={[
+                    <Box width="50%"><Select label="Mobile Size" options={[
                       { label: "Compact", value: "compact" },
                       { label: "Comfortable", value: "comfortable" },
                       { label: "Large", value: "large" },
                     ]} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
                     <Box width="50%">
                       <Select
-                        label="Mobile Popup Position"
+                        label="Mobile Position"
                         options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
                         value={(form.mobilePosition && form.mobilePosition[0]) || "bottom"}
                         onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
@@ -998,23 +1400,21 @@ export default function NotificationEditGeneric() {
                     </Box>
                   </InlineStack>
 
-                  {/* Size + colors */}
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><TextField type="number" label="Font Size (px)" value={String(form.rounded)} onChange={onField("rounded")} autoComplete="off" /></Box>
-                    <Box width="50%"><ColorInput label="Headline Text Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
+                    <Box width="50%"><TextField type="number" label="Base Font Size (px)" value={String(form.rounded)} onChange={onField("rounded")} autoComplete="off" /></Box>
+                    <Box width="50%"><ColorInput label="Headline Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><ColorInput label="Popup Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
-                    <Box width="50%"><ColorInput label="Message Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
+                    <Box width="50%"><ColorInput label="Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
                   </InlineStack>
 
-                  {/* Icon (flash only) */}
                   {isFlash && (
                     <BlockStack gap="250">
                       <InlineStack gap="400" wrap={false} align="start">
                         <Box width="50%">
                           <Select
-                            label={`Notification Icon${form.iconSvg ? " (using Uploaded)" : ""}`}
+                            label="Notification Icon"
                             options={iconOptions}
                             value={form.iconKey}
                             onChange={onField("iconKey")}
@@ -1033,7 +1433,7 @@ export default function NotificationEditGeneric() {
                           )}
                           {uploadError && <Text tone="critical" variant="bodySm">{uploadError}</Text>}
                           <Text as="p" tone="subdued" variant="bodySm">
-                            Upload thaya pachhi uploaded icon use thashe. Remove કરશો તો built-in પર પાછું જશે.
+                            (Icon shows on Flash. Recent uses order/product image automatically.)
                           </Text>
                         </Box>
                       </InlineStack>
@@ -1058,26 +1458,38 @@ export default function NotificationEditGeneric() {
             {(Array.isArray(form.mobilePosition) && form.mobilePosition.length ? form.mobilePosition : ["bottom"]).map((v, i) => (
               <input key={`mp-${i}`} type="hidden" name="mobilePosition" value={v} />
             ))}
-            <input type="hidden" name="titleColor" value={form.titleColor || ""} />
-            <input type="hidden" name="bgColor" value={form.bgColor || ""} />
-            <input type="hidden" name="msgColor" value={form.msgColor || ""} />
-            <input type="hidden" name="ctaBgColor" value={form.ctaBgColor || ""} />
+            <input type="hidden" name="titleColor" value={form.titleColor || "#111111"} />
+            <input type="hidden" name="bgColor" value={form.bgColor || "#FFFFFF"} />
+            <input type="hidden" name="msgColor" value={form.msgColor || "#111111"} />
+            <input type="hidden" name="ctaBgColor" value={form.ctaBgColor || "#000000"} />
             <input type="hidden" name="rounded" value={form.rounded} />
             <input type="hidden" name="durationSeconds" value={form.durationSeconds} />
             <input type="hidden" name="alternateSeconds" value={form.alternateSeconds} />
             <input type="hidden" name="fontWeight" value={form.fontWeight} />
-            {/* icon fields (used for flash) */}
-            <input type="hidden" name="iconKey" value={form.iconKey || ""} />
-            <input type="hidden" name="iconSvg" value={form.iconSvg || ""} />
-            {(form.messageTitles || []).map((v, i) => (<input key={`t-h-${i}`} type="hidden" name="messageTitles" value={v} />))}
-            {(form.locations || []).map((v, i) => (<input key={`l-h-${i}`} type="hidden" name="locations" value={v} />))}
-            {(form.names || []).map((v, i) => (<input key={`n-h-${i}`} type="hidden" name="names" value={v} />))}
+
+            {isRecent && <input type="hidden" name="headline" value={form.headline || ""} />}
+            {isRecent && (form.hideKeys || []).map((v, i) => (<input key={`hk-${i}`} type="hidden" name="names" value={v} />))}
+
+            {isFlash && (form.messageTitles || []).map((v, i) => (<input key={`t-${i}`} type="hidden" name="messageTitles" value={v} />))}
+            {isFlash && (form.locations || []).map((v, i) => (<input key={`l-${i}`} type="hidden" name="locations" value={v} />))}
+            {isFlash && (form.countdowns || []).map((v, i) => (<input key={`c-${i}`} type="hidden" name="names" value={v} />))}
+
+            {isRecent && (form.locations || []).map((v, i) => (<input key={`rl-${i}`} type="hidden" name="locations" value={v} />))}
+
             {(selectedHandles || []).map((h, i) => (<input key={`sp-${i}`} type="hidden" name="selectedProducts" value={h} />))}
+            {isRecent && <input type="hidden" name="orderDays" value={String(form.orderDays || 1)} />}
+
+            {isFlash && (
+              <>
+                <input type="hidden" name="iconKey" value={form.iconKey || ""} />
+                <input type="hidden" name="iconSvg" value={form.iconSvg || ""} />
+              </>
+            )}
           </Form>
         </Layout>
       </Page>
 
-      {/* Product picker (recent only) */}
+      {/* Product picker (RECENT) */}
       {isRecent && (
         <Modal
           open={pickerOpen}
@@ -1108,11 +1520,11 @@ export default function NotificationEditGeneric() {
                   const picked = selectedProducts.some(p => p.id === item.id);
                   return (
                     <IndexTable.Row id={item.id} key={item.id} position={index}>
-                      <IndexTable.Cell>
+                      {/* <IndexTable.Cell>
                         <Button size="slim" onClick={() => togglePick(item)} variant={picked ? "primary" : undefined}>
                           {picked ? "Remove" : "Add"}
                         </Button>
-                      </IndexTable.Cell>
+                      </IndexTable.Cell> */}
                       <IndexTable.Cell>
                         <InlineStack gap="200" blockAlign="center">
                           <Thumbnail source={item.featuredImage || ""} alt={item.title} size="small" />

@@ -32,10 +32,13 @@ CREATE TABLE `NotificationConfig` (
     `locationsJson` LONGTEXT NULL,
     `namesJson` LONGTEXT NULL,
     `selectedProductsJson` LONGTEXT NULL,
-    `productHandlesJson` LONGTEXT NULL,
     `iconKey` VARCHAR(191) NULL,
     `iconSvg` LONGTEXT NULL,
 
     INDEX `NotificationConfig_shop_key_idx`(`shop`, `key`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE `NotificationConfig`
+  ADD COLUMN `orderDays` INT NULL DEFAULT 7 AFTER `messageTitlesJson`,
+  ADD COLUMN `createOrderTime` VARCHAR(32) NULL AFTER `orderDays`;

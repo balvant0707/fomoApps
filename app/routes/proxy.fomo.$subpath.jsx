@@ -1,101 +1,92 @@
+// app/routes/proxy.fomo.$subpath.jsx
 import { json } from "@remix-run/node";
-import { prisma } from "../db.server";
+import prisma from "../db.server";                // <-- default import (IMPORTANT)
+import { ensureShopRow } from "../utils/ensureShop.server";
+
+const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
+const ok = (d, s = 200) => json(d, { status: s });
+const bad = (d, s = 400) => json(d, { status: s });
 
 export const loader = async ({ request, params }) => {
   try {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop");
-    const subpath = params.subpath;
+    const rawShop = url.searchParams.get("shop");
+    const shop = norm(rawShop);
+    const subpath = (params.subpath || "").toLowerCase();
+    const timestamp = Date.now();
 
-    if (!shop) {
-      return json({ error: "Missing shop" }, { status: 400 });
-    }
-
-    // Normalize shop name (remove protocol if present)
-    const normalizedShop = shop.replace(/^https?:\/\//, "");
+    if (!shop) return bad({ error: "Missing shop" });
 
     if (subpath === "session") {
-      // Check session readiness for theme extension
-      const shopRecord = await prisma.shop.findUnique({
-        where: { shop: normalizedShop },
-        select: {
-          shop: true,
-          installed: true,
-          accessToken: true,
-          themeExtensionEnabled: true
-        }
-      });
+      // Self-heal: if shop row missing, try to create from session table
+      const shopRecord =
+        (await prisma.shop.findUnique({ where: { shop } })) ||
+        (await ensureShopRow(shop));
 
       if (!shopRecord) {
-        return json({
+        return ok({
           sessionReady: false,
-          shop: normalizedShop,
+          shop,
           installed: false,
           error: "Shop not found",
-          timestamp: Date.now()
+          timestamp,
         });
       }
 
-      const sessionReady = shopRecord.installed && !!shopRecord.accessToken && shopRecord.themeExtensionEnabled;
+      const sessionReady = !!shopRecord.installed && !!shopRecord.accessToken;
 
-      return json({
+      return ok({
         sessionReady,
-        shop: normalizedShop,
-        installed: shopRecord.installed,
+        shop,
+        installed: !!shopRecord.installed,
         hasAccessToken: !!shopRecord.accessToken,
-        themeExtensionEnabled: shopRecord.themeExtensionEnabled,
-        timestamp: Date.now()
+        timestamp,
       });
     }
 
     if (subpath === "popup") {
-      // First check session
-      const shopRecord = await prisma.shop.findUnique({
-        where: { shop: normalizedShop },
-        select: {
-          installed: true,
-          accessToken: true,
-          themeExtensionEnabled: true
-        }
-      });
+      // Ensure/require session
+      const shopRecord =
+        (await prisma.shop.findUnique({ where: { shop } })) ||
+        (await ensureShopRow(shop));
 
-      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken || !shopRecord.themeExtensionEnabled) {
-        return json({
+      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+        return ok({
           showPopup: false,
           sessionReady: false,
           error: "Session not ready",
-          shop: normalizedShop,
-          timestamp: Date.now()
+          shop,
+          timestamp,
         });
       }
 
-      const configs = await prisma.notificationConfig.findMany({
-        where: { shop: normalizedShop },
-        orderBy: { id: "desc" }, // optional: latest first
+      // Fetch configs (adjust to your schema/table names)
+      const configs = await prisma.notificationconfig.findMany({
+        where: { shop },
+        orderBy: { id: "desc" },
       });
 
       if (!configs || configs.length === 0) {
-        return json({
+        return ok({
           showPopup: false,
           sessionReady: true,
-          shop: normalizedShop,
-          timestamp: Date.now()
+          shop,
+          timestamp,
         });
       }
 
-      return json({
+      return ok({
         showPopup: true,
         sessionReady: true,
-        records: configs, // returns full objects for all records
-        shop: normalizedShop,
-        timestamp: Date.now()
+        records: configs,
+        shop,
+        timestamp,
       });
     }
 
-    return json({ error: "Unknown proxy path" }, { status: 404 });
-
+    return bad({ error: "Unknown proxy path" }, 404);
   } catch (err) {
     console.error("[FOMO Loader Error]:", err);
-    return json({ error: "Internal Server Error" }, { status: 500 });
+    return bad({ error: "Internal Server Error" }, 500);
   }
 };

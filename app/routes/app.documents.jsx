@@ -1,211 +1,239 @@
-// app/routes/app.documents.jsx
 import { useState } from "react";
 import { TitleBar } from "@shopify/app-bridge-react";
 import {
-  Card,
-  Layout,
   Page,
+  Card,
   Text,
   BlockStack,
-  Image,
-  Divider,
-  Collapsible,
-  Button,
   InlineStack,
+  Button,
+  Collapsible,
 } from "@shopify/polaris";
 
 /**
- * M2 Web Fomo Popup — Documents (last → first images)
- * Place these in /public/images:
- *  doc1-dashboard.png
- *  doc2-recent-preview.png
- *  doc3-recent-settings.png
- *  doc4-recent-customize.png
- *  doc5-flash-preview.png
- *  doc6-flash-settings.png
- *  doc7-flash-customize.png
+ * Put these files in /public/images:
+ *  doc1.png  doc2.png  doc3.png  doc4.png  doc5.png
+ * Order: 1→5 (not reversed)
  */
 
-const imgStyle = { borderRadius: 10, margin: "12px 0", maxWidth: "100%" };
-const ulStyle = { marginTop: 8, lineHeight: 1.7 };
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 20,
+  alignItems: "center",
+};
+const imgBox = { width: "100%", borderRadius: 12, overflow: "hidden", border: "1px solid #eee" };
+const img = { display: "block", width: "100%", height: "auto" };
+const textCol = { padding: "4px 6px" };
+const h = { fontSize: 18, fontWeight: 700, margin: "0 0 8px" };
+const p = { margin: "0 0 10px" };
+const ul = { margin: "0 0 0 18px", lineHeight: 1.7 };
+const small = { fontSize: 12.5, color: "#6d7175", marginTop: 8 };
 
 export default function Documents() {
-  // accordion states (open by default for the first section)
-  const [open, setOpen] = useState({
-    s1: true,
-    s2: false,
-    s3: false,
-    s4: false,
-    s5: false,
-    s6: false,
-    s7: false,
-  });
-
-  const toggle = (key) => setOpen((p) => ({ ...p, [key]: !p[key] }));
+  const [open, setOpen] = useState({ s1: true, s2: false, s3: false, s4: false, s5: false });
+  const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
 
   return (
-    <Page fullWidth>
+    <Page fullWidth title="Documents">
       <TitleBar title="Documents" />
       <div style={{ padding: 24 }}>
-        <Layout>
-          <Layout.Section>
-            <Card sectioned>
-              <BlockStack gap="600">
-                {/* INTRO */}
-                <Text variant="headingLg" as="h1" style={{ fontSize: "17px" }}>
-                  📘 M2 Web Fomo Popup – App Documentation
-                </Text>
-                <Text variant="bodyLg" as="p">
-                  A quick guide to configure <b>Sales Popups</b> (social proof) and{" "}
-                  <b>Flash Sale Bars</b> (urgency). Images are shown in{" "}
-                  <b>last → first</b> order as requested.
-                </Text>
+        <Card>
+          <BlockStack gap="600">
+            <Text as="h1" variant="headingLg">📘 Fomoify – App Documentation</Text>
+            <Text as="p" variant="bodyLg">
+              Configure the <b>Recent Purchases Popup</b> (social proof) and the <b>Flash Sale</b> (urgency).
+              Use the <b>Hide / Show</b> toggle on each section below.
+            </Text>
 
-                {/* 1) Dashboard (last image) */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>1️⃣ Dashboard Overview</Text>
-                  <Button onClick={() => toggle("s1")} variant="plain">
-                    {open.s1 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s1}>
-                  <Image source="/images/doc1-dashboard.png" alt="Dashboard overview" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Two modules:
-                    <ul style={ulStyle}>
-                      <li><b>Recent Purchases Popup</b> — social proof.</li>
-                      <li><b>Flash Sale / Countdown Bar</b> — urgency banner.</li>
-                    </ul>
-                    Click <b>Configure</b> to manage each.
-                  </Text>
-                </Collapsible>
+            {/* 1) Modules Overview */}
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>1) Sales Popup & Flash Bar Modules</Text>
+              <Button variant="plain" onClick={() => toggle("s1")}>{open.s1 ? "Hide" : "Show"}</Button>
+            </InlineStack>
+            <Collapsible open={open.s1}>
+              <div style={grid}>
+                <div style={imgBox}><img src="/images/doc1.png" alt="Modules Overview" style={img} /></div>
+                <div style={textCol}>
+                  <h4 style={h}>What you can set up</h4>
+                  <p style={p}>
+                    Two primary modules: the <b>Recent Purchases Popup</b> (shows real-time customer activity) and the
+                    <b> Flash Sale</b> (announces limited-time offers).
+                  </p>
+                  <ul style={ul}>
+                    <li>Click <b>Configure</b> to set content, timing, and visuals for each module.</li>
+                    <li>Purpose: combine <b>social proof + urgency</b> for a higher conversion rate.</li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* 2) RP Preview */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>2️⃣ Recent Purchases – Live Preview</Text>
-                  <Button onClick={() => toggle("s2")} variant="plain">
-                    {open.s2 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s2}>
-                  <Image source="/images/doc2-recent-preview.png" alt="Recent Purchase Preview" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Toggle <b>Desktop / Mobile / Both</b> to see size/position behaviour.
-                    Mobile preview follows the mobile position & size.
-                  </Text>
-                </Collapsible>
+            {/* 2) Order Source & Fields */}
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>
+                2) Order Source & Fields (Recent Purchases)
+              </Text>
+              <Button variant="plain" onClick={() => toggle("s2")}>
+                {open.s2 ? "Hide" : "Show"}
+              </Button>
+            </InlineStack>
+            <Collapsible open={open.s2}>
+              <div style={grid}>
+                <div style={imgBox}>
+                  <img src="/images/doc2.png" alt="Order Source & Fields" style={img} />
+                </div>
+                <div style={textCol}>
+                  <h4 style={h}>Real Shopify order data (day-wise)</h4>
+                  <p style={p}>
+                    Recent Purchases pulls authenticated <b>Shopify orders</b> from the window you choose and renders them in the popup. Use the controls below to decide which data appears.
+                  </p>
+                  <ul style={ul}>
+                    <li>
+                      <b>Show orders from last:</b> pick a range between <b>1–60 days</b>. Orders are fetched
+                      day-wise using your shop’s timezone.
+                    </li>
+                    <li>
+                      <b>Usable orders only:</b> an order must contain at least one product to be included.
+                    </li>
+                    <li>
+                      <b>No orders in window:</b> a blue validation message appears (<i>You have no orders…</i>).
+                      The range dropdown and <b>Save</b> stay disabled until you select a window that has usable orders.
+                    </li>
+                    <li>
+                      <b>Last newest order time (static):</b> shows the most recent order timestamp found in the selected window.
+                    </li>
+                    <li>
+                      <b>Hide Fields (toggle visibility):</b> when a box is <u>checked</u>, that field is
+                      <b> hidden</b> in the popup (Customer Name, City, State, Country, Product Name, Product Image, Order Time).
+                      Leave unchecked to show the field.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* 3) RP Display & Message */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>3️⃣ Recent Purchases – Display & Message Settings</Text>
-                  <Button onClick={() => toggle("s3")} variant="plain">
-                    {open.s3 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s3}>
-                  <Image source="/images/doc3-recent-settings.png" alt="Recent Purchase Settings" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Control <b>Enable</b>, <b>Display Duration</b>, <b>Interval</b>. Rotate message chips:
-                    <ul style={ulStyle}>
-                      <li><b>Buyer Name</b> (Harsh, Priya, Someone…)</li>
-                      <li><b>Location/City</b> (Ahmedabad, Mumbai…)</li>
-                      <li><b>Time</b> (3 mins ago, 12 hours ago…)</li>
-                      <li><b>Action text</b> (“bought this product recently”)</li>
-                    </ul>
-                  </Text>
-                </Collapsible>
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>
+                3) Message (Flash Sale – Titles & Text)
+              </Text>
+              <Button variant="plain" onClick={() => toggle("s6")}>
+                {open.s6 ? "Hide" : "Show"}
+              </Button>
+            </InlineStack>
+            <Collapsible open={open.s6}>
+              <div style={grid}>
+                <div style={imgBox}>
+                  <img src="/images/doc6.png" alt="Flash Sale – Message fields" style={img} />
+                </div>
+                <div style={textCol}>
+                  <h4 style={h}>Multi-value message chips (press Enter to add)</h4>
+                  <p style={p}>
+                    These three inputs accept <b>multiple values</b>. Each value becomes a chip and can be rotated in the popup.
+                    Keep copy short, factual, and brand-consistent.
+                  </p>
+                  <ul style={ul}>
+                    <li>
+                      <b>Headline / Banner Title</b> — Short title that introduces the promotion.
+                      Examples: “Flash Sale”, “Weekend Offer”, “Limited Period Offer”.
+                    </li>
+                    <li>
+                      <b>Offer Title / Discount Name</b> — What the customer gets.
+                      Examples: “Extra 15% OFF”, “Buy 2 Get 1”, “Free Shipping on Orders Over ₹999”.
+                    </li>
+                    <li>
+                      <b>Countdown Text / Urgency Message</b> — Neutral, time-boxed line.
+                      Examples: “ends in 02:15 hours”, “valid today”, “offer closes at 11:59 PM”.
+                    </li>
+                  </ul>
 
-                {/* 4) RP Product & Style */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>4️⃣ Recent Purchases – Product & Style Customization</Text>
-                  <Button onClick={() => toggle("s4")} variant="plain">
-                    {open.s4 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s4}>
-                  <Image source="/images/doc4-recent-customize.png" alt="Recent Purchase Customization" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Select products to feature and tune design:
-                    <ul style={ulStyle}>
-                      <li>Font family & weight</li>
-                      <li>Background & text colors</li>
-                      <li>Animation (Fade/Slide)</li>
-                      <li>Desktop/Mobile positions & Mobile size</li>
-                    </ul>
-                  </Text>
-                </Collapsible>
+                  <h4 style={{ ...h, marginTop: 14 }}>Hide Message Fields (toggle visibility)</h4>
+                  <p style={p}>
+                    When a box is <u>checked</u>, that field is <b>hidden</b> in the popup. Leave unchecked to show it.
+                  </p>
+                  <ul style={ul}>
+                    <li><b>Hide Headline</b> — do not render the headline/title line.</li>
+                    <li><b>Hide Offer Title</b> — show the popup without the offer label.</li>
+                    <li><b>Hide Countdown Text</b> — suppress the “ends in …” message.</li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* 5) Flash Sale Preview */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>5️⃣ Flash Sale / Countdown Bar – Live Preview</Text>
-                  <Button onClick={() => toggle("s5")} variant="plain">
-                    {open.s5 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s5}>
-                  <Image source="/images/doc5-flash-preview.png" alt="Flash Sale Preview" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Short, clear copy; ensure it looks good on both Desktop and Mobile.
-                  </Text>
-                </Collapsible>
+            {/* 3) Display Settings */}
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>4) Display Settings – Enable & Timing</Text>
+              <Button variant="plain" onClick={() => toggle("s3")}>{open.s3 ? "Hide" : "Show"}</Button>
+            </InlineStack>
+            <Collapsible open={open.s3}>
+              <div style={grid}>
+                <div style={imgBox}><img src="/images/doc3.png" alt="Display Settings" style={img} /></div>
+                <div style={textCol}>
+                  <h4 style={h}>Visibility & frequency</h4>
+                  <ul style={ul}>
+                    <li>Master switch to <b>Enable / Disable</b> without losing settings.</li>
+                    <li><b>Display on Pages</b>: All, Home, Product, Collection, or Cart.</li>
+                    <li><b>Popup Display Duration</b>: how many seconds each popup stays visible.</li>
+                    <li><b>Interval Between Popups</b>: the gap before the next popup appears.</li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* 6) Flash Sale Display & Message */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>6️⃣ Flash Sale / Countdown Bar – Display & Message</Text>
-                  <Button onClick={() => toggle("s6")} variant="plain">
-                    {open.s6 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s6}>
-                  <Image source="/images/doc6-flash-settings.png" alt="Flash Sale Settings" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Define:
-                    <ul style={ulStyle}>
-                      <li><b>Headline</b> — “Flash Sale”, “Limited Time”</li>
-                      <li><b>Offer</b> — “20% OFF”, “Buy 1 Get 1”</li>
-                      <li><b>Countdown</b> — “Ends in 02:15 hours”</li>
-                    </ul>
-                  </Text>
-                </Collapsible>
+            {/* 4) Customize – Style */}
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>5) Customize – Fonts, Colors & Positions</Text>
+              <Button variant="plain" onClick={() => toggle("s4")}>{open.s4 ? "Hide" : "Show"}</Button>
+            </InlineStack>
+            <Collapsible open={open.s4}>
+              <div style={grid}>
+                <div style={imgBox}><img src="/images/doc4.png" alt="Customize Styles" style={img} /></div>
+                <div style={textCol}>
+                  <h4 style={h}>Brand-matching controls</h4>
+                  <ul style={ul}>
+                    <li><b>Font family & weight</b> (400 / 600 / 700) to match your theme.</li>
+                    <li><b>Desktop/Mobile positions</b> and <b>Mobile size</b>.</li>
+                    <li><b>Headline / Message</b> colors and <b>Background</b> color.</li>
+                    <li><b>Animation</b>: Fade/Slide for smooth entry.</li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* 7) Flash Sale Design (first image) */}
-                <Divider />
-                <InlineStack align="space-between" blockAlign="center">
-                  <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>7️⃣ Flash Sale / Countdown Bar – Design Customization</Text>
-                  <Button onClick={() => toggle("s7")} variant="plain">
-                    {open.s7 ? "Hide" : "Show"}
-                  </Button>
-                </InlineStack>
-                <Collapsible open={open.s7}>
-                  <Image source="/images/doc7-flash-customize.png" alt="Flash Sale Customization" style={imgStyle} />
-                  <Text variant="bodyLg" as="p">
-                    Tune <b>Font</b>, <b>Positions</b>, <b>Animation</b>, and upload a <b>Custom SVG</b> (≤200KB).
-                    Set <b>Title</b>, <b>Offer</b>, and <b>Background</b> colors to match your brand.
-                  </Text>
-                </Collapsible>
+            {/* 5) Dashboard Empty State */}
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingLg" style={{ fontSize: 18 }}>6) Dashboard – Overview & Empty State</Text>
+              <Button variant="plain" onClick={() => toggle("s5")}>{open.s5 ? "Hide" : "Show"}</Button>
+            </InlineStack>
+            <Collapsible open={open.s5}>
+              <div style={grid}>
+                <div style={imgBox}><img src="/images/doc5.png" alt="Dashboard Empty State" style={img} /></div>
+                <div style={textCol}>
+                  <h4 style={h}>Manage everything in one place</h4>
+                  <ul style={ul}>
+                    <li>Top filters: Type, Status, Search, and Page size.</li>
+                    <li>Empty state shows <b>Create notification</b> or <b>Clear filters</b> actions.</li>
+                    <li>When data exists, a Polaris IndexTable gives <b>toggle, edit, delete</b> controls.</li>
+                    <li>Built-in pagination for large lists.</li>
+                  </ul>
+                </div>
+              </div>
+            </Collapsible>
 
-                {/* Tips */}
-                <Divider />
-                <Text variant="headingLg" as="h5" style={{ fontSize: "17px" }}>💡 Tips & Best Practices</Text>
-                <Text variant="bodyLg" as="p">
-                  ✅ Realistic names & cities • ✅ Intervals ~8–15s • ✅ Test on Desktop & Mobile • ✅ Match theme branding
-                </Text>
-
-                <Divider />
-                <Text variant="bodySm" tone="subdued" as="p">
-                  © 2025 M2 Web Fomo Popup – Built by M2 Web Designing.
-                </Text>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-        </Layout>
+            <Text as="p" tone="subdued" variant="bodySm">
+              © {new Date().getFullYear()} Fomoify Sales Popup & Proof — Pryxo Tech Private Limited.
+            </Text>
+          </BlockStack>
+        </Card>
       </div>
+
+      {/* Responsive: stack on small screens */}
+      <style>{`
+        @media (max-width: 980px) {
+          div[style*="grid-template-columns: 1fr 1fr"] {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </Page>
   );
 }

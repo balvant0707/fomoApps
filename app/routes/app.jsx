@@ -12,13 +12,44 @@ export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 const norm = (s) => (s || "").toLowerCase();
 
 export const loader = async ({ request }) => {
-  const { session } = await authenticate.admin(request); // completes OAuth if needed
-  await prisma.shop.upsert({
-    where: { shop: norm(session.shop) },
-    update: { accessToken: session.accessToken ?? null, installed: true, uninstalledAt: null },
-    create: { shop: norm(session.shop), accessToken: session.accessToken ?? null, installed: true },
-  });
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  const { session } = await authenticate.admin(request); // redirects to /auth if needed
+
+  // Soft-guard: prisma failures should not 500 the whole app frame
+  try {
+    if (session?.shop) {
+      await prisma.shop.upsert({
+        where: { shop: norm(session.shop) },
+        update: {
+          accessToken: session.accessToken ?? null,
+          installed: true,
+          uninstalledAt: null,
+        },
+        create: {
+          shop: norm(session.shop),
+          accessToken: session.accessToken ?? null,
+          installed: true,
+        },
+      });
+    }
+  } catch (e) {
+    // log and continue (don’t block UI)
+    console.error("Prisma upsert(shop) failed:", e);
+  }
+
+  const apiKey =
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
+    "";
+
+  if (!apiKey) {
+    // Make the error obvious but not a 500 blank page
+    return new Response(
+      "Missing SHOPIFY_API_KEY in environment. Set it to your app’s Client ID.",
+      { status: 500 }
+    );
+  }
+
+  return { apiKey };
 };
 
 export default function App() {
@@ -26,7 +57,7 @@ export default function App() {
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app/" rel="home">Home</Link>
+        <Link to="/app" rel="home">Home</Link>
         <Link to="/app/dashboard">Dashboard</Link>
         <Link to="/app/notification">Notification</Link>
         <Link to="/app/documents">Documents</Link>

@@ -8,7 +8,7 @@ import {
   useNavigate,
   useLocation,
   useFetcher,
-  useRevalidator, // 👈 NEW
+  useRevalidator,
 } from "@remix-run/react";
 import {
   Page,
@@ -26,12 +26,13 @@ import {
   Pagination,
   Frame,
   Toast,
+  EmptyState,
 } from "@shopify/polaris";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { prisma } from "../db.server";
+import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 
-// -------------------- Titles Mapping --------------------
+/* -------------------- Titles Mapping -------------------- */
 const TITLES = {
   recent: "Recent Purchases",
   flash: "Flash Sale Bars",
@@ -48,7 +49,7 @@ const pageOptions = [
 
 const getAdminQS = () => {
   try {
-    return typeof window !== "undefined" ? (window.location.search || "") : "";
+    return typeof window !== "undefined" ? window.location.search || "" : "";
   } catch {
     return "";
   }
@@ -63,14 +64,68 @@ function pretty(str) {
     .replace(/_/g, " ")
     .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
-
-// Helper to display showType label safely
 function showTypeLabel(val) {
   const found = pageOptions.find((o) => o.value === val);
   return found?.label || pretty(val);
 }
 
-// -------------------- Loader --------------------
+/* -------------------- Helpers -------------------- */
+/** Array/JSON-array/object → clean multi-line string */
+function formatLines(val) {
+  if (val == null) return "";
+
+  // If already array => each item on a new line
+  if (Array.isArray(val)) {
+    return val
+      .map((x) => (x == null ? "" : String(x).trim()))
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  // Try parsing when it's a string that might be JSON
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return "";
+
+    try {
+      const maybe = JSON.parse(s);
+      if (Array.isArray(maybe)) {
+        return maybe
+          .map((x) => (x == null ? "" : String(x).trim()))
+          .filter(Boolean)
+          .join("\n");
+      }
+      if (typeof maybe === "object" && maybe !== null) {
+        return Object.entries(maybe)
+          .map(([k, v]) => `${k}: ${v ?? ""}`.trim())
+          .filter(Boolean)
+          .join("\n");
+      }
+      // Primitive JSON (string/number/bool)
+      return String(maybe);
+    } catch {
+      // Not JSON → treat commas/newlines as separators
+      return s.split(/\r?\n|,/).map(t => t.trim()).filter(Boolean).join("\n");
+    }
+  }
+
+  // Plain object → key: value per line
+  if (typeof val === "object") {
+    try {
+      return Object.entries(val)
+        .map(([k, v]) => `${k}: ${v ?? ""}`.trim())
+        .filter(Boolean)
+        .join("\n");
+    } catch {
+      return String(val);
+    }
+  }
+
+  // number/boolean etc.
+  return String(val);
+}
+
+/* -------------------- Loader -------------------- */
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -91,37 +146,61 @@ export async function loader({ request }) {
   if (status === "disabled") where.enabled = false;
 
   if (q) {
+    // Search across actual columns present in your model
     where.OR = [
-      { messageTitlesJson: { contains: q } },
-      { messageText: { contains: q } },
-      { key: { contains: q } },
-      { showType: { contains: q } },
+      { messageText: { contains: q, mode: "insensitive" } },
+      { showType: { contains: q, mode: "insensitive" } },
+      { key: { contains: q, mode: "insensitive" } },
+      { messageTitlesJson: { contains: q, mode: "insensitive" } },
+      { locationsJson: { contains: q, mode: "insensitive" } },
+      { namesJson: { contains: q, mode: "insensitive" } },
+      { selectedProductsJson: { contains: q, mode: "insensitive" } },
     ];
   }
 
   const skip = (page - 1) * pageSize;
   const take = pageSize;
 
-  const [rows, total] = await prisma.$transaction([
-    prisma.notificationConfig.findMany({
-      where,
-      orderBy: { id: "desc" },
-      skip,
-      take,
-    }),
-    prisma.notificationConfig.count({ where }),
-  ]);
+  try {
+    if (!prisma?.notificationconfig?.findMany) {
+      throw new Error("Prisma not initialized or model missing");
+    }
 
-  return json({
-    rows,
-    total,
-    page,
-    pageSize,
-    filters: { type, status, q },
-  });
+    const [rows, total] = await prisma.$transaction([
+      prisma.notificationconfig.findMany({
+        where,
+        orderBy: { id: "desc" },
+        skip,
+        take,
+      }),
+      prisma.notificationconfig.count({ where }),
+    ]);
+
+    return json({
+      rows,
+      total,
+      page,
+      pageSize,
+      filters: { type, status, q },
+    });
+  } catch (e) {
+    console.error("[dashboard.loader] Prisma error:", e);
+    // Always return JSON
+    return json(
+      {
+        rows: [],
+        total: 0,
+        page,
+        pageSize,
+        filters: { type, status, q },
+        error: "Failed to load dashboard data.",
+      },
+      { status: 200 }
+    );
+  }
 }
 
-// -------------------- Action --------------------
+/* -------------------- Action -------------------- */
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -131,55 +210,76 @@ export async function action({ request }) {
   const search = new URLSearchParams(url.search);
   const form = await request.formData();
   const _action = form.get("_action");
-
-  // Detect fetcher (no navigation) requests
   const isFetch = request.headers.get("X-Remix-Request") === "yes";
+
+  const safeJson = (data, init = {}) => json(data, init);
 
   if (_action === "delete") {
     const id = Number(form.get("id"));
-    if (id) {
-      await prisma.notificationConfig.deleteMany({ where: { id, shop } });
+    try {
+      if (id && prisma?.notificationconfig?.deleteMany) {
+        await prisma.notificationconfig.deleteMany({ where: { id, shop } });
+      }
+      if (isFetch) return safeJson({ ok: true });
+      search.set("deleted", "1");
+      return redirect(`/app/dashboard?${search.toString()}`);
+    } catch (e) {
+      console.error("[dashboard.action:delete] error:", e);
+      if (isFetch) return safeJson({ ok: false, error: "Delete failed" }, { status: 500 });
+      search.set("error", "1");
+      return redirect(`/app/dashboard?${search.toString()}`);
     }
-    if (isFetch) return json({ ok: true });
-    search.set("deleted", "1");
-    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
   if (_action === "update") {
     const id = Number(form.get("id"));
-    const messageTitle = form.get("messageTitle")?.toString() ?? "";
+    // Only update columns that exist in your model/schema
     const messageText = form.get("messageText")?.toString() ?? "";
-    const showType = form.get("showType")?.toString() ?? "all";
+    const showType = form.get("showType")?.toString() ?? "allpage";
     const enabled = form.get("enabled") === "on";
 
-    if (id) {
-      await prisma.notificationConfig.updateMany({
-        where: { id, shop },
-        data: { messageTitle, messageText, showType, enabled },
-      });
+    try {
+      if (id && prisma?.notificationconfig?.updateMany) {
+        await prisma.notificationconfig.updateMany({
+          where: { id, shop },
+          data: { messageText, showType, enabled },
+        });
+      }
+      if (isFetch) return safeJson({ ok: true, saved: true });
+      search.set("saved", "1");
+      return redirect(`/app/dashboard?${search.toString()}`);
+    } catch (e) {
+      console.error("[dashboard.action:update] error:", e);
+      if (isFetch) return safeJson({ ok: false, error: "Update failed" }, { status: 500 });
+      search.set("error", "1");
+      return redirect(`/app/dashboard?${search.toString()}`);
     }
-    if (isFetch) return json({ ok: true, saved: true });
-    search.set("saved", "1");
-    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
   if (_action === "toggle-enabled") {
     const id = Number(form.get("id"));
     const enabled = form.get("enabled") === "on";
-    if (id) {
-      await prisma.notificationConfig.updateMany({
-        where: { id, shop },
-        data: { enabled },
-      });
+    try {
+      if (id && prisma?.notificationconfig?.updateMany) {
+        await prisma.notificationconfig.updateMany({
+          where: { id, shop },
+          data: { enabled },
+        });
+      }
+      if (isFetch) return safeJson({ ok: true });
+      return redirect(`/app/dashboard?${search.toString()}`);
+    } catch (e) {
+      console.error("[dashboard.action:toggle] error:", e);
+      if (isFetch) return safeJson({ ok: false, error: "Toggle failed" }, { status: 500 });
+      search.set("error", "1");
+      return redirect(`/app/dashboard?${search.toString()}`);
     }
-    if (isFetch) return json({ ok: true });
-    return redirect(`/app/dashboard?${search.toString()}`);
   }
 
-  return null;
+  return safeJson({ ok: false, error: "Unknown action" }, { status: 400 });
 }
 
-// -------------------- Component --------------------
+/* -------------------- Component -------------------- */
 export default function NotificationList() {
   const { rows, total, page, pageSize, filters } = useLoaderData();
   const navigation = useNavigation();
@@ -187,11 +287,10 @@ export default function NotificationList() {
   const navigate = useNavigate();
   const location = useLocation();
   const delFetcher = useFetcher();
-  const { revalidate } = useRevalidator(); // 👈 NEW
+  const { revalidate } = useRevalidator();
 
   const isBusy = navigation.state !== "idle";
 
-  // ===== Toast: saved (from redirects) =====
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; }
     catch { return false; }
@@ -204,7 +303,6 @@ export default function NotificationList() {
     }
   }, [showSaved, location.pathname, location.search, navigate]);
 
-  // ===== Toast: deleted (redirect flag OR fetcher success) =====
   const [showDeleted, setShowDeleted] = useState(() => {
     try { return new URLSearchParams(location.search).get("deleted") === "1"; }
     catch { return false; }
@@ -217,41 +315,32 @@ export default function NotificationList() {
     }
   }, [showDeleted, location.pathname, location.search, navigate]);
 
-  // ===== Optimistic hidden rows =====
   const [deletedIds, setDeletedIds] = useState(new Set());
-
-  // After fetcher delete completes, force revalidate loader
   useEffect(() => {
     if (delFetcher.state === "idle" && delFetcher.data?.ok) {
-      revalidate(); // pull fresh rows from server
+      revalidate();
     }
   }, [delFetcher.state, delFetcher.data, revalidate]);
 
-  // Delete confirm state
   const [delRow, setDelRow] = useState(null);
   const openDelete = useCallback((row) => setDelRow(row), []);
   const closeDelete = useCallback(() => setDelRow(null), []);
   const confirmDelete = useCallback(() => {
     if (!delRow) return;
     const id = delRow.id;
-
-    // 1) Close modal
     setDelRow(null);
-    // 2) Optimistic toast + hide
     setShowDeleted(true);
     setDeletedIds((prev) => {
       const n = new Set(prev);
       n.add(id);
       return n;
     });
-    // 3) Submit via fetcher (no navigation)
     const fd = new FormData();
     fd.set("_action", "delete");
     fd.set("id", String(id));
     delFetcher.submit(fd, { method: "post" });
   }, [delRow, delFetcher]);
 
-  // ----- styles -----
   const styles = `
     .col-title, .col-text { white-space: pre-line !important; word-break: break-word; }
     .col-title .Polaris-Text, .col-text .Polaris-Text { display: block; }
@@ -268,7 +357,6 @@ export default function NotificationList() {
     .rk-switch:disabled { opacity: .5; cursor: not-allowed; }
   `;
 
-  // ----- filters -----
   const typeOptions = [
     { label: "Show All", value: "all" },
     ...Object.keys(TITLES).map((k) => ({ label: TITLES[k] || pretty(k), value: k })),
@@ -283,15 +371,10 @@ export default function NotificationList() {
   const currentStatus = filters?.status || "all";
   const initialQ = filters?.q || "";
 
-  // search: debounce 300ms
   const [query, setQuery] = useState(initialQ);
   const tRef = useRef(null);
   useEffect(() => setQuery(initialQ), [initialQ]);
 
-  // paging
-  const baseIndex = (page - 1) * pageSize;
-
-  // helper submit preserving params
   const submitWith = (params) => {
     const fd = new FormData();
     fd.set("type", params.type ?? currentType);
@@ -302,18 +385,6 @@ export default function NotificationList() {
     submit(fd, { method: "get", replace: true });
   };
 
-  // array-JSON → lines, or commas → newline
-  const formatLines = (val) => {
-    if (val == null) return "";
-    if (Array.isArray(val)) return val.join(",\n");
-    try {
-      const arr = JSON.parse(val);
-      if (Array.isArray(arr)) return arr.join(",\n");
-    } catch {}
-    return String(val).replace(/,\s*/g, ",\n");
-  };
-
-  // visible rows (optimistic hide)
   const visibleRows = rows.filter((r) => !deletedIds.has(r.id));
 
   return (
@@ -403,80 +474,114 @@ export default function NotificationList() {
               </div>
             )}
 
-            <IndexTable
-              selectable={false}
-              resourceName={{ singular: "config", plural: "configs" }}
-              itemCount={visibleRows.length}
-              headings={[
-                { title: "No" },
-                { title: "Popup Title" },
-                { title: "Notification Message" },
-                { title: "Popup Type" },
-                { title: "Show On Pages" },
-                { title: "Status" },
-                { title: "Actions" },
-              ]}
-              stickyHeader
-            >
-              {visibleRows.map((row, index) => {
-                const titleDisplay = formatLines(row.messageTitlesJson);
-                const textDisplay =
-                  row.key === "flash"
-                    ? formatLines(row.locationsJson)
-                    : formatLines(row.messageText);
-                const nextEnabled = !row.enabled;
+            {visibleRows.length === 0 ? (
+              <EmptyState
+                heading="No notifications found"
+                action={{ content: "Create notification", url: "/app/notification" }}
+                secondaryAction={{ content: "Clear filters", onAction: () => submitWith({ type: "all", status: "all", q: "", page: 1 }) }}
+                image=""
+              >
+                <p>Try adjusting your filters or create a new one.</p>
+              </EmptyState>
+            ) : (
+              <IndexTable
+                selectable={false}
+                resourceName={{ singular: "config", plural: "configs" }}
+                itemCount={total}
+                headings={[
+                  { title: "No" },
+                  { title: "Popup Title" },
+                  { title: "Notification Message" },
+                  { title: "Popup Type" },
+                  { title: "Show On Pages" },
+                  { title: "Status" },
+                  { title: "Actions" },
+                ]}
+                stickyHeader
+              >
+                {visibleRows.map((row, index) => {
+                  /* ---------- Title ----------
+                     ✅ Change: if recent → static "Recent Order Popup" */
+                  const titleDisplay =
+                    row.key === "recent"
+                      ? "Recent Order Popup"
+                      : ((row.messageTitle && row.messageTitle.trim?.()) ||
+                         row.messageTitlesJson ||
+                         "");
 
-                return (
-                  <IndexTable.Row id={String(row.id)} key={row.id} position={index}>
-                    <IndexTable.Cell style={{ width: 64 }}>
-                      <Text as="span">{baseIndex + index + 1}</Text>
-                    </IndexTable.Cell>
+                  /* ---------- Message ----------
+                     For flash: location string else locationsJson array else name/namesJson else messageText
+                     For others: messageText else namesJson else locationsJson */
+                  const flashVal =
+                    (row.location && row.location.trim?.()) ||
+                    row.locationsJson ||
+                    (row.name && row.name.trim?.()) ||
+                    row.namesJson ||
+                    row.messageText ||
+                    "";
 
-                    <IndexTable.Cell className="col-title">
-                      <Text as="p" breakWord>{titleDisplay}</Text>
-                    </IndexTable.Cell>
+                  const nonFlashVal =
+                    (row.messageText && row.messageText.trim?.()) ||
+                    row.namesJson ||
+                    row.locationsJson ||
+                    "";
 
-                    <IndexTable.Cell className="col-text">
-                      <Text as="p" breakWord>{textDisplay}</Text>
-                    </IndexTable.Cell>
+                  const textDisplay = row.key === "flash" ? flashVal : nonFlashVal;
 
-                    <IndexTable.Cell>
-                      {TITLES[row.key] || pretty(row.key)}
-                    </IndexTable.Cell>
+                  const nextEnabled = !row.enabled;
 
-                    <IndexTable.Cell>{showTypeLabel(row.showType)}</IndexTable.Cell>
+                  return (
+                    <IndexTable.Row id={String(row.id)} key={row.id} position={index}>
+                      <IndexTable.Cell style={{ width: 64 }}>
+                        <Text as="span">{(page - 1) * pageSize + index + 1}</Text>
+                      </IndexTable.Cell>
 
-                    <IndexTable.Cell>
-                      <Form method="post">
-                        <input type="hidden" name="_action" value="toggle-enabled" />
-                        <input type="hidden" name="id" value={row.id} />
-                        <input type="hidden" name="enabled" value={nextEnabled ? "on" : ""} />
-                        <button
-                          type="submit"
-                          className={`rk-switch ${row.enabled ? "is-on" : ""}`}
-                          aria-label={row.enabled ? "Enabled" : "Disabled"}
-                          disabled={isBusy}
-                          title={row.enabled ? "Click to disable" : "Click to enable"}
-                        >
-                          <span className="knob" />
-                        </button>
-                      </Form>
-                    </IndexTable.Cell>
+                      <IndexTable.Cell className="col-title">
+                        <Text as="p" breakWord>{formatLines(titleDisplay)}</Text>
+                      </IndexTable.Cell>
 
-                    <IndexTable.Cell>
-                      <InlineStack align="start" gap="200">
-                        <Button onClick={() => navigate(appendQS(`/app/notification/${row.key}/edit/${row.id}`))}>
-                          Edit
-                        </Button>
-                        <Button tone="critical" variant="secondary" onClick={() => openDelete(row)}>
-                          Delete
-                        </Button>
-                      </InlineStack>
-                    </IndexTable.Cell>
-                  </IndexTable.Row>
-                );
-              })}
-            </IndexTable>
+                      <IndexTable.Cell className="col-text">
+                        <Text as="p" breakWord>{formatLines(textDisplay)}</Text>
+                      </IndexTable.Cell>
+
+                      <IndexTable.Cell>
+                        {TITLES[row.key] || pretty(row.key)}
+                      </IndexTable.Cell>
+
+                      <IndexTable.Cell>{showTypeLabel(row.showType)}</IndexTable.Cell>
+
+                      <IndexTable.Cell>
+                        <Form method="post">
+                          <input type="hidden" name="_action" value="toggle-enabled" />
+                          <input type="hidden" name="id" value={row.id} />
+                          <input type="hidden" name="enabled" value={nextEnabled ? "on" : ""} />
+                          <button
+                            type="submit"
+                            className={`rk-switch ${row.enabled ? "is-on" : ""}`}
+                            aria-label={row.enabled ? "Enabled" : "Disabled"}
+                            disabled={isBusy}
+                            title={row.enabled ? "Click to disable" : "Click to enable"}
+                          >
+                            <span className="knob" />
+                          </button>
+                        </Form>
+                      </IndexTable.Cell>
+
+                      <IndexTable.Cell>
+                        <InlineStack align="start" gap="200">
+                          <Button onClick={() => navigate(appendQS(`/app/notification/${row.key}/edit/${row.id}`))}>
+                            Edit
+                          </Button>
+                          <Button tone="critical" variant="secondary" onClick={() => openDelete(row)}>
+                            Delete
+                          </Button>
+                        </InlineStack>
+                      </IndexTable.Cell>
+                    </IndexTable.Row>
+                  );
+                })}
+              </IndexTable>
+            )}
           </div>
         </Card>
 
@@ -486,7 +591,7 @@ export default function NotificationList() {
             <Text as="span" tone="subdued">
               {total === 0
                 ? "No results"
-                : `Showing ${total === 0 ? 0 : baseIndex + 1}–${baseIndex + visibleRows.length} of ${total}`}
+                : `Showing ${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + visibleRows.length} of ${total}`}
             </Text>
 
             <InlineStack gap="200" align="center">
