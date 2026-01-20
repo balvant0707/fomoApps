@@ -2,6 +2,7 @@
   "name": "m2-web-fomo-popup",
   "type": "module",
   "private": true,
+  "type": "module",
   "engines": {
     "node": "20.19.5"
   },
