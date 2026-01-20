@@ -2,7 +2,7 @@
   "name": "m2-web-fomo-popup",
   "private": true,
   "engines": {
-    "node": "^18.20 || ^20.10 || >=21.0.0"
+    "node": "20.19.5"
   },
   "scripts": {
     "build": "prisma generate && remix vite:build",
