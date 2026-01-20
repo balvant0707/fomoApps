@@ -44,7 +44,7 @@ export const loader = async ({ request }) => {
   if (!apiKey) {
     // Make the error obvious but not a 500 blank page
     return new Response(
-      "Missing SHOPIFY_API_KEY in environment. Set it to your app’s Client ID.",
+      "Missing SHOPIFY_API_KEY or SHOPIFY_APP_BRIDGE_APP_ID in environment. Set one to your app's Client ID.",
       { status: 500 }
     );
   }

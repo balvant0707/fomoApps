@@ -1,11 +1,30 @@
 // app/routes/app.notification.recent.jsx
 import React, { useMemo, useState, useEffect } from "react";
 import {
-  Page, Card, Button, TextField, Select, ChoiceList, Box,
-  BlockStack, InlineStack, Text, Frame, Toast, Loading, Layout,
-  ColorPicker, Popover, ButtonGroup, Banner
+  Page,
+  Card,
+  Button,
+  TextField,
+  Select,
+  ChoiceList,
+  Box,
+  BlockStack,
+  InlineStack,
+  Text,
+  Frame,
+  Toast,
+  Loading,
+  Layout,
+  ColorPicker,
+  Popover,
+  ButtonGroup,
+  Banner,
 } from "@shopify/polaris";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import {
+  useLoaderData,
+  useNavigate,
+  useRouteError,
+} from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -30,6 +49,53 @@ const HIDE_CHOICES = [
   { label: "Order Time", value: "time" },
 ];
 
+const clampDaysParam = (value, fallback = 1) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1 && n <= 60 ? n : fallback;
+};
+
+const DEFAULT_PREVIEW = {
+  firstName: "Customer",
+  lastName: "Name",
+  city: "Sample City",
+  state: "",
+  country: "Sample Country",
+  createdAt: new Date().toISOString(),
+  productTitle: "Your product will show here",
+  productImage: null,
+  products: [
+    {
+      title: "Your product will show here",
+      image: null,
+      handle: "",
+    },
+  ],
+};
+
+const DEFAULT_SAVED = {
+  enabled: true,
+  showType: "allpage",
+  fontFamily: "System",
+  position: "bottom-left",
+  animation: "fade",
+  mobileSize: "compact",
+  mobilePositionJson: '["bottom"]',
+  titleColor: "#6E62FF",
+  bgColor: "#FFFFFF",
+  msgColor: "#111111",
+  ctaBgColor: null,
+  rounded: "14",
+  durationSeconds: 8,
+  alternateSeconds: 10,
+  fontWeight: "600",
+  namesJson: [],
+  selectedProductsJson: [],
+  locationsJson: [],
+  messageTitlesJson: [],
+  orderDays: 1,
+  createOrderTime: null,
+};
+
 /* ───────────────── date helpers ──────────────── */
 const trimIso = (iso) => {
   const i = String(iso || "");
@@ -41,12 +107,15 @@ const trimIso = (iso) => {
 
 function zonedStartOfDay(date, timeZone) {
   const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
   const parts = fmt.formatToParts(date);
-  const Y = Number(parts.find(p => p.type === "year")?.value || "1970");
-  const M = Number(parts.find(p => p.type === "month")?.value || "01");
-  const D = Number(parts.find(p => p.type === "day")?.value || "01");
+  const Y = Number(parts.find((p) => p.type === "year")?.value || "1970");
+  const M = Number(parts.find((p) => p.type === "month")?.value || "01");
+  const D = Number(parts.find((p) => p.type === "day")?.value || "01");
   return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
 }
 
@@ -54,7 +123,9 @@ function daysRangeZoned(days, timeZone) {
   const now = new Date();
   const endISO = trimIso(now.toISOString());
   const daysClamped = Math.max(1, Number(days || 1));
-  const base = new Date(now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000);
+  const base = new Date(
+    now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000
+  );
   const start = zonedStartOfDay(base, timeZone || "UTC");
   return { startISO: trimIso(start.toISOString()), endISO };
 }
@@ -125,11 +196,24 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
   let after = null;
   let all = [];
   for (let page = 0; page < 20; page++) {
-    const resp = await admin.graphql(Q_ORDERS_FULL, {
-      variables: { first: FIRST, query: search, after }
-    });
-    const js = await resp.json();
+    let resp;
+    try {
+      resp = await admin.graphql(Q_ORDERS_FULL, {
+        variables: { first: FIRST, query: search, after },
+      });
+    } catch (e) {
+      console.error("[Fomoify] admin.graphql failed (window):", e);
+      break;
+    }
+    let js;
+    try {
+      js = await resp.json();
+    } catch (e) {
+      console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
+      break;
+    }
     const block = js?.data?.orders;
+    if (!block) break;
     const edges = block?.edges || [];
     all = all.concat(mapEdgesToOrders(edges));
     const hasNext = block?.pageInfo?.hasNextPage;
@@ -137,6 +221,21 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     if (!hasNext || !after) break;
   }
   return all;
+}
+
+async function fetchLatestOrderAnyTime(admin) {
+  try {
+    const resp = await admin.graphql(Q_ORDERS_FULL, {
+      variables: { first: 1, query: "status:any" },
+    });
+    const js = await resp.json();
+    const edges = js?.data?.orders?.edges || [];
+    const fb = mapEdgesToOrders(edges);
+    return fb[0] || null;
+  } catch (e) {
+    console.error("[Fomoify] Fallback latest order fetch failed:", e);
+    return null;
+  }
 }
 
 /* ───────────────── helpers ──────────────── */
@@ -153,16 +252,19 @@ function collectAllProductHandles(orders) {
 
 function deriveBucketsFromOrders(orders) {
   const uniqStrings = (arr) => {
-    const seen = new Set(); const out = [];
+    const seen = new Set();
+    const out = [];
     for (const v of arr) {
       const k = String(v || "").trim();
       if (!k || seen.has(k)) continue;
-      seen.add(k); out.push(k);
+      seen.add(k);
+      out.push(k);
     }
     return out;
   };
   const uniqLocations = (arr) => {
-    const seen = new Set(); const out = [];
+    const seen = new Set();
+    const out = [];
     for (const loc of arr) {
       const c = String(loc.city || "").trim();
       const s = String(loc.state || "").trim();
@@ -203,8 +305,8 @@ function flattenCustomerProductRows(shop, orders) {
     const created = o?.createdAt ? new Date(o.createdAt) : null;
     const orderId = String(o?.id || "").trim();
     const first = (o?.firstName || "").trim();
-    const last  = (o?.lastName  || "").trim();
-    const customerName = (first || last) ? `${first} ${last}`.trim() : "Anonymous";
+    const last = (o?.lastName || "").trim();
+    const customerName = first || last ? `${first} ${last}`.trim() : "Anonymous";
     if (!orderId || !created) continue;
     for (const p of o?.products || []) {
       const handle = String(p?.handle || "").trim();
@@ -212,7 +314,13 @@ function flattenCustomerProductRows(shop, orders) {
       const key = `${shop}|${orderId}|${handle}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      rows.push({ shop, orderId, productHandle: handle, customerName, orderCreatedAt: created });
+      rows.push({
+        shop,
+        orderId,
+        productHandle: handle,
+        customerName,
+        orderCreatedAt: created,
+      });
     }
   }
   return rows;
@@ -222,8 +330,7 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
   try {
     if (!prismaClient) throw new Error("Prisma not available");
     const table =
-      prismaClient.customerproducthandle ||
-      prismaClient.customerProductHandle;
+      prismaClient.customerproducthandle || prismaClient.customerProductHandle;
     if (!table) throw new Error("Prisma model missing: customerProductHandle");
     const rows = flattenCustomerProductRows(shop, orders);
     if (!rows.length) return { inserted: 0, total: 0 };
@@ -258,108 +365,188 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
 
 /* ───────────────── loader ──────────────── */
 export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
-  const shop = session?.shop;
-  if (!shop) throw new Response("Unauthorized", { status: 401 });
+  let admin;
+  let session;
+  let shop;
 
-  const url = new URL(request.url);
-  const daysParam = url.searchParams.get("days");
-
-  let last = null;
+  // SUPER defensive around authenticate.admin
   try {
-    if (prisma?.notificationconfig?.findFirst) {
-      last = await prisma.notificationconfig.findFirst({
-        where: { shop, key: KEY },
-        orderBy: { id: "desc" },
-      });
-    }
+    ({ admin, session } = await authenticate.admin(request));
+    shop = session?.shop;
   } catch (e) {
-    console.error("[Fomoify] prisma.findFirst failed (loader).", e);
+    console.error("[Fomoify] authenticate.admin failed in recent loader:", e);
+    return json(
+      {
+        key: KEY,
+        title: "Recent Purchases",
+        saved: DEFAULT_SAVED,
+        newestCreatedAt: null,
+        preview: DEFAULT_PREVIEW,
+        orders: [],
+        usedDays: 1,
+        hasUsableOrders: false,
+        loaderError: `auth-failed: ${String(e?.message || e)}`,
+      },
+      { status: 200 }
+    );
   }
 
-  const parseArr = (s) => { try { const a = JSON.parse(s || "[]"); return Array.isArray(a) ? a : []; } catch { return []; } };
-  const db_namesJson = parseArr(last?.namesJson);
-  const db_locationsJson = parseArr(last?.locationsJson);
-  const db_messageTitlesJson = parseArr(last?.messageTitlesJson);
-
-  const savedOrderDays = Number.isFinite(Number(last?.orderDays)) ? Number(last.orderDays) : 1;
-  const urlDays = Number(daysParam);
-  const orderDays = (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60) ? urlDays : savedOrderDays;
-
-  const shopTZ = await getShopTimezone(admin);
-  const { startISO, endISO } = daysRangeZoned(orderDays, shopTZ);
-
-  let strictOrders = [];
-  let preview = null;
-  let buckets = { productHandles: [], locations: [], customerNames: [] };
-  let newestCreatedAt = null;
+  if (!shop) {
+    return json(
+      {
+        key: KEY,
+        title: "Recent Purchases",
+        saved: DEFAULT_SAVED,
+        newestCreatedAt: null,
+        preview: DEFAULT_PREVIEW,
+        orders: [],
+        usedDays: 1,
+        hasUsableOrders: false,
+        loaderError: "Unauthorized – missing shop in session",
+      },
+      { status: 200 }
+    );
+  }
 
   try {
-    strictOrders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+    const url = new URL(request.url);
+    const daysParam = url.searchParams.get("days");
 
-    if (strictOrders.length > 0) {
-      newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
-      const p0 = strictOrders[0]?.products?.[0] || {};
-      preview = { ...strictOrders[0], productTitle: p0.title, productImage: p0.image };
-    } else {
-      // preview fallback only (for UI), not counted as usable
-      const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: 1, query: "status:any" } });
-      const js = await resp.json();
-      const edges = js?.data?.orders?.edges || [];
-      const fb = mapEdgesToOrders(edges);
-      if (fb[0]) {
-        const p0 = fb[0].products[0] || {};
-        preview = { ...fb[0], productTitle: p0.title, productImage: p0.image };
+    let last = null;
+    try {
+      if (prisma?.notificationconfig?.findFirst) {
+        last = await prisma.notificationconfig.findFirst({
+          where: { shop, key: KEY },
+          orderBy: { id: "desc" },
+        });
       }
+    } catch (e) {
+      console.error("[Fomoify] prisma.findFirst failed (loader).", e);
     }
 
-    buckets = deriveBucketsFromOrders(strictOrders);
+    const parseArr = (s) => {
+      try {
+        const a = JSON.parse(s || "[]");
+        return Array.isArray(a) ? a : [];
+      } catch {
+        return [];
+      }
+    };
+    const db_namesJson = parseArr(last?.namesJson);
+    const db_locationsJson = parseArr(last?.locationsJson);
+    const db_messageTitlesJson = parseArr(last?.messageTitlesJson);
+
+    const savedOrderDays = Number.isFinite(Number(last?.orderDays))
+      ? Number(last.orderDays)
+      : 1;
+    const urlDays = clampDaysParam(daysParam, null);
+    const orderDays = urlDays ?? savedOrderDays;
+
+    const shopTZ = await getShopTimezone(admin);
+    const { startISO, endISO } = daysRangeZoned(orderDays, shopTZ);
+
+    let strictOrders = [];
+    let preview = null;
+    let buckets = { productHandles: [], locations: [], customerNames: [] };
+    let newestCreatedAt = null;
+
+    try {
+      strictOrders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+
+      if (strictOrders.length > 0) {
+        // newest order in selected window
+        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
+        const p0 = strictOrders[0]?.products?.[0] || {};
+        preview = {
+          ...strictOrders[0],
+          productTitle: p0.title,
+          productImage: p0.image,
+        };
+      } else {
+        const latestAnyTime = await fetchLatestOrderAnyTime(admin);
+        if (latestAnyTime) {
+          const p0 = latestAnyTime.products?.[0] || {};
+          preview = {
+            ...latestAnyTime,
+            productTitle: p0.title,
+            productImage: p0.image,
+          };
+        }
+      }
+
+      buckets = deriveBucketsFromOrders(strictOrders);
+    } catch (e) {
+      console.error("[Fomoify] Orders fetch (loader) failed:", e);
+    }
+
+    // usable orders = current window + at least one product handle
+    const allHandlesWindow = collectAllProductHandles(strictOrders);
+    const hasUsableOrders = allHandlesWindow.length > 0;
+
+    const saved_selectedProductsJson = allHandlesWindow; // duplicates kept
+    const saved_locationsJson =
+      db_locationsJson.length ? db_locationsJson : buckets.locations;
+    const saved_messageTitlesJson = db_messageTitlesJson.length
+      ? db_messageTitlesJson
+      : buckets.customerNames;
+
+    // If preview is still null, provide a dummy preview so LivePreview never breaks
+    if (!preview) {
+      preview = DEFAULT_PREVIEW;
+    }
+
+    return json({
+      key: KEY,
+      title: "Recent Purchases",
+      saved: {
+        enabled: last?.enabled ?? true,
+        showType: last?.showType ?? "allpage",
+        fontFamily: last?.fontFamily ?? "System",
+        position: last?.position ?? "bottom-left",
+        animation: last?.animation ?? "fade",
+        mobileSize: last?.mobileSize ?? "compact",
+        mobilePositionJson: last?.mobilePositionJson ?? '["bottom"]',
+        titleColor: last?.titleColor ?? "#6E62FF",
+        bgColor: last?.bgColor ?? "#FFFFFF",
+        msgColor: last?.msgColor ?? "#111111",
+        ctaBgColor: last?.ctaBgColor ?? null,
+        rounded: String(last?.rounded ?? 14),
+        durationSeconds: Number(last?.durationSeconds ?? 8),
+        alternateSeconds: Number(last?.alternateSeconds ?? 10),
+        fontWeight: String(last?.fontWeight ?? 600),
+
+        namesJson: db_namesJson,
+        selectedProductsJson: saved_selectedProductsJson,
+        locationsJson: saved_locationsJson,
+        messageTitlesJson: saved_messageTitlesJson,
+
+        orderDays: orderDays,
+        createOrderTime: last?.createOrderTime ?? newestCreatedAt ?? null,
+      },
+      newestCreatedAt,
+      preview,
+      orders: strictOrders,
+      usedDays: orderDays,
+      hasUsableOrders,
+      loaderError: null,
+    });
   } catch (e) {
-    console.error("[Fomoify] Orders fetch (loader) failed:", e);
+    console.error("[Fomoify] loader fatal error:", e);
+    return json(
+      {
+        key: KEY,
+        title: "Recent Purchases",
+        saved: DEFAULT_SAVED,
+        newestCreatedAt: null,
+        preview: DEFAULT_PREVIEW,
+        orders: [],
+        usedDays: 1,
+        hasUsableOrders: false,
+        loaderError: String(e?.message || e),
+      },
+      { status: 200 }
+    );
   }
-
-  // ✅ “usable” = windowમાં ઓછામાં ઓછી એક product handle
-  const allHandlesWindow = collectAllProductHandles(strictOrders);
-  const hasUsableOrders = allHandlesWindow.length > 0;
-
-  const saved_selectedProductsJson = allHandlesWindow; // duplicates kept
-  const saved_locationsJson = db_locationsJson.length ? db_locationsJson : buckets.locations;
-  const saved_messageTitlesJson = db_messageTitlesJson.length ? db_messageTitlesJson : buckets.customerNames;
-
-  return json({
-    key: KEY,
-    title: "Recent Purchases",
-    saved: {
-      enabled: last?.enabled ?? true,
-      showType: last?.showType ?? "allpage",
-      fontFamily: last?.fontFamily ?? "System",
-      position: last?.position ?? "bottom-left",
-      animation: last?.animation ?? "fade",
-      mobileSize: last?.mobileSize ?? "compact",
-      mobilePositionJson: last?.mobilePositionJson ?? '["bottom"]',
-      titleColor: last?.titleColor ?? "#6E62FF",
-      bgColor: last?.bgColor ?? "#FFFFFF",
-      msgColor: last?.msgColor ?? "#111111",
-      ctaBgColor: last?.ctaBgColor ?? null,
-      rounded: String(last?.rounded ?? 14),
-      durationSeconds: Number(last?.durationSeconds ?? 8),
-      alternateSeconds: Number(last?.alternateSeconds ?? 10),
-      fontWeight: String(last?.fontWeight ?? 600),
-
-      namesJson: db_namesJson,
-      selectedProductsJson: saved_selectedProductsJson,
-      locationsJson: saved_locationsJson,
-      messageTitlesJson: saved_messageTitlesJson,
-
-      orderDays: orderDays,
-      createOrderTime: last?.createOrderTime ?? newestCreatedAt ?? null,
-    },
-    newestCreatedAt,
-    preview,
-    orders: strictOrders,
-    usedDays: orderDays,
-    hasUsableOrders, // ← UI lock flag
-  });
 }
 
 /* ───────────────── action ──────────────── */
@@ -372,12 +559,17 @@ export async function action({ request }) {
   try {
     body = await request.json();
   } catch (e) {
-    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    return json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
   }
   const { form } = body || {};
 
   const nullIfBlank = (v) =>
-    v === undefined || v === null || String(v).trim() === "" ? null : String(v);
+    v === undefined || v === null || String(v).trim() === ""
+      ? null
+      : String(v);
   const intOrNull = (v, min = null, max = null) => {
     if (v === undefined || v === null || String(v).trim() === "") return null;
     let n = Number(v);
@@ -404,23 +596,26 @@ export async function action({ request }) {
     console.error("[Fomoify] Orders fetch (action) failed:", e);
   }
 
-  // 2) STRONG VALIDATION: require at least one product handle
+  // 2) Strong validation: require at least one product handle
   const allHandlesWindow = collectAllProductHandles(orders);
   if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
+    // No usable orders ⇒ 422 validation (not 500)
     return json(
       {
         success: false,
-        error: "તમે order નથી. Selected window માં usable orders મળ્યા નથી.",
+        error:
+          "No usable orders found in the selected window. Try selecting fewer days or wait until you have some orders with products.",
         validation: "NO_USABLE_ORDERS",
       },
       { status: 422 }
     );
   }
 
-  // 3) (Optional) persist only after validation
+  // 3) Persist only after validation
   try {
     const persistRes = await persistCustomerProductHandles(prisma, shop, orders);
-    if (persistRes?.error) console.warn("[action] persist warning:", persistRes.error);
+    if (persistRes?.error)
+      console.warn("[action] persist warning:", persistRes.error);
   } catch (e) {
     console.error("[action] persist failed:", e);
   }
@@ -428,14 +623,20 @@ export async function action({ request }) {
   // 4) Build save payload
   const { locations, customerNames } = deriveBucketsFromOrders(orders);
   const newestOrderCreatedAtISO =
-    orders.length > 0 && orders[0]?.createdAt ? trimIso(String(orders[0].createdAt)) : null;
+    orders.length > 0 && orders[0]?.createdAt
+      ? trimIso(String(orders[0].createdAt))
+      : null;
 
   const selectedProductsJson = JSON.stringify(allHandlesWindow);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
-  const namesJson = JSON.stringify(Array.isArray(form?.namesJson) ? form.namesJson : []);
+  const namesJson = JSON.stringify(
+    Array.isArray(form?.namesJson) ? form.namesJson : []
+  );
   const mobilePositionJson = JSON.stringify(
-    Array.isArray(form?.mobilePosition) ? form.mobilePosition : [form?.mobilePosition || "bottom"]
+    Array.isArray(form?.mobilePosition)
+      ? form.mobilePosition
+      : [form?.mobilePosition || "bottom"]
   );
 
   const data = {
@@ -468,10 +669,13 @@ export async function action({ request }) {
     createOrderTime: newestOrderCreatedAtISO ?? null,
   };
 
-  Object.keys(data).forEach((k) => { if (data[k] === undefined) delete data[k]; });
+  Object.keys(data).forEach((k) => {
+    if (data[k] === undefined) delete data[k];
+  });
 
   try {
-    if (!prisma?.notificationconfig) throw new Error("Prisma model missing: notificationconfig");
+    if (!prisma?.notificationconfig)
+      throw new Error("Prisma model missing: notificationconfig");
 
     const existing = await prisma.notificationconfig.findFirst({
       where: { shop, key: KEY },
@@ -483,7 +687,7 @@ export async function action({ request }) {
     if (existing?.id) {
       saved = await prisma.notificationconfig.update({
         where: { id: existing.id },
-        data
+        data,
       });
     } else {
       saved = await prisma.notificationconfig.create({ data });
@@ -509,7 +713,8 @@ export async function action({ request }) {
         error: String(e?.message || e),
         code: e?.code || null,
         cause: e?.meta?.cause || null,
-        hint: "If create() fails, check DB for any legacy NOT NULL columns not in model.",
+        hint:
+          "If create() fails, check the DB for any legacy NOT NULL columns that are not in the Prisma model.",
       },
       { status: 500 }
     );
@@ -518,22 +723,113 @@ export async function action({ request }) {
 
 /* ───────────────── color helpers ──────────────── */
 const hex6 = (v) => /^#[0-9A-F]{6}$/i.test(String(v || ""));
-function hexToRgb(hex) { const c = hex.replace("#", ""); const n = parseInt(c, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 } }
-function rgbToHsv({ r, g, b }) { r /= 255; g /= 255; b /= 255; const m = Math.max(r, g, b), n = Math.min(r, g, b), d = m - n; let h = 0; if (d) { switch (m) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; default: h = (r - g) / d + 4 }h *= 60 } const s = m ? d / m : 0; return { hue: h, saturation: s, brightness: m } }
-function hsvToRgb({ hue: h, saturation: s, brightness: v }) { const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c; let R = 0, G = 0, B = 0; if (0 <= h && h < 60) [R, G, B] = [c, x, 0]; else if (60 <= h && h < 120) [R, G, B] = [x, c, 0]; else if (120 <= h && h < 180) [R, G, B] = [0, c, x]; else if (180 <= h && h < 240) [R, G, B] = [0, x, c]; else[R, G, B] = [x, 0, c]; return { r: Math.round((R + m) * 255), g: Math.round((G + m) * 255), b: Math.round((B + m) * 255) } }
-const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
-const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex)); const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
+function hexToRgb(hex) {
+  const c = hex.replace("#", "");
+  const n = parseInt(c, 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHsv({ r, g, b }) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const m = Math.max(r, g, b),
+    n = Math.min(r, g, b),
+    d = m - n;
+  let h = 0;
+  if (d) {
+    switch (m) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      default:
+        h = (r - g) / d + 4;
+    }
+    h *= 60;
+  }
+  const s = m ? d / m : 0;
+  return { hue: h, saturation: s, brightness: m };
+}
+function hsvToRgb({ hue: h, saturation: s, brightness: v }) {
+  const c = v * s,
+    x = c * (1 - Math.abs(((h / 60) % 2) - 1)),
+    m = v - c;
+  let R = 0,
+    G = 0,
+    B = 0;
+  if (0 <= h && h < 60) [R, G, B] = [c, x, 0];
+  else if (60 <= h && h < 120) [R, G, B] = [x, c, 0];
+  else if (120 <= h && h < 180) [R, G, B] = [0, c, x];
+  else if (180 <= h && h < 240) [R, G, B] = [0, x, c];
+  else [R, G, B] = [x, 0, c];
+  return {
+    r: Math.round((R + m) * 255),
+    g: Math.round((G + m) * 255),
+    b: Math.round((B + m) * 255),
+  };
+}
+const rgbToHex = ({ r, g, b }) =>
+  `#${[r, g, b]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
+const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   const [open, setOpen] = useState(false);
-  const [hsb, setHsb] = useState(hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 });
-  useEffect(() => { if (hex6(value)) setHsb(hexToHSB(value)); }, [value]);
-  const swatch = (<div onClick={() => setOpen(true)} style={{ width: 28, height: 28, borderRadius: 10, cursor: "pointer", border: "1px solid rgba(0,0,0,0.08)", background: hex6(value) ? value : "#ffffff" }} />);
+  const [hsb, setHsb] = useState(
+    hex6(value)
+      ? hexToHSB(value)
+      : { hue: 212, saturation: 0.7, brightness: 0.55 }
+  );
+  useEffect(() => {
+    if (hex6(value)) setHsb(hexToHSB(value));
+  }, [value]);
+  const swatch = (
+    <div
+      onClick={() => setOpen(true)}
+      style={{
+        width: 28,
+        height: 28,
+        borderRadius: 10,
+        cursor: "pointer",
+        border: "1px solid rgba(0,0,0,0.08)",
+        background: hex6(value) ? value : "#ffffff",
+      }}
+    />
+  );
   return (
-    <Popover active={open} onClose={() => setOpen(false)} preferredAlignment="right"
-      activator={<TextField label={label} value={value} onChange={(v) => { const next = String(v).toUpperCase(); onChange(next); if (hex6(next)) setHsb(hexToHSB(next)); }} autoComplete="off" placeholder={placeholder} suffix={swatch} onFocus={() => setOpen(true)} />}>
+    <Popover
+      active={open}
+      onClose={() => setOpen(false)}
+      preferredAlignment="right"
+      activator={
+        <TextField
+          label={label}
+          value={value}
+          onChange={(v) => {
+            const next = String(v).toUpperCase();
+            onChange(next);
+            if (hex6(next)) setHsb(hexToHSB(next));
+          }}
+          autoComplete="off"
+          placeholder={placeholder}
+          suffix={swatch}
+          onFocus={() => setOpen(true)}
+        />
+      }
+    >
       <Box padding="300" minWidth="260px">
-        <ColorPicker color={hsb} onChange={(c) => { setHsb(c); onChange(hsbToHEX(c)); }} allowAlpha={false} />
+        <ColorPicker
+          color={hsb}
+          onChange={(c) => {
+            setHsb(c);
+            onChange(hsbToHEX(c));
+          }}
+          allowAlpha={false}
+        />
       </Box>
     </Popover>
   );
@@ -541,28 +837,55 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
 
 /* ───────────────── preview components ──────────────── */
 const getAnimationStyle = (a) =>
-  a === "slide" ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" } :
-    a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
-      a === "zoom" ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" } :
-        { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
+  a === "slide"
+    ? {
+        transform: "translateY(8px)",
+        animation: "notif-slide-in 240ms ease-out",
+      }
+    : a === "bounce"
+    ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" }
+    : a === "zoom"
+    ? {
+        transform: "scale(0.96)",
+        animation: "notif-zoom-in 200ms ease-out forwards",
+      }
+    : { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
 
 const posToFlex = (pos) => {
   switch (pos) {
-    case "top-left": return { justifyContent: "flex-start", alignItems: "flex-start" };
-    case "top-right": return { justifyContent: "flex-end", alignItems: "flex-start" };
-    case "bottom-left": return { justifyContent: "flex-start", alignItems: "flex-end" };
-    case "bottom-right": return { justifyContent: "flex-end", alignItems: "flex-end" };
-    default: return { justifyContent: "flex-start", alignItems: "flex-end" };
+    case "top-left":
+      return { justifyContent: "flex-start", alignItems: "flex-start" };
+    case "top-right":
+      return { justifyContent: "flex-end", alignItems: "flex-start" };
+    case "bottom-left":
+      return { justifyContent: "flex-start", alignItems: "flex-end" };
+    case "bottom-right":
+      return { justifyContent: "flex-end", alignItems: "flex-end" };
+    default:
+      return { justifyContent: "flex-start", alignItems: "flex-end" };
   }
 };
-const mobilePosToFlex = (pos) => ({ justifyContent: "center", alignItems: pos === "top" ? "flex-start" : "flex-end" });
-const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large" ? 360 : 330);
+const mobilePosToFlex = (pos) => ({
+  justifyContent: "center",
+  alignItems: pos === "top" ? "flex-start" : "flex-end",
+});
+const mobileSizeToWidth = (size) =>
+  size === "compact" ? 300 : size === "large" ? 360 : 330;
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : 1.06);
 
 function Bubble({ form, order, isMobile = false }) {
-  const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
+  const animStyle = useMemo(
+    () => getAnimationStyle(form.animation),
+    [form.animation]
+  );
   const sizeBase = Number(form.rounded ?? 14) || 14;
-  const sized = Math.max(10, Math.min(28, Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1))));
+  const sized = Math.max(
+    10,
+    Math.min(
+      28,
+      Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1))
+    )
+  );
   const hide = new Set(form.namesJson || []);
 
   const name = [order?.firstName, order?.lastName].filter(Boolean).join(" ");
@@ -575,39 +898,98 @@ function Bubble({ form, order, isMobile = false }) {
 
   const products = Array.isArray(order?.products) ? order.products : [];
   const first = products[0] || null;
-  const productTitle = hide.has("productTitle") ? "" : (first?.title || order?.productTitle || "");
-  const productImg = hide.has("productImage") ? null : (first?.image || order?.productImage || null);
+  const productTitle = hide.has("productTitle")
+    ? ""
+    : first?.title || order?.productTitle || "";
+  const productImg = hide.has("productImage")
+    ? null
+    : first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
 
   const showTime = !hide.has("time");
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12,
-      fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
-      background: form.bgColor, color: form.msgColor, borderRadius: 14,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
-      maxWidth: isMobile ? mobileSizeToWidth(form.mobileSize) : 560, ...animStyle
-    }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        fontFamily:
+          form.fontFamily === "System"
+            ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto"
+            : form.fontFamily,
+        background: form.bgColor,
+        color: form.msgColor,
+        borderRadius: 14,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        padding: 12,
+        border: "1px solid rgba(17,24,39,0.06)",
+        maxWidth: isMobile ? mobileSizeToWidth(form.mobileSize) : 560,
+        ...animStyle,
+      }}
+    >
       <div>
-        {productImg
-          ? <img src={productImg} alt={productTitle || "Product"} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#f4f4f5" }} />
-          : <div style={{ width: 60, height: 60, borderRadius: 6, background: "#f4f4f5" }} />}
+        {productImg ? (
+          <img
+            src={productImg}
+            alt={productTitle || "Product"}
+            style={{
+              width: 60,
+              height: 60,
+              objectFit: "cover",
+              borderRadius: 6,
+              background: "#f4f4f5",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 6,
+              background: "#f4f4f5",
+            }}
+          />
+        )}
       </div>
       <div>
         <p style={{ margin: 0, fontSize: sized }}>
-          {!hide.has("name") && <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>{name || "Customer Name from Location"}</span>}
+          {!hide.has("name") && (
+            <span
+              style={{
+                color: form.titleColor,
+                fontWeight: Number(form.fontWeight || 600),
+              }}
+            >
+              {name || "Customer Name from Location"}
+            </span>
+          )}
           {!hide.has("name") && loc ? " from " : ""}
-          {loc && <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>{loc}</span>}
+          {loc && (
+            <span
+              style={{
+                color: form.titleColor,
+                fontWeight: Number(form.fontWeight || 600),
+              }}
+            >
+              {loc}
+            </span>
+          )}
           <br />
           <span>
             {productTitle ? `bought “${productTitle}”` : "placed an order"}
-            {moreCount > 0 && !hide.has("productTitle") ? ` +${moreCount} more` : ""}
+            {moreCount > 0 && !hide.has("productTitle")
+              ? ` +${moreCount} more`
+              : ""}
           </span>
           {showTime && (
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>{order?.createdAt ? new Date(order.createdAt).toLocaleString() : "Timing"}</small>
+                <small>
+                  {order?.createdAt
+                    ? new Date(order.createdAt).toLocaleString()
+                    : "Timing"}
+                </small>
               </span>
             </>
           )}
@@ -620,26 +1002,61 @@ function Bubble({ form, order, isMobile = false }) {
 function DesktopPreview({ form, order }) {
   const flex = posToFlex(form.position);
   return (
-    <div style={{
-      width: "100%", maxWidth: 900, minHeight: 320, height: 400, borderRadius: 12,
-      border: "1px solid #e5e7eb", background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
-      overflow: "hidden", position: "relative", display: "flex", padding: 18, boxSizing: "border-box", ...flex,
-    }}>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 900,
+        minHeight: 320,
+        height: 400,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
+        overflow: "hidden",
+        position: "relative",
+        display: "flex",
+        padding: 18,
+        boxSizing: "border-box",
+        ...flex,
+      }}
+    >
       <Bubble form={form} order={order} />
     </div>
   );
 }
 function MobilePreview({ form, order }) {
-  const posArr = Array.isArray(form.mobilePosition) ? form.mobilePosition : [form.mobilePosition || "bottom"];
+  const posArr = Array.isArray(form.mobilePosition)
+    ? form.mobilePosition
+    : [form.mobilePosition || "bottom"];
   const flex = mobilePosToFlex(posArr[0]);
   return (
     <div style={{ display: "flex", justifyContent: "center" }}>
-      <div style={{
-        width: 380, height: 400, borderRadius: 40, border: "1px solid #e5e7eb",
-        background: "linear-gradient(180deg,#fcfcfd 0%,#f5f5f6 100%)", boxShadow: "0 14px 40px rgba(0,0,0,0.12)",
-        position: "relative", overflow: "hidden", padding: 14, display: "flex", ...flex,
-      }}>
-        <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 120, height: 18, borderRadius: 10, background: "#0f172a0f" }} />
+      <div
+        style={{
+          width: 380,
+          height: 400,
+          borderRadius: 40,
+          border: "1px solid #e5e7eb",
+          background: "linear-gradient(180deg,#fcfcfd 0%,#f5f5f6 100%)",
+          boxShadow: "0 14px 40px rgba(0,0,0,0.12)",
+          position: "relative",
+          overflow: "hidden",
+          padding: 14,
+          display: "flex",
+          ...flex,
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 120,
+            height: 18,
+            borderRadius: 10,
+            background: "#0f172a0f",
+          }}
+        />
         <div style={{ padding: 8 }}>
           <Bubble form={form} order={order} isMobile />
         </div>
@@ -652,23 +1069,45 @@ function LivePreview({ form, order }) {
   return (
     <BlockStack gap="200">
       <InlineStack align="space-between" blockAlign="center">
-        <Text as="h3" variant="headingMd">Live Preview</Text>
+        <Text as="h3" variant="headingMd">
+          Live Preview
+        </Text>
         <ButtonGroup segmented>
-          <Button pressed={mode === "desktop"} onClick={() => setMode("desktop")}>Desktop</Button>
-          <Button pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile</Button>
-          <Button pressed={mode === "both"} onClick={() => setMode("both")}>Both</Button>
+          <Button
+            pressed={mode === "desktop"}
+            onClick={() => setMode("desktop")}
+          >
+            Desktop
+          </Button>
+          <Button
+            pressed={mode === "mobile"}
+            onClick={() => setMode("mobile")}
+          >
+            Mobile
+          </Button>
+          <Button
+            pressed={mode === "both"}
+            onClick={() => setMode("both")}
+          >
+            Both
+          </Button>
         </ButtonGroup>
       </InlineStack>
       {mode === "desktop" && <DesktopPreview form={form} order={order} />}
       {mode === "mobile" && <MobilePreview form={form} order={order} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview form={form} order={order} /></Box>
-          <Box width="40%"><MobilePreview form={form} order={order} /></Box>
+          <Box width="58%">
+            <DesktopPreview form={form} order={order} />
+          </Box>
+          <Box width="40%">
+            <MobilePreview form={form} order={order} />
+          </Box>
         </InlineStack>
       )}
       <Text as="p" variant="bodySm" tone="subdued">
-        Orders pulled strictly by selected window (shop timezone). Preview may show latest order only for UI reference.
+        Orders are pulled strictly by the selected window (shop timezone).
+        Preview may show the latest order only for visual reference.
       </Text>
     </BlockStack>
   );
@@ -676,16 +1115,35 @@ function LivePreview({ form, order }) {
 
 /* ───────────────── page ──────────────── */
 export default function RecentOrdersPopupPage() {
-  const { title, saved, preview, orders, usedDays, hasUsableOrders, newestCreatedAt } = useLoaderData();
+  const {
+    title,
+    saved,
+    preview,
+    orders,
+    usedDays,
+    hasUsableOrders,
+    newestCreatedAt,
+    loaderError,
+  } = useLoaderData();
   const navigate = useNavigate();
 
   useEffect(() => {
-    console.log(`[Fomoify] STRICT ${usedDays}-day window orders:`, orders);
+    console.log(
+      `[Fomoify] STRICT ${usedDays}-day window orders:`,
+      orders
+    );
     console.log("[Fomoify] Preview:", preview);
-  }, [orders, usedDays, preview]);
+    if (loaderError) {
+      console.warn("[Fomoify] Loader reported error:", loaderError);
+    }
+  }, [orders, usedDays, preview, loaderError]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({ on: false, error: false, msg: "" });
+  const [toast, setToast] = useState({
+    on: false,
+    error: false,
+    msg: "",
+  });
 
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
@@ -696,8 +1154,12 @@ export default function RecentOrdersPopupPage() {
     animation: saved.animation,
     mobileSize: saved.mobileSize,
     mobilePosition: (() => {
-      try { const j = JSON.parse(saved.mobilePositionJson || "[]"); return Array.isArray(j) && j.length ? j : ["bottom"]; }
-      catch { return ["bottom"]; }
+      try {
+        const j = JSON.parse(saved.mobilePositionJson || "[]");
+        return Array.isArray(j) && j.length ? j : ["bottom"];
+      } catch {
+        return ["bottom"];
+      }
     })(),
     titleColor: saved.titleColor,
     bgColor: saved.bgColor,
@@ -718,8 +1180,10 @@ export default function RecentOrdersPopupPage() {
   }));
 
   useEffect(() => {
-    const newest = orders?.[0]?.createdAt ? trimIso(String(orders[0].createdAt)) : null;
-    setForm(f => ({ ...f, createOrderTime: newest }));
+    const newest = orders?.[0]?.createdAt
+      ? trimIso(String(orders[0].createdAt))
+      : null;
+    setForm((f) => ({ ...f, createOrderTime: newest }));
   }, [orders]);
 
   const onField = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -736,23 +1200,35 @@ export default function RecentOrdersPopupPage() {
       const endpoint = `${loc.pathname}${loc.search || ""}`;
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ form }),
       });
 
-      const isJSON = res.headers.get("content-type")?.includes("application/json");
-      const payload = isJSON ? await res.json() : { error: await res.text() };
+      const isJSON = res.headers
+        .get("content-type")
+        ?.includes("application/json");
+      const payload = isJSON
+        ? await res.json()
+        : { error: await res.text() };
 
       if (!res.ok) {
-        // Gujarati toast for validation
-        const msg = payload?.error || "Save failed";
+        const msg =
+          payload?.error ||
+          "Save failed. Try selecting a different day window or try again later.";
         setToast({ on: true, error: true, msg });
-        return; // do not navigate
+        return;
       }
 
       navigate("/app/dashboard?saved=1");
     } catch (e) {
-      setToast({ on: true, error: true, msg: String(e.message || "Error") });
+      setToast({
+        on: true,
+        error: true,
+        msg: String(e.message || "Error"),
+      });
     } finally {
       setSaving(false);
     }
@@ -765,17 +1241,28 @@ export default function RecentOrdersPopupPage() {
     { label: "Montserrat", value: "Montserrat" },
     { label: "Poppins", value: "Poppins" },
   ];
-  const daysOptions = Array.from({ length: 60 }, (_, i) => ({ label: `${i + 1} day${i ? "s" : ""}`, value: String(i + 1) }));
+  const daysOptions = Array.from({ length: 60 }, (_, i) => ({
+    label: `${i + 1} day${i ? "s" : ""}`,
+    value: String(i + 1),
+  }));
 
-  const unusable = !hasUsableOrders; // UI lock: no orders/products ⇒ disabled
+  const unusable = !hasUsableOrders;
 
   return (
     <Frame>
       {saving && <Loading />}
       <Page
         title={`Configuration – ${title}`}
-        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
-        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving || unusable }}
+        backAction={{
+          content: "Back",
+          onAction: () => navigate("/app/notification"),
+        }}
+        primaryAction={{
+          content: "Save",
+          onAction: save,
+          loading: saving,
+          disabled: saving || unusable,
+        }}
       >
         <Layout>
           <Layout.Section oneHalf>
@@ -790,11 +1277,20 @@ export default function RecentOrdersPopupPage() {
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingMd">Order Source & Fields</Text>
+                  <Text as="h3" variant="headingMd">
+                    Order Source & Fields
+                  </Text>
 
                   {unusable && (
-                    <Banner status="critical" title="You have no orders.">
-                      <p>No usable orders were found in the selected window. (Orders without products are not counted.)</p>
+                    <Banner
+                      status="critical"
+                      title="You have no usable orders."
+                    >
+                      <p>
+                        No orders with products were found in the selected
+                        window. Try selecting fewer days or wait until you have
+                        some orders.
+                      </p>
                     </Banner>
                   )}
 
@@ -803,15 +1299,19 @@ export default function RecentOrdersPopupPage() {
                     options={daysOptions}
                     value={String(form.orderDays ?? usedDays)}
                     onChange={(v) => {
-                      const n = Number(v);
-                      setForm(f => ({ ...f, orderDays: n }));
+                      const fallback = Number(form.orderDays ?? usedDays ?? 1);
+                      const n = clampDaysParam(v, fallback);
+                      setForm((f) => ({ ...f, orderDays: n }));
                       navigate(`?days=${n}`, { replace: true });
                     }}
                     helpText="1 Day = Today (shop timezone), up to 60 days"
                   />
 
                   <Text as="p" variant="bodySm" tone="subdued">
-                    Last newest order time (static): {form.createOrderTime ? new Date(form.createOrderTime).toLocaleString() : "—"}
+                    Last newest order time (static):{" "}
+                    {form.createOrderTime
+                      ? new Date(form.createOrderTime).toLocaleString()
+                      : "—"}
                   </Text>
 
                   <ChoiceList
@@ -826,24 +1326,34 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
-          {/* Display & Customize (same as before) */}
+          {/* Display & Customize */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
-                  <Text as="h3" variant="headingMd">Display</Text>
+                  <Text as="h3" variant="headingMd">
+                    Display
+                  </Text>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ChoiceList
                         title="Enable Sales Notification Popup"
-                        choices={[{ label: "Enabled", value: "enabled" }, { label: "Disabled", value: "disabled" }]}
+                        choices={[
+                          { label: "Enabled", value: "enabled" },
+                          { label: "Disabled", value: "disabled" },
+                        ]}
                         selected={form.enabled}
                         onChange={onField("enabled")}
                         alignment="horizontal"
                       />
                     </Box>
                     <Box width="50%">
-                      <Select label="Display On Pages" options={PAGES} value={form.showType} onChange={onField("showType")} />
+                      <Select
+                        label="Display On Pages"
+                        options={PAGES}
+                        value={form.showType}
+                        onChange={onField("showType")}
+                      />
                     </Box>
                   </InlineStack>
 
@@ -851,19 +1361,27 @@ export default function RecentOrdersPopupPage() {
                     <Box width="50%">
                       <TextField
                         label="Popup Display Duration (seconds)"
-                        type="number" min={1} max={60} step={1}
+                        type="number"
+                        min={1}
+                        max={60}
+                        step={1}
                         value={String(form.durationSeconds)}
                         onChange={onNumClamp("durationSeconds", 1, 60)}
-                        suffix="S" autoComplete="off"
+                        suffix="S"
+                        autoComplete="off"
                       />
                     </Box>
                     <Box width="50%">
                       <TextField
                         label="Interval Between Popups (seconds)"
-                        type="number" min={0} max={3600} step={1}
+                        type="number"
+                        min={0}
+                        max={3600}
+                        step={1}
                         value={String(form.alternateSeconds)}
                         onChange={onNumClamp("alternateSeconds", 0, 3600)}
-                        suffix="S" autoComplete="off"
+                        suffix="S"
+                        autoComplete="off"
                       />
                     </Box>
                   </InlineStack>
@@ -875,42 +1393,147 @@ export default function RecentOrdersPopupPage() {
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
-                <BlockStack gap="400">
-                  <Text as="h3" variant="headingMd">Customize</Text>
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingMd">
+                    Customize
+                  </Text>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Popup Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
-                    <Box width="50%"><Select label="Font Weight / Style" options={[
-                      { label: "100 - Thin", value: "100" }, { label: "200 - Extra Light", value: "200" },
-                      { label: "300 - Light", value: "300" }, { label: "400 - Normal", value: "400" },
-                      { label: "500 - Medium", value: "500" }, { label: "600 - Semi Bold", value: "600" },
-                      { label: "700 - Bold", value: "700" },
-                    ]} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Desktop Popup Position" options={["top-left", "top-right", "bottom-left", "bottom-right"].map(v => ({ label: v.replace("-", " ").replace(/\b\w/g, c => c.toUpperCase()), value: v }))} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Notification Animation Style" options={[
-                      { label: "Fade", value: "fade" },
-                      { label: "Slide", value: "slide" },
-                      { label: "Bounce", value: "bounce" },
-                      { label: "Zoom", value: "zoom" },
-                    ]} value={form.animation} onChange={onField("animation")} /></Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><Select label="Mobile Popup Size" options={[
-                      { label: "Compact", value: "compact" },
-                      { label: "Comfortable", value: "comfortable" },
-                      { label: "Large", value: "large" },
-                    ]} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
-                    <Box width="50%"><Select label="Mobile Popup Position" options={["top", "bottom"].map(v => ({ label: v[0].toUpperCase() + v.slice(1), value: v }))} value={Array.isArray(form.mobilePosition) ? form.mobilePosition[0] : "bottom"} onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))} />
+                    <Box width="50%">
+                      <Select
+                        label="Popup Font Family"
+                        options={fontOptions}
+                        value={form.fontFamily}
+                        onChange={onField("fontFamily")}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <Select
+                        label="Font Weight / Style"
+                        options={[
+                          { label: "100 - Thin", value: "100" },
+                          { label: "200 - Extra Light", value: "200" },
+                          { label: "300 - Light", value: "300" },
+                          { label: "400 - Normal", value: "400" },
+                          { label: "500 - Medium", value: "500" },
+                          { label: "600 - Semi Bold", value: "600" },
+                          { label: "700 - Bold", value: "700" },
+                        ]}
+                        value={form.fontWeight}
+                        onChange={onField("fontWeight")}
+                      />
                     </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><TextField type="number" label="Font Size (px)" value={String(form.rounded)} onChange={(v) => setForm(f => ({ ...f, rounded: String(v) }))} autoComplete="off" /></Box>
-                    <Box width="50%"><ColorInput label="Headline Text Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label="Desktop Popup Position"
+                        options={[
+                          "top-left",
+                          "top-right",
+                          "bottom-left",
+                          "bottom-right",
+                        ].map((v) => ({
+                          label: v
+                            .replace("-", " ")
+                            .replace(/\b\w/g, (c) => c.toUpperCase()),
+                          value: v,
+                        }))}
+                        value={form.position}
+                        onChange={onField("position")}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <Select
+                        label="Notification Animation Style"
+                        options={[
+                          { label: "Fade", value: "fade" },
+                          { label: "Slide", value: "slide" },
+                          { label: "Bounce", value: "bounce" },
+                          { label: "Zoom", value: "zoom" },
+                        ]}
+                        value={form.animation}
+                        onChange={onField("animation")}
+                      />
+                    </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
-                    <Box width="50%"><ColorInput label="Popup Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
-                    <Box width="50%"><ColorInput label="Message Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label="Mobile Popup Size"
+                        options={[
+                          { label: "Compact", value: "compact" },
+                          { label: "Comfortable", value: "comfortable" },
+                          { label: "Large", value: "large" },
+                        ]}
+                        value={form.mobileSize}
+                        onChange={onField("mobileSize")}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <Select
+                        label="Mobile Popup Position"
+                        options={["top", "bottom"].map((v) => ({
+                          label: v[0].toUpperCase() + v.slice(1),
+                          value: v,
+                        }))}
+                        value={
+                          Array.isArray(form.mobilePosition)
+                            ? form.mobilePosition[0]
+                            : "bottom"
+                        }
+                        onChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            mobilePosition: [v],
+                          }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <TextField
+                        type="number"
+                        label="Font Size (px)"
+                        value={String(form.rounded)}
+                        onChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            rounded: String(v),
+                          }))
+                        }
+                        autoComplete="off"
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Headline Text Color"
+                        value={form.titleColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, titleColor: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Popup Background Color"
+                        value={form.bgColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, bgColor: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Message Text Color"
+                        value={form.msgColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, msgColor: v }))
+                        }
+                      />
+                    </Box>
                   </InlineStack>
                 </BlockStack>
               </Box>
@@ -919,7 +1542,46 @@ export default function RecentOrdersPopupPage() {
         </Layout>
       </Page>
 
-      {toast.on && <Toast content={toast.msg} error={toast.error} onDismiss={() => setToast(s => ({ ...s, on: false }))} duration={5200} />}
+      {toast.on && (
+        <Toast
+          content={toast.msg}
+          error={toast.error}
+          onDismiss={() => setToast((s) => ({ ...s, on: false }))}
+          duration={5200}
+        />
+      )}
+    </Frame>
+  );
+}
+
+/* ───────────────── ErrorBoundary ──────────────── */
+export function ErrorBoundary() {
+  const error = useRouteError();
+  console.error("[Fomoify] RecentOrdersPopupPage route error:", error);
+
+  let message =
+    "Something went wrong while loading Recent Purchases.";
+  if (error && typeof error === "object" && "status" in error) {
+    if (error.status === 500) {
+      message =
+        "The server returned an internal error. Please refresh the page.";
+    }
+  }
+
+  return (
+    <Frame>
+      <Page title="Recent Purchases">
+        <Layout>
+          <Layout.Section>
+            <Banner status="critical" title="Unable to load Recent Purchases">
+              <p>{message}</p>
+              <p>
+                Try reloading the page or reopening the app from the Apps list.
+              </p>
+            </Banner>
+          </Layout.Section>
+        </Layout>
+      </Page>
     </Frame>
   );
 }

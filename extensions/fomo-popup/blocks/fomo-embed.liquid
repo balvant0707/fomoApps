@@ -4,7 +4,11 @@ Fomoify – Core App Embed
 
 <script src="{{ 'm2fomos.js' | asset_url }}" defer></script>
 
-<div id="fomo-embed-root" data-design-mode="{{ request.design_mode }}"></div>
+<div
+  id="fomo-embed-root"
+  data-design-mode="{{ request.design_mode }}"
+  data-preview-enabled="{{ settings.preview_in_editor }}"
+></div>
 
 {% schema %}
 {

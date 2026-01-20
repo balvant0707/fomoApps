@@ -1,6 +1,7 @@
 // app/routes/webhooks.$.jsx
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 
 const norm = (s) => (s || "").toLowerCase();
 
@@ -36,6 +37,24 @@ export const action = async ({ request }) => {
           },
         });
         console.log(`[APP_UNINSTALLED] ${s} → installed=false`);
+
+        try {
+          await sendOwnerEmail({
+            subject: `Store ${s} uninstalled Fomoify Sales Popup & Proof`,
+            text: `Store ${s} removed the Fomoify Sales Popup & Proof app.`,
+            html: `
+              <div style="font-family:Arial,sans-serif;line-height:1.4;color:#111">
+                <h3>Shopify App Uninstalled</h3>
+                <p><strong>${s}</strong> just removed the Fomoify Sales Popup & Proof app.</p>
+                <p>Consider following up to understand why or to offer help.</p>
+              </div>
+            `,
+          });
+          console.log("[APP_UNINSTALLED] owner notified");
+        } catch (err) {
+          console.error("[APP_UNINSTALLED] failed to notify owner:", err);
+        }
+
         break;
       }
 
@@ -57,18 +76,12 @@ export const action = async ({ request }) => {
 
       case "CUSTOMERS_REDACT": {
         const customerId = payload?.customer?.id;
-        // TODO: delete/anonymize all records for this customer in your tables
-        // e.g. await prisma.order.deleteMany({ where: { shop: s, customerId } });
         console.log("GDPR CUSTOMERS_REDACT:", s, customerId);
         break;
       }
 
       case "SHOP_REDACT": {
-        // Delete *all* shop data after 48h of uninstall (as required)
-        // Delete from child tables first if you have FKs (adjust model names)
-        // e.g.
-        // await prisma.notificationConfig.deleteMany({ where: { shop: s } });
-        // await prisma.session.deleteMany({ where: { shop: s } });
+
         await prisma.shop.deleteMany({ where: { shop: s } });
         console.log("GDPR SHOP_REDACT:", s);
         break;
