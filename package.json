@@ -1,10 +1,9 @@
 {
   "name": "m2-web-fomo-popup",
-  "type": "module",
   "private": true,
   "type": "module",
   "engines": {
-    "node": "20.19.5"
+    "node": ">=24.13.0"
   },
   "scripts": {
     "dev": "remix dev",
@@ -42,7 +41,7 @@
     "db:pull": "prisma db pull",
     "studio": "prisma studio",
     "deploy:plesk": "npm run clean && npm ci && npm run generate && npm run build",
-    "postinstall": "npx prisma generate"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
