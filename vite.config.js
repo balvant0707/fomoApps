@@ -2,7 +2,6 @@ import { vitePlugin as remix } from "@remix-run/dev";
 import { installGlobals } from "@remix-run/node";
 import { defineConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { vercelPreset } from "@vercel/remix/vite";
 
 installGlobals({ nativeFetch: true });
 
@@ -18,7 +17,8 @@ if (
   delete process.env.HOST;
 }
 
-const host = new URL(process.env.SHOPIFY_APP_URL || "http://localhost").hostname;
+const host = new URL(process.env.SHOPIFY_APP_URL || "http://localhost")
+  .hostname;
 let hmrConfig;
 
 if (host === "localhost") {
@@ -50,14 +50,9 @@ export default defineConfig({
       allow: ["app", "node_modules"],
     },
   },
-
   plugins: [
     remix({
       ignoredRouteFiles: ["**/.*"],
-
-      // ✅ IMPORTANT for Vercel (fixes serverless build output)
-      presets: [vercelPreset()],
-
       future: {
         v3_fetcherPersist: true,
         v3_relativeSplatPath: true,
@@ -67,17 +62,14 @@ export default defineConfig({
         v3_routeConfig: true,
       },
     }),
-
     tsconfigPaths(),
   ],
-
   build: {
     assetsInlineLimit: 0,
     rollupOptions: {
       external: ["nodemailer"],
     },
   },
-
   optimizeDeps: {
     include: ["@shopify/app-bridge-react", "@shopify/polaris"],
   },
