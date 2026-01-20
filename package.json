@@ -41,8 +41,7 @@
     "db:pull": "prisma db pull",
     "studio": "prisma studio",
     "deploy:plesk": "npm run clean && npm ci && npm run generate && npm run build",
-    "postinstall": "prisma generate",
-    "packageManager": "pnpm@7.5.1"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
