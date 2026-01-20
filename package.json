@@ -1,6 +1,7 @@
 {
   "name": "m2-web-fomo-popup",
   "private": true,
+  "type": "module",
   "engines": {
     "node": "^18.20 || ^20.10 || >=21.0.0"
   },
