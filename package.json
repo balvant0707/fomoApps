@@ -23,6 +23,7 @@
   "postinstall": "prisma generate"
 },
   "dependencies": {
+    "@vercel/remix": "^2.17.0",
     "@prisma/client": "^6.18.0",
     "@remix-run/express": "2.17.0",
     "@remix-run/fs-routes": "2.17.0",
