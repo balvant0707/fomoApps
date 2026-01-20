@@ -4,24 +4,24 @@
   "engines": {
     "node": "^18.20 || ^20.10 || >=21.0.0"
   },
-"scripts": {
-  "build": "prisma generate && remix vite:build",
-  "dev": "remix vite:dev",
-  "config:link": "shopify app config link",
-  "generate": "shopify app generate",
-  "deploy": "shopify app deploy",
-  "config:use": "shopify app config use",
-  "env": "shopify app env",
-  "start": "remix-serve ./build/server/index.js",
-  "docker-start": "npm run setup && npm run start",
-  "setup": "prisma generate && prisma migrate deploy",
-  "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
-  "shopify": "shopify",
-  "prisma": "prisma",
-  "graphql-codegen": "graphql-codegen",
-  "vite": "vite",
-  "postinstall": "prisma generate"
-},
+  "scripts": {
+    "build": "prisma generate && remix vite:build",
+    "dev": "remix vite:dev",
+    "config:link": "shopify app config link",
+    "generate": "shopify app generate",
+    "deploy": "shopify app deploy",
+    "config:use": "shopify app config use",
+    "env": "shopify app env",
+    "start": "remix-serve ./build/server/index.js",
+    "docker-start": "npm run setup && npm run start",
+    "setup": "prisma generate && prisma migrate deploy",
+    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint .",
+    "shopify": "shopify",
+    "prisma": "prisma",
+    "graphql-codegen": "graphql-codegen",
+    "vite": "vite",
+    "postinstall": "prisma generate"
+  },
   "dependencies": {
     "@prisma/client": "^6.18.0",
     "@remix-run/express": "2.17.0",
@@ -36,6 +36,7 @@
     "@shopify/shopify-api": "^11.14.1",
     "@shopify/shopify-app-remix": "^3.7.0",
     "@shopify/shopify-app-session-storage-prisma": "^6.0.0",
+    "@vercel/analytics": "^1.6.1",
     "chart.js": "^4.5.0",
     "compression": "^1.7.4",
     "effect": "3.7.2",
@@ -51,7 +52,7 @@
     "vite-tsconfig-paths": "^5.0.1"
   },
   "devDependencies": {
-    "@remix-run/dev": "^2.17.0",
+    "@remix-run/dev": "^2.16.7",
     "@remix-run/eslint-config": "2.17.0",
     "@remix-run/route-config": "2.17.0",
     "@remix-run/serve": "2.17.0",

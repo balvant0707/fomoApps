@@ -2,7 +2,7 @@
 
 client_id = "19bf03bfbf8995bb1bb05e7a45b1b062"
 name = "Fomoify Sales Popup & Proof"
-application_url = "https://fomoapp.smartreminder.in"
+application_url = "https://shopify-fomo-app.vercel.app/"
 embedded = true
 handle = "fomoify-sales-popups-proof"
 
@@ -34,13 +34,13 @@ scopes = "read_products,write_products,read_themes,write_themes,write_orders,rea
 
 [auth]
 redirect_urls = [
-  "https://fomoapp.smartreminder.in/auth/callback",
-  "https://fomoapp.smartreminder.in/auth/shopify/callback",
-  "https://fomoapp.smartreminder.in/api/auth/callback"
+  "https://shopify-fomo-app.vercel.app//auth/callback",
+  "https://shopify-fomo-app.vercel.app//auth/shopify/callback",
+  "https://shopify-fomo-app.vercel.app//api/auth/callback"
 ]
 
 [app_proxy]
-url = "https://fomoapp.smartreminder.in/proxy/fomo"
+url = "https://shopify-fomo-app.vercel.app//proxy/fomo"
 subpath = "fomo"
 prefix = "apps"
 
