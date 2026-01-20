@@ -1,8 +1,9 @@
 {
   "name": "m2-web-fomo-popup",
+  "type": "module",
   "private": true,
   "engines": {
-    "node": "^18.20 || ^20.10 || >=21.0.0"
+    "node": "20.19.9"
   },
   "scripts": {
     "dev": "remix dev",
