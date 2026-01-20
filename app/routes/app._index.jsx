@@ -64,6 +64,7 @@ export default function AppIndex() {
     boxShadow: "0 8px 24px rgba(0,0,0,.25)",
     flex: "1 1 0",
   };
+  
   const close = { position: "absolute", right: 12, top: 8, fontWeight: 700, fontSize: 16, opacity: 0.9 };
   const iconCircle = { width: 48, height: 48, borderRadius: "50%", display: "grid", placeItems: "center", flex: "0 0 48px" };
   const title = { fontWeight: 700, lineHeight: 1.2, marginBottom: 2 };
