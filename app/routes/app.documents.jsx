@@ -53,7 +53,7 @@ export default function Documents() {
             </InlineStack>
             <Collapsible open={open.s1}>
               <div style={grid}>
-                <div style={imgBox}><img src="/images/doc1.png" alt="Modules Overview" style={img} /></div>
+                <div style={imgBox}><img src="/images/doc1.webp" alt="Modules Overview" style={img} /></div>
                 <div style={textCol}>
                   <h4 style={h}>What you can set up</h4>
                   <p style={p}>
@@ -80,7 +80,7 @@ export default function Documents() {
             <Collapsible open={open.s2}>
               <div style={grid}>
                 <div style={imgBox}>
-                  <img src="/images/doc2.png" alt="Order Source & Fields" style={img} />
+                  <img src="/images/doc2.webp" alt="Order Source & Fields" style={img} />
                 </div>
                 <div style={textCol}>
                   <h4 style={h}>Real Shopify order data (day-wise)</h4>
@@ -123,7 +123,7 @@ export default function Documents() {
             <Collapsible open={open.s6}>
               <div style={grid}>
                 <div style={imgBox}>
-                  <img src="/images/doc6.png" alt="Flash Sale – Message fields" style={img} />
+                  <img src="/images/doc6.webp" alt="Flash Sale – Message fields" style={img} />
                 </div>
                 <div style={textCol}>
                   <h4 style={h}>Multi-value message chips (press Enter to add)</h4>
@@ -166,7 +166,7 @@ export default function Documents() {
             </InlineStack>
             <Collapsible open={open.s3}>
               <div style={grid}>
-                <div style={imgBox}><img src="/images/doc3.png" alt="Display Settings" style={img} /></div>
+                <div style={imgBox}><img src="/images/doc3.webp" alt="Display Settings" style={img} /></div>
                 <div style={textCol}>
                   <h4 style={h}>Visibility & frequency</h4>
                   <ul style={ul}>
@@ -186,7 +186,7 @@ export default function Documents() {
             </InlineStack>
             <Collapsible open={open.s4}>
               <div style={grid}>
-                <div style={imgBox}><img src="/images/doc4.png" alt="Customize Styles" style={img} /></div>
+                <div style={imgBox}><img src="/images/doc4.webp" alt="Customize Styles" style={img} /></div>
                 <div style={textCol}>
                   <h4 style={h}>Brand-matching controls</h4>
                   <ul style={ul}>
@@ -206,7 +206,7 @@ export default function Documents() {
             </InlineStack>
             <Collapsible open={open.s5}>
               <div style={grid}>
-                <div style={imgBox}><img src="/images/doc5.png" alt="Dashboard Empty State" style={img} /></div>
+                <div style={imgBox}><img src="/images/doc5.webp" alt="Dashboard Empty State" style={img} /></div>
                 <div style={textCol}>
                   <h4 style={h}>Manage everything in one place</h4>
                   <ul style={ul}>

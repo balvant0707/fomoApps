@@ -231,6 +231,17 @@ export default function NotificationDashboardIndex() {
             onConfigure={() => go('/app/notification/flash', 'flash')}
             loading={loadingKey === 'flash'}
           />
+
+          {/* <DashboardCard
+            title="Visitor Popup"
+            desc="Show live visitor activity and product interest notifications."
+            tag="Social proof"
+            emoji="V"
+            thumbBg="linear-gradient(135deg, #34D399 0%, #60A5FA 50%, #F59E0B 100%)"
+            previewText="Someone from abroad just viewed this T-shirt"
+            onConfigure={() => go('/app/notification/visitor', 'visitor')}
+            loading={loadingKey === 'visitor'}
+          /> */}
         </div>
 
         {/* ====== FOOTER INFO SECTION ====== */}

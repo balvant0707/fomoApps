@@ -1016,21 +1016,13 @@ export default function NotificationEditGeneric() {
   const fetcher = useFetcher();
   const isFlash = key === "flash";
   const isRecent = key === "recent";
-
-  if (!ok) {
-    return (
-      <Page title={`Edit – ${TITLES[key] || "Notification"}`}>
-        <Card>
-          <Box padding="4">
-            <BlockStack gap="300">
-              <Text tone="critical">Record not found or invalid.</Text>
-              <Button onClick={() => navigate(appendQS("/app/dashboard"))}>Back to Dashboard</Button>
-            </BlockStack>
-          </Box>
-        </Card>
-      </Page>
-    );
-  }
+  const safeData = data ?? {};
+  const safeBuckets = buckets ?? {};
+  const safeOrders = useMemo(() => (Array.isArray(orders) ? orders : []), [orders]);
+  const safePreviewProduct = previewProduct ?? null;
+  const safeNewestCreatedAt = newestCreatedAt ?? null;
+  const safeUsedDays =
+    typeof usedDays === "number" && !Number.isNaN(usedDays) ? usedDays : null;
 
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; } catch { return false; }
@@ -1042,8 +1034,8 @@ export default function NotificationEditGeneric() {
     }
   }, [showSaved, location.pathname, location.search, navigate]);
 
-  const [selectedProducts, setSelectedProducts] = useState(() => (previewProduct ? [previewProduct] : []));
-  const [selectedProduct, setSelectedProduct] = useState(() => (previewProduct || null));
+  const [selectedProducts, setSelectedProducts] = useState(() => (safePreviewProduct ? [safePreviewProduct] : []));
+  const [selectedProduct, setSelectedProduct] = useState(() => (safePreviewProduct || null));
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -1059,53 +1051,54 @@ export default function NotificationEditGeneric() {
   }, [pickerOpen, search, page, isRecent, fetcher]);
 
   const locFromBuckets = useMemo(() => {
-    if (!isRecent) return (Array.isArray(data.locations) ? data.locations : []);
-    const arr = (buckets?.locations || [])
-      .map(l => [l.city, l.state, l.country].filter(Boolean).join(", "))
+    if (!isRecent) return Array.isArray(safeData.locations) ? safeData.locations : [];
+    const bucketLocations = Array.isArray(safeBuckets.locations) ? safeBuckets.locations : [];
+    const arr = bucketLocations
+      .map((l) => [l.city, l.state, l.country].filter(Boolean).join(", "))
       .filter(Boolean);
     return Array.from(new Set(arr));
-  }, [isRecent, buckets, data.locations]);
+  }, [isRecent, safeBuckets.locations, safeData.locations]);
 
   const [form, setForm] = useState(() => ({
-    enabled: data.enabled,
-    showType: data.showType,
+    enabled: safeData.enabled,
+    showType: safeData.showType,
 
     // RECENT
-    headline: isRecent ? String(data.headline || "") : "",
-    hideKeys: isRecent ? (Array.isArray(data.names) ? data.names : []) : [],
+    headline: isRecent ? String(safeData.headline || "") : "",
+    hideKeys: isRecent ? (Array.isArray(safeData.names) ? safeData.names : []) : [],
 
     // FLASH
-    messageTitles: isFlash ? (data.messageTitles || []) : [],
-    locations: isRecent ? locFromBuckets : (data.locations || []),
-    countdowns: isFlash ? (Array.isArray(data.names) ? data.names : []) : [],
+    messageTitles: isFlash ? (safeData.messageTitles || []) : [],
+    locations: isRecent ? locFromBuckets : (Array.isArray(safeData.locations) ? safeData.locations : []),
+    countdowns: isFlash ? (Array.isArray(safeData.names) ? safeData.names : []) : [],
 
-    messageText: String(data.messageText || ""),
-    fontFamily: data.fontFamily,
-    position: data.position,
-    animation: data.animation,
-    mobileSize: data.mobileSize,
-    mobilePosition: data.mobilePosition,
-    titleColor: data.titleColor,
-    bgColor: data.bgColor,
-    msgColor: data.msgColor,
-    ctaBgColor: data.ctaBgColor || "#000000",
-    rounded: String(data.rounded ?? 14),
-    durationSeconds: Number(data.durationSeconds ?? 8),
-    alternateSeconds: Number(data.alternateSeconds ?? 10),
-    fontWeight: String(data.fontWeight ?? 600),
-    iconKey: data.iconKey || "reshot",
-    iconSvg: data.iconSvg || "",
+    messageText: String(safeData.messageText || ""),
+    fontFamily: safeData.fontFamily,
+    position: safeData.position,
+    animation: safeData.animation,
+    mobileSize: safeData.mobileSize,
+    mobilePosition: safeData.mobilePosition,
+    titleColor: safeData.titleColor,
+    bgColor: safeData.bgColor,
+    msgColor: safeData.msgColor,
+    ctaBgColor: safeData.ctaBgColor || "#000000",
+    rounded: String(safeData.rounded ?? 14),
+    durationSeconds: Number(safeData.durationSeconds ?? 8),
+    alternateSeconds: Number(safeData.alternateSeconds ?? 10),
+    fontWeight: String(safeData.fontWeight ?? 600),
+    iconKey: safeData.iconKey || "reshot",
+    iconSvg: safeData.iconSvg || "",
 
-    selectedProducts: Array.isArray(data.selectedProducts) ? data.selectedProducts : [],
-    orderDays: Number(isRecent ? (usedDays ?? data.orderDays ?? 1) : 1),
-    createOrderTime: data.createOrderTime || newestCreatedAt || null,
+    selectedProducts: Array.isArray(safeData.selectedProducts) ? safeData.selectedProducts : [],
+    orderDays: Number(isRecent ? (safeUsedDays ?? safeData.orderDays ?? 1) : 1),
+    createOrderTime: safeData.createOrderTime || safeNewestCreatedAt || null,
   }));
 
   useEffect(() => {
     if (!isRecent) return;
-    const newest = orders?.[0]?.createdAt ? trimIso(String(orders[0].createdAt)) : null;
-    setForm(f => ({ ...f, createOrderTime: newest || f.createOrderTime }));
-  }, [isRecent, orders]);
+    const newest = safeOrders?.[0]?.createdAt ? trimIso(String(safeOrders[0].createdAt)) : null;
+    setForm((f) => ({ ...f, createOrderTime: newest || f.createOrderTime }));
+  }, [isRecent, safeOrders]);
 
   const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const onNum = (k, min, max) => (val) => {
@@ -1114,9 +1107,9 @@ export default function NotificationEditGeneric() {
     setForm(f => ({ ...f, [k]: clamped }));
   };
 
-  const titlesInput = isFlash ? useTokenInput("messageTitles", form, setForm) : null;
-  const offersInput  = isFlash ? useTokenInput("locations", form, setForm) : null;
-  const countInput   = isFlash ? useTokenInput("countdowns", form, setForm) : null;
+  const titlesInput = useTokenInput("messageTitles", form, setForm);
+  const offersInput = useTokenInput("locations", form, setForm);
+  const countInput = useTokenInput("countdowns", form, setForm);
 
   const selectedHandles = useMemo(() => {
     const v = form?.selectedProducts;
@@ -1172,23 +1165,24 @@ export default function NotificationEditGeneric() {
   const clearUploadedSvg = () => { setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" })); setSvgName(""); setUploadError(""); };
   const iconOptions = useMemo(() => (form.iconSvg ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...SVG_OPTIONS] : SVG_OPTIONS), [form.iconSvg]);
 
-  const previewOrder = isRecent ? (orders?.[0] || null) : null;
+  const previewOrder = isRecent ? (safeOrders[0] || null) : null;
 
   useEffect(() => {
     if (!isRecent) return;
-    if (typeof usedDays === "number" && !Number.isNaN(usedDays)) {
-      setForm(f => ({ ...f, orderDays: usedDays }));
+    if (typeof safeUsedDays === "number" && !Number.isNaN(safeUsedDays)) {
+      setForm((f) => ({ ...f, orderDays: safeUsedDays }));
     }
-  }, [isRecent, usedDays]);
+  }, [isRecent, safeUsedDays]);
 
   useEffect(() => {
     if (!isRecent) return;
-    const locStrings = (buckets?.locations || [])
-      .map(l => [l.city, l.state, l.country].filter(Boolean).join(", "))
+    const bucketLocations = Array.isArray(safeBuckets.locations) ? safeBuckets.locations : [];
+    const locStrings = bucketLocations
+      .map((l) => [l.city, l.state, l.country].filter(Boolean).join(", "))
       .filter(Boolean);
     const unique = Array.from(new Set(locStrings)).slice(0, 100);
-    setForm(f => ({ ...f, locations: unique }));
-  }, [isRecent, buckets]);
+    setForm((f) => ({ ...f, locations: unique }));
+  }, [isRecent, safeBuckets.locations]);
 
   const onChangeDays = (v) => {
     if (!isRecent) return;
@@ -1198,6 +1192,21 @@ export default function NotificationEditGeneric() {
     sp.set("days", String(n));
     navigate(`${window.location.pathname}?${sp.toString()}`, { replace: true });
   };
+
+  if (!ok) {
+    return (
+      <Page title={`Edit – ${TITLES[key] || "Notification"}`}>
+        <Card>
+          <Box padding="4">
+            <BlockStack gap="300">
+              <Text tone="critical">Record not found or invalid.</Text>
+              <Button onClick={() => navigate(appendQS("/app/dashboard"))}>Back to Dashboard</Button>
+            </BlockStack>
+          </Box>
+        </Card>
+      </Page>
+    );
+  }
 
   return (
     <Frame>

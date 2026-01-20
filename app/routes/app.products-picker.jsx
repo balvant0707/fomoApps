@@ -1,6 +1,7 @@
 // app/routes/app.products-picker.jsx
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
+import { getOrSetCache } from "../utils/serverCache.server";
 
 /**
  * GET /app/products-picker?q=shirt&page=1
@@ -8,7 +9,7 @@ import { authenticate } from "../shopify.server";
  */
 export async function loader({ request }) {
   try {
-    const { admin } = await authenticate.admin(request);
+    const { admin, session } = await authenticate.admin(request);
 
     const url = new URL(request.url);
     const q = url.searchParams.get("q") || "";
@@ -34,43 +35,49 @@ export async function loader({ request }) {
       }
     `;
 
-    let after = null;
-    let collected = [];
-    let hasNextPage = true;
+    const cacheKey = `products-picker:${session?.shop}:${q}:${page}`;
 
-    // simple page→cursor advance
-    for (let currentPage = 1; currentPage <= page && hasNextPage; currentPage++) {
-      const res = await admin.graphql(query, {
-        variables: {
-          query: q ? `title:*${q}*` : null,
-          first: pageSize,
-          after,
-        },
-      });
-      const data = await res.json();
-      const edges = data?.data?.products?.edges || [];
-      hasNextPage = data?.data?.products?.pageInfo?.hasNextPage || false;
-      after = edges.length ? edges[edges.length - 1].cursor : null;
+    const payload = await getOrSetCache(cacheKey, 30000, async () => {
+      let after = null;
+      let collected = [];
+      let hasNextPage = true;
 
-      if (currentPage === page) {
-        collected = edges.map((e) => e.node);
-        break;
+      // simple page+cursor advance
+      for (let currentPage = 1; currentPage <= page && hasNextPage; currentPage++) {
+        const res = await admin.graphql(query, {
+          variables: {
+            query: q ? `title:*${q}*` : null,
+            first: pageSize,
+            after,
+          },
+        });
+        const data = await res.json();
+        const edges = data?.data?.products?.edges || [];
+        hasNextPage = data?.data?.products?.pageInfo?.hasNextPage || false;
+        after = edges.length ? edges[edges.length - 1].cursor : null;
+
+        if (currentPage === page) {
+          collected = edges.map((e) => e.node);
+          break;
+        }
       }
-    }
 
-    return json({
-      items: collected.map((p) => ({
-        id: p.id,
-        title: p.title,
-        handle: p.handle,
-        status: p.status,
-        featuredImage: p.featuredImage?.url || null,
-        totalInventory: p.totalInventory,
-      })),
-      page,
-      pageSize,
-      hasNextPage,
+      return {
+        items: collected.map((p) => ({
+          id: p.id,
+          title: p.title,
+          handle: p.handle,
+          status: p.status,
+          featuredImage: p.featuredImage?.url || null,
+          totalInventory: p.totalInventory,
+        })),
+        page,
+        pageSize,
+        hasNextPage,
+      };
     });
+
+    return json(payload);
   } catch (e) {
     return json(
       { items: [], error: e?.message || "Failed to load products" },

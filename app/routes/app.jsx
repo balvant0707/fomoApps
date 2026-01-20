@@ -6,6 +6,7 @@ import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import LcpObserver from "../components/LcpObserver";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -57,12 +58,13 @@ export default function App() {
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home">Home</Link>
-        <Link to="/app/dashboard">Dashboard</Link>
-        <Link to="/app/notification">Notification</Link>
-        <Link to="/app/documents">Documents</Link>
-        <Link to="/app/help">Help</Link>
+        <Link to="/app" rel="home" prefetch="intent">Home</Link>
+        <Link to="/app/dashboard" prefetch="intent">Dashboard</Link>
+        <Link to="/app/notification" prefetch="intent">Notification</Link>
+        <Link to="/app/documents" prefetch="intent">Documents</Link>
+        <Link to="/app/help" prefetch="intent">Help</Link>
       </NavMenu>
+      <LcpObserver />
       <Outlet />
     </AppProvider>
   );

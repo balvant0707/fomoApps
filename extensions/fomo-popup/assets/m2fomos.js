@@ -77,13 +77,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const arr = Array.isArray(raw)
       ? raw
       : (() => {
-          try {
-            const v = JSON.parse(raw ?? "[]");
-            return Array.isArray(v) ? v : v ? [v] : [];
-          } catch {
-            return raw ? [raw] : [];
-          }
-        })();
+        try {
+          const v = JSON.parse(raw ?? "[]");
+          return Array.isArray(v) ? v : v ? [v] : [];
+        } catch {
+          return raw ? [raw] : [];
+        }
+      })();
     const set = new Set(arr.map(normHideKey));
     const has = (...keys) => keys.some((k) => set.has(k));
     return {
@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const o = JSON.parse(String(entry));
       if (o && typeof o === "object") return parseLocationParts(o);
-    } catch {}
+    } catch { }
     const s = String(entry);
     if (!s || s === "[object Object]")
       return { city: "", state: "", country: "" };
@@ -244,7 +244,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     try {
       const dec = atob(String(s));
       if (/^<svg/i.test(dec)) return svgToDataUrl(dec);
-    } catch {}
+    } catch { }
     return "";
   }
   function resolveIconForIndex(it, i = 0) {
@@ -425,11 +425,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.className = "fomo-card";
     card.style.cssText = `
       display:flex; gap:12px; align-items:center; position:relative;
-      padding:${mode === "mobile" ? mt.pad : 12}px 44px ${
-      mode === "mobile" ? mt.pad : 12
-    }px 14px;
-      font-size:${
-        Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
+      padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12
+      }px 14px;
+      font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
       }px; line-height:1.35;
     `;
 
@@ -534,6 +532,160 @@ document.addEventListener("DOMContentLoaded", async function () {
     return wrap;
   }
 
+  // /* ========== RECENT renderer (granular hide) ========== */
+  // function renderRecent(cfg, mode, onDone) {
+  //   const mt = mobileTokens(cfg.mobileSize);
+  //   const visibleSec =
+  //     Number(cfg.durationSeconds ?? cfg.visibleSeconds ?? 6) || 6;
+  //   const visibleMs = Math.max(1, visibleSec) * 1000;
+  //   const theAnim = getAnimPair(cfg, mode);
+  //   const { inAnim, outAnim } = theAnim;
+  //   const DUR = getAnimDur(cfg);
+  //   const ACCENT = cfg.accentColor || cfg.titleColor || "#6C63FF";
+
+  //   const wrap = document.createElement("div");
+  //   wrap.style.cssText = `
+  //     position:fixed; z-index:9999; box-sizing:border-box;
+  //     width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
+  //     border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
+  //     background:${cfg.bgColor || "#ffffff"}; color:${cfg.fontColor || "#111"};
+  //     box-shadow:0 10px 30px rgba(0,0,0,.12);
+  //     font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+  //     animation:${inAnim} ${DUR.in}ms ease-out both;
+  //   `;
+  //   (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
+
+  //   const card = document.createElement("div");
+  //   card.style.cssText = `
+  //     display:flex; gap:12px; align-items:flex-start; position:relative;
+  //     padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12
+  //     }px 12px;
+  //     font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
+  //     }px; line-height:1.35;
+  //   `;
+
+  //   const img = document.createElement("img");
+  //   img.src = cfg.uploadedImage || cfg.image || "";
+  //   img.alt = safe(cfg.productTitle, "Product");
+  //   const iSize = mode === "mobile" ? mt.img : 50,
+  //     iRad = Math.round(iSize * 0.18);
+  //   img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:cover;border-radius:${iRad}px;background:#eee;flex:0 0 ${iSize}px;pointer-events:none;`;
+  //   img.onerror = () => {
+  //     img.style.display = "none";
+  //   };
+  //   if (cfg.hideProductImage) img.style.display = "none";
+
+  //   const body = document.createElement("div");
+  //   body.style.cssText = `flex:1;min-width:0;pointer-events:none;`;
+
+  //   // Name + granular location
+  //   const line1 = document.createElement("div");
+  //   line1.style.cssText = `margin:0 0 2px 0;`;
+  //   const fw = safe(cfg.fontWeight, "700");
+  //   const nameText = cfg.hideName ? "" : safe(cfg.name, "Someone");
+
+  //   // derived location
+  //   const derived = deriveLocationParts(cfg);
+  //   let cityText = derived.city;
+  //   let stateText = derived.state;
+  //   let countryText = derived.country;
+
+  //   const locParts = [];
+  //   if (!cfg.hideCity && cityText) locParts.push(cityText);
+  //   if (!cfg.hideState && stateText) locParts.push(stateText);
+  //   if (!cfg.hideCountry && countryText) locParts.push(countryText);
+
+  //   let locFinal = locParts.join(", ");
+  //   const anyLocHide = cfg.hideCity || cfg.hideState || cfg.hideCountry;
+
+  //   if (!locFinal && !anyLocHide && cfg.location) {
+  //     const fromLocation = formatLocationEntry(cfg.location);
+  //     if (fromLocation && fromLocation !== "[object Object]") {
+  //       locFinal = fromLocation;
+  //     }
+  //   }
+
+  //   if (nameText || locFinal) {
+  //     const nameHtml = nameText
+  //       ? `<span style="font-weight:${fw};color:${ACCENT};">${nameText}</span>`
+  //       : "";
+  //     const locHtml = locFinal
+  //       ? `<span style="font-weight:${fw};color:${ACCENT};">${locFinal}</span>`
+  //       : "";
+  //     const spacer = nameText && locFinal ? " from " : "";
+  //     line1.innerHTML = `${nameHtml}${spacer}${locHtml}`;
+  //     body.appendChild(line1);
+  //   }
+
+  //   // Product line
+  //   const line2 = document.createElement("div");
+  //   const msgTxt = safe(cfg.message, "recently bought");
+  //   const boughtTxt = cfg.hideProductTitle
+  //     ? "placed an order"
+  //     : `${msgTxt} ${safe(cfg.productTitle, "")
+  //       ? `&ldquo;${safe(cfg.productTitle, "")}&rdquo;`
+  //       : "this product"
+  //     }`;
+  //   line2.innerHTML = boughtTxt;
+  //   line2.style.cssText = `opacity:.95;margin:0 0 6px 0;`;
+  //   body.appendChild(line2);
+
+  //   // Time
+  //   if (!cfg.hideTime) {
+  //     const line3 = document.createElement("div");
+  //     line3.textContent = safe(cfg.timeAbsolute, "") || safe(cfg.timeText, "");
+  //     line3.style.cssText = `font-size:${Math.max(
+  //       10,
+  //       (Number(cfg.baseFontSize) || 14) - 1
+  //     )}px;opacity:.7;`;
+  //     body.appendChild(line3);
+  //   }
+
+  //   const close = document.createElement("button");
+  //   close.type = "button";
+  //   close.setAttribute("aria-label", "Close");
+  //   close.innerHTML = "&times;";
+  //   close.style.cssText = `position:absolute;top:6px;right:10px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
+  //   close.onmouseenter = () => (close.style.opacity = "1");
+  //   close.onmouseleave = () => (close.style.opacity = ".8");
+
+  //   card.appendChild(img);
+  //   card.appendChild(body);
+  //   card.appendChild(close);
+  //   wrap.appendChild(card);
+
+  //   const barWrap = document.createElement("div");
+  //   barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
+  //   const bar = document.createElement("div");
+  //   bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || ACCENT
+  //     };animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
+  //   barWrap.appendChild(bar);
+  //   wrap.appendChild(barWrap);
+
+  //   wrap.addEventListener("click", (e) => {
+  //     if (e.target === close) return;
+  //     if (cfg.productUrl) window.location.href = cfg.productUrl;
+  //   });
+
+  //   let tid = setTimeout(autoClose, visibleMs);
+  //   function autoClose() {
+  //     wrap.style.animation = `${outAnim} ${DUR.out}ms ease-in forwards`;
+  //     setTimeout(() => {
+  //       wrap.remove();
+  //       onDone && onDone("auto");
+  //     }, DUR.out + 20);
+  //   }
+  //   close.onclick = (e) => {
+  //     e.stopPropagation();
+  //     clearTimeout(tid);
+  //     autoClose();
+  //     onDone && onDone("closed");
+  //   };
+
+  //   document.body.appendChild(wrap);
+  //   return wrap;
+  // }
+
   /* ========== RECENT renderer (granular hide) ========== */
   function renderRecent(cfg, mode, onDone) {
     const mt = mobileTokens(cfg.mobileSize);
@@ -545,28 +697,33 @@ document.addEventListener("DOMContentLoaded", async function () {
     const DUR = getAnimDur(cfg);
     const ACCENT = cfg.accentColor || cfg.titleColor || "#6C63FF";
 
+    // ✅ Product title: only first 2 words + "..." if more
+    function shortProductTitle(title, wordCount = 2) {
+      const t = String(title || "").trim().replace(/\s+/g, " ");
+      if (!t) return "";
+      const parts = t.split(" ");
+      if (parts.length <= wordCount) return t;
+      return parts.slice(0, wordCount).join(" ") + "...";
+    }
+
     const wrap = document.createElement("div");
     wrap.style.cssText = `
-      position:fixed; z-index:9999; box-sizing:border-box;
-      width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
-      border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
-      background:${cfg.bgColor || "#ffffff"}; color:${cfg.fontColor || "#111"};
-      box-shadow:0 10px 30px rgba(0,0,0,.12);
-      font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
-      animation:${inAnim} ${DUR.in}ms ease-out both;
-    `;
+    position:fixed; z-index:9999; box-sizing:border-box;
+    width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
+    border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
+    background:${cfg.bgColor || "#ffffff"}; color:${cfg.fontColor || "#111"};
+    box-shadow:0 10px 30px rgba(0,0,0,.12);
+    font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+    animation:${inAnim} ${DUR.in}ms ease-out both;
+  `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
 
     const card = document.createElement("div");
     card.style.cssText = `
-      display:flex; gap:12px; align-items:flex-start; position:relative;
-      padding:${mode === "mobile" ? mt.pad : 12}px 44px ${
-      mode === "mobile" ? mt.pad : 12
-    }px 12px;
-      font-size:${
-        Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
-      }px; line-height:1.35;
-    `;
+    display:flex; gap:12px; align-items:flex-start; position:relative;
+    padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12}px 12px;
+    font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)}px; line-height:1.35;
+  `;
 
     const img = document.createElement("img");
     img.src = cfg.uploadedImage || cfg.image || "";
@@ -624,13 +781,18 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Product line
     const line2 = document.createElement("div");
     const msgTxt = safe(cfg.message, "recently bought");
+
+    // ✅ Use only first 2 words of productTitle
+    const rawTitle = safe(cfg.productTitle, "");
+    const shortTitle = shortProductTitle(rawTitle, 2);
+
     const boughtTxt = cfg.hideProductTitle
       ? "placed an order"
-      : `${msgTxt} ${
-          safe(cfg.productTitle, "")
-            ? `&ldquo;${safe(cfg.productTitle, "")}&rdquo;`
-            : "this product"
-        }`;
+      : `${msgTxt} ${shortTitle
+        ? `&ldquo;${safe(shortTitle, "")}&rdquo;`
+        : "this product"
+      }`;
+
     line2.innerHTML = boughtTxt;
     line2.style.cssText = `opacity:.95;margin:0 0 6px 0;`;
     body.appendChild(line2);
@@ -641,7 +803,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       line3.textContent = safe(cfg.timeAbsolute, "") || safe(cfg.timeText, "");
       line3.style.cssText = `font-size:${Math.max(
         10,
-        (Number(cfg.baseFontSize) || 14) - 2
+        (Number(cfg.baseFontSize) || 14) - 1
       )}px;opacity:.7;`;
       body.appendChild(line3);
     }
@@ -662,9 +824,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const barWrap = document.createElement("div");
     barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
     const bar = document.createElement("div");
-    bar.style.cssText = `height:100%;width:100%;background:${
-      cfg.progressColor || ACCENT
-    };animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
+    bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || ACCENT
+      };animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
     barWrap.appendChild(bar);
     wrap.appendChild(barWrap);
 
@@ -691,6 +852,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     document.body.appendChild(wrap);
     return wrap;
   }
+
 
   /* ========== stream factory ========== */
   function createStream(name, renderer) {
@@ -728,7 +890,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         this.t = null;
         try {
           this.el && this.el.remove();
-        } catch {}
+        } catch { }
       },
       resize() {
         const nm = isMobile() ? "mobile" : "desktop";
@@ -773,7 +935,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         this.t = null;
         try {
           this.el && this.el.remove();
-        } catch {}
+        } catch { }
       },
     };
   }
@@ -823,13 +985,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     window.FOMOIFY.preview = function () {
       try {
         Flash.el?.remove();
-      } catch {}
+      } catch { }
       try {
         Recent.el?.remove();
-      } catch {}
+      } catch { }
       try {
         Combined.el?.remove();
-      } catch {}
+      } catch { }
 
       applyPositions();
     };
@@ -1220,8 +1382,8 @@ document.addEventListener("DOMContentLoaded", async function () {
               (handle
                 ? `/products/${handle}`
                 : includeCurrent && ch
-                ? `/products/${ch}`
-                : "#"),
+                  ? `/products/${ch}`
+                  : "#"),
             uploadedImage: iconSrc,
             timeText: pickSmart(
               timesArr,
@@ -1327,13 +1489,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         try {
           Combined.stop();
-        } catch {}
+        } catch { }
         try {
           FlashStream.stop();
-        } catch {}
+        } catch { }
         try {
           RecentStream.stop();
-        } catch {}
+        } catch { }
 
         if (nowMobile && nowCollision) {
           Combined.seq = interleaveList(

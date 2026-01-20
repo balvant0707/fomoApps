@@ -66,8 +66,8 @@ export default defineConfig({
   ],
   build: {
     assetsInlineLimit: 0,
-     rollupOptions: {
-      external: ["nodemailer"], // ⬅️ IMPORTANT FIX
+    rollupOptions: {
+      external: ["nodemailer"],
     },
   },
   optimizeDeps: {

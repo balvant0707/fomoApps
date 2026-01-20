@@ -3,6 +3,7 @@ import { useLoaderData } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 import { Page, Card, BlockStack, Text, Button, InlineStack } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { getOrSetCache } from "../utils/serverCache.server";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
 
@@ -13,13 +14,17 @@ export const loader = async ({ request }) => {
 
   let themeId = null;
   try {
-    const resp = await admin.rest.resources.Theme.all({
-      session: admin.session,
-      fields: "id,role",
+    const cacheKey = `themes:main:${shop}`;
+    const cached = await getOrSetCache(cacheKey, 60000, async () => {
+      const resp = await admin.rest.resources.Theme.all({
+        session: admin.session,
+        fields: "id,role",
+      });
+      const themes = resp?.data || [];
+      const live = themes.find((t) => t.role === "main");
+      return live?.id ?? null;
     });
-    const themes = resp?.data || [];
-    const live = themes.find((t) => t.role === "main");
-    themeId = live?.id ?? null;
+    themeId = cached ?? null;
   } catch (e) {
     console.error("Theme list failed:", e);
   }

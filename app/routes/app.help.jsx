@@ -14,9 +14,9 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 
-const CONTACT_URL = "https://www.m2webdesigning.com/contact-us/";
-const DOCS_URL = "https://www.m2webdesigning.com/";
-const MAILTO = `mailto:hello@m2webdesigning.com?subject=Support%20Request%20(FOMO%20Shopify%20App)&body=Please%20describe%20your%20issue%3A%0A%0AShop%20URL%3A%20%0ASteps%20to%20reproduce%3A%20%0AExpected%20result%3A%20%0AActual%20result%3A%20%0AScreenshots%2FVideo%20link%3A%20`;
+const CONTACT_URL = "https://pryxotech.com/#inquiry-now";
+const DOCS_URL = "https://pryxotech.com/#inquiry-now";
+const MAILTO = `mailto:info@pryxotech.com?subject=Support%20Request%20(FOMO%20Shopify%20App)&body=Please%20describe%20your%20issue%3A%0A%0AShop%20URL%3A%20%0ASteps%20to%20reproduce%3A%20%0AExpected%20result%3A%20%0AActual%20result%3A%20%0AScreenshots%2FVideo%20link%3A%20`;
 
 // 🔷 brand gradient (logo colors)
 const BRAND_GRADIENT =
@@ -69,7 +69,7 @@ export default function Help() {
                   Contact Us
                 </Button>
                 <Button
-                  onClick={() => (window.location.href = MAILTO)}
+                  onClick={() => openExternal(CONTACT_URL)}
                   style={{ background: BRAND_GRADIENT, border: "none", color: "#fff" }}
                 >
                   Email Support
@@ -117,13 +117,13 @@ export default function Help() {
                   </Text>
                   <InlineStack gap="300" wrap>
                     <Button
-                      url={MAILTO}
+                      url={CONTACT_URL}
                       external
                       style={{ background: BRAND_GRADIENT, border: "none" }}
                     >
-                      hello@m2webdesigning.com
+                     info@pryxotech.com
                     </Button>
-                    <PolarisLink url={MAILTO} external>
+                    <PolarisLink url={CONTACT_URL} external>
                       Send all required details
                     </PolarisLink>
                   </InlineStack>
@@ -208,3 +208,4 @@ export default function Help() {
     </>
   );
 }
+
