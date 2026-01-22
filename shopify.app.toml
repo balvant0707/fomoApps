@@ -34,13 +34,13 @@ scopes = "read_products,write_products,read_themes,write_themes,write_orders,rea
 
 [auth]
 redirect_urls = [
-  "https://shopify-fomo-app.vercel.app//auth/callback",
-  "https://shopify-fomo-app.vercel.app//auth/shopify/callback",
-  "https://shopify-fomo-app.vercel.app//api/auth/callback"
+  "https://shopify-fomo-app.vercel.app/auth/callback",
+  "https://shopify-fomo-app.vercel.app/auth/shopify/callback",
+  "https://shopify-fomo-app.vercel.app/api/auth/callback"
 ]
 
 [app_proxy]
-url = "https://shopify-fomo-app.vercel.app//proxy/fomo"
+url = "https://shopify-fomo-app.vercel.app/proxy/fomo"
 subpath = "fomo"
 prefix = "apps"
 
