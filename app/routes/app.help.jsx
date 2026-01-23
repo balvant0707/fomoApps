@@ -13,6 +13,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { authenticate } from "../shopify.server";
 
 const CONTACT_URL = "https://pryxotech.com/#inquiry-now";
 const DOCS_URL = "https://pryxotech.com/#inquiry-now";
@@ -25,6 +26,11 @@ const BRAND_GRADIENT =
 function openExternal(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
+export const loader = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 
 export default function Help() {
   return (

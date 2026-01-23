@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { authenticate } from "../shopify.server";
 import {
   Page,
   Card,
@@ -29,6 +30,11 @@ const h = { fontSize: 18, fontWeight: 700, margin: "0 0 8px" };
 const p = { margin: "0 0 10px" };
 const ul = { margin: "0 0 0 18px", lineHeight: 1.7 };
 const small = { fontSize: 12.5, color: "#6d7175", marginTop: 8 };
+
+export const loader = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 
 export default function Documents() {
   const [open, setOpen] = useState({ s1: true, s2: false, s3: false, s4: false, s5: false });
