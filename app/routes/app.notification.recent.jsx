@@ -939,6 +939,8 @@ function Bubble({ form, order, isMobile = false }) {
               borderRadius: 6,
               background: "#f4f4f5",
             }}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div

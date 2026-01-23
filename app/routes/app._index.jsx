@@ -1,8 +1,18 @@
-import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { defer } from "@remix-run/node";
+import { Await, useLoaderData } from "@remix-run/react";
+import { Suspense, useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
-import { Page, Card, BlockStack, Text, Button, InlineStack } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import {
+  Page,
+  Card,
+  BlockStack,
+  Text,
+  Button,
+  InlineStack,
+  SkeletonDisplayText,
+  SkeletonBodyText,
+} from "@shopify/polaris";
+import { TitleBar } from "@shopify/app-bridge-react";
 import { getOrSetCache } from "../utils/serverCache.server";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
@@ -12,35 +22,48 @@ export const loader = async ({ request }) => {
   const shop = session?.shop || "";
   const slug = shop.replace(".myshopify.com", "");
 
-  let themeId = null;
-  try {
-    const cacheKey = `themes:main:${shop}`;
-    const cached = await getOrSetCache(cacheKey, 60000, async () => {
-      const resp = await admin.rest.resources.Theme.all({
-        session: admin.session,
-        fields: "id,role",
+  const themeIdPromise = (async () => {
+    try {
+      const cacheKey = `themes:main:${shop}`;
+      const cached = await getOrSetCache(cacheKey, 60000, async () => {
+        const resp = await admin.rest.resources.Theme.all({
+          session: admin.session,
+          fields: "id,role",
+        });
+        const themes = resp?.data || [];
+        const live = themes.find((t) => t.role === "main");
+        return live?.id ?? null;
       });
-      const themes = resp?.data || [];
-      const live = themes.find((t) => t.role === "main");
-      return live?.id ?? null;
-    });
-    themeId = cached ?? null;
-  } catch (e) {
-    console.error("Theme list failed:", e);
-  }
+      return cached ?? null;
+    } catch (e) {
+      console.error("Theme list failed:", e);
+      return null;
+    }
+  })();
 
   const apiKey =
     process.env.SHOPIFY_API_KEY ||
     process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
     "";
 
-  return json({ slug, themeId, apiKey, extId: THEME_EXTENSION_ID });
+  return defer({ slug, themeId: themeIdPromise, apiKey, extId: THEME_EXTENSION_ID });
 };
 
 export default function AppIndex() {
   const { slug, themeId } = useLoaderData();
-  const openFallback = () => {
-    const url = `https://admin.shopify.com/store/${slug}/themes/${themeId ?? "current"}/editor?context=apps`;
+  const [showPreview, setShowPreview] = useState(false);
+
+  useEffect(() => {
+    const run = () => setShowPreview(true);
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(run, { timeout: 1200 });
+    } else {
+      setTimeout(run, 450);
+    }
+  }, []);
+
+  const openFallback = (id) => {
+    const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?context=apps`;
     window.open(url, "_blank");
   };
 
@@ -98,6 +121,18 @@ export default function AppIndex() {
   const seoP = { margin: "0 0 10px", color: "#202223" };
   const seoUl = { margin: "0 0 0 16px", padding: 0, lineHeight: 1.5 };
 
+  const PreviewSkeleton = (
+    <div style={{ width: "100%", maxWidth: 980, margin: "0 auto" }}>
+      <Card>
+        <BlockStack gap="300">
+          <SkeletonDisplayText size="medium" />
+          <SkeletonBodyText lines={3} />
+          <div style={{ height: 96, borderRadius: 12, background: "#f1f2f4" }} />
+        </BlockStack>
+      </Card>
+    </div>
+  );
+
   return (
     <Page title="Fomoify Sales Popup & Proof">
       <TitleBar title="Fomoify Sales Popup & Proof" />
@@ -108,78 +143,87 @@ export default function AppIndex() {
               Open Theme Customize → <b>App embeds</b> with this app selected.
             </Text>
             <InlineStack gap="300" align="start">
-              <Button variant="secondary" onClick={openFallback}>
-                Open in new tab (fallback)
-              </Button>
+              <Suspense fallback={<Button variant="secondary">Open in new tab (fallback)</Button>}>
+                <Await resolve={themeId}>
+                  {(id) => (
+                    <Button variant="secondary" onClick={() => openFallback(id)}>
+                      Open in new tab (fallback)
+                    </Button>
+                  )}
+                </Await>
+              </Suspense>
             </InlineStack>
           </BlockStack>
         </Card>
 
-        <Card>
-          <BlockStack gap="300">
-            <Text as="h2" variant="headingLg">Preview – Popup Content</Text>
+        {showPreview ? (
+          <Card>
+            <BlockStack gap="300">
+              <Text as="h2" variant="headingLg">Preview – Popup Content</Text>
 
-            {/* 50% width centered preview */}
-            <div style={previewOuter} aria-label="Preview area for Fomoify popups">
-              <div style={wrap}>
-                <div style={row}>
-                  {/* Flash sale */}
-                  <div style={{ ...popupBase, color: "#fff", background: "#0e0e0e" }} aria-label="Flash sale popup">
-                    <div style={{ ...iconCircle, background: "#f6d59d" }}>
-                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1f2937" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.59 13.41 12 22l-9-9 8.59-8.59A2 2 0 0 1 13 4h5v5a2 2 0 0 1-.59 1.41Z" />
-                        <path d="M7 7h.01" />
-                        <path d="M10 10l4 4" />
-                        <path d="M14 10l-4 4" />
-                      </svg>
+              {/* 50% width centered preview */}
+              <div style={previewOuter} aria-label="Preview area for Fomoify popups">
+                <div style={wrap}>
+                  <div style={row}>
+                    {/* Flash sale */}
+                    <div style={{ ...popupBase, color: "#fff", background: "#0e0e0e" }} aria-label="Flash sale popup">
+                      <div style={{ ...iconCircle, background: "#f6d59d" }}>
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1f2937" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.59 13.41 12 22l-9-9 8.59-8.59A2 2 0 0 1 13 4h5v5a2 2 0 0 1-.59 1.41Z" />
+                          <path d="M7 7h.01" />
+                          <path d="M10 10l4 4" />
+                          <path d="M14 10l-4 4" />
+                        </svg>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={title}>Flash Sale</div>
+                        <p style={line}>
+                          <strong>Flash Sale: 20% OFF</strong> — ends in <strong>02:15 hours</strong>
+                        </p>
+                      </div>
+                      <span style={close} aria-hidden>×</span>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={title}>Flash Sale</div>
-                      <p style={line}>
-                        <strong>Flash Sale: 20% OFF</strong> — ends in <strong>02:15 hours</strong>
-                      </p>
-                    </div>
-                    <span style={close} aria-hidden>×</span>
-                  </div>
 
-                  {/* Real order */}
-                  <div style={{ ...popupBase, color: "#fff", background: "#6c1676" }} aria-label="Recent order popup">
-                    <div style={{ width: 50, height: 50, borderRadius: 12, background: "#fff", display: "grid", placeItems: "center", overflow: "hidden", flex: "0 0 50px" }}>
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6c1676" strokeWidth="1.8">
-                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                        <circle cx="8.5" cy="9" r="1.5" />
-                        <path d="M3 17l5.5-5.5L14 17l3-3 4 3" />
-                      </svg>
+                    {/* Real order */}
+                    <div style={{ ...popupBase, color: "#fff", background: "#6c1676" }} aria-label="Recent order popup">
+                      <div style={{ width: 50, height: 50, borderRadius: 12, background: "#fff", display: "grid", placeItems: "center", overflow: "hidden", flex: "0 0 50px" }}>
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6c1676" strokeWidth="1.8">
+                          <rect x="3" y="3" width="18" height="18" rx="3" />
+                          <circle cx="8.5" cy="9" r="1.5" />
+                          <path d="M3 17l5.5-5.5L14 17l3-3 4 3" />
+                        </svg>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={title}>Someone from Location</div>
+                        <p style={line}>bought this product recently Product Name</p>
+                        <p style={small}>12 Hours Ago</p>
+                      </div>
+                      <span style={close} aria-hidden>×</span>
                     </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={title}>Someone from Location</div>
-                      <p style={line}>bought this product recently Product Name</p>
-                      <p style={small}>12 Hours Ago</p>
-                    </div>
-                    <span style={close} aria-hidden>×</span>
                   </div>
                 </div>
               </div>
-              
-            </div>
 
-            {/* SEO copy block below preview */}
-            <section style={seoBox} itemScope itemType="https://schema.org/SoftwareApplication">
-              <h3 style={seoH3}><span itemProp="name">Fomoify Sales Popup &amp; Proof</span> </h3>
-              <p style={seoP} itemProp="description">
-                Add conversion-focused <strong>sales popups</strong>, <strong>recent purchase notifications</strong>, Fomoify creates instant trust and urgency so more visitors become buyers.
-              </p>
-              <ul style={seoUl}>
-                <li><strong>Social proof</strong>: show real orders, location &amp; time to validate product demand.</li>
-                <li><strong>Urgency</strong>: flash-sale message with a live end time to reduce cart hesitation.</li>
-                <li><strong>Customizable</strong>: colors, timing, visibility, and page targeting fit your brand.</li>
-                <li><strong>Lightweight</strong>: theme app embed; no code required to enable/disable.</li>
-              </ul>
-              <meta itemProp="applicationCategory" content="MarketingApplication" />
-              <meta itemProp="operatingSystem" content="Shopify" />
-            </section>
-          </BlockStack>
-        </Card>
+              {/* SEO copy block below preview */}
+              <section style={seoBox} itemScope itemType="https://schema.org/SoftwareApplication">
+                <h3 style={seoH3}><span itemProp="name">Fomoify Sales Popup &amp; Proof</span> </h3>
+                <p style={seoP} itemProp="description">
+                  Add conversion-focused <strong>sales popups</strong>, <strong>recent purchase notifications</strong>, Fomoify creates instant trust and urgency so more visitors become buyers.
+                </p>
+                <ul style={seoUl}>
+                  <li><strong>Social proof</strong>: show real orders, location &amp; time to validate product demand.</li>
+                  <li><strong>Urgency</strong>: flash-sale message with a live end time to reduce cart hesitation.</li>
+                  <li><strong>Customizable</strong>: colors, timing, visibility, and page targeting fit your brand.</li>
+                  <li><strong>Lightweight</strong>: theme app embed; no code required to enable/disable.</li>
+                </ul>
+                <meta itemProp="applicationCategory" content="MarketingApplication" />
+                <meta itemProp="operatingSystem" content="Shopify" />
+              </section>
+            </BlockStack>
+          </Card>
+        ) : (
+          PreviewSkeleton
+        )}
       </BlockStack>
     </Page>
   );
