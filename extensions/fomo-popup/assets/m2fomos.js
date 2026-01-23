@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ENDPOINT = `/apps/fomo/popup?shop=${SHOP}`;
   const SESSION_ENDPOINT = `/apps/fomo/session?shop=${SHOP}`;
   const ORDERS_ENDPOINT_BASE = `/apps/fomo/orders`; // expects ?shop=&days=&limit=
+  const ROOT = document.getElementById("fomo-embed-root");
+  if (!ROOT) return;
 
   /* ========== helpers ========== */
   const safe = (v, fb = "") =>
@@ -54,6 +56,58 @@ document.addEventListener("DOMContentLoaded", async function () {
       return raw ? [raw] : [];
     }
   };
+
+  const cacheKey = (k) =>
+    `fomo:v1:${SHOP || window.location.hostname}:${k}`;
+  const cache = {
+    get(key) {
+      try {
+        const raw = window.sessionStorage.getItem(key);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return null;
+        if (parsed.exp && Date.now() > parsed.exp) {
+          window.sessionStorage.removeItem(key);
+          return null;
+        }
+        return parsed.v;
+      } catch {
+        return null;
+      }
+    },
+    set(key, v, ttlMs) {
+      try {
+        const exp = ttlMs ? Date.now() + ttlMs : 0;
+        window.sessionStorage.setItem(key, JSON.stringify({ v, exp }));
+      } catch { }
+    },
+  };
+
+  const idle = () =>
+    new Promise((r) => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => r(), { timeout: 1200 });
+      } else {
+        setTimeout(r, 350);
+      }
+    });
+
+  async function fetchJson(url, key, ttlMs) {
+    const k = key ? cacheKey(key) : null;
+    if (k) {
+      const cached = cache.get(k);
+      if (cached) return cached;
+    }
+    try {
+      const r = await fetch(url, { headers: { "Content-Type": "application/json" } });
+      if (!r.ok) return null;
+      const data = await r.json();
+      if (k) cache.set(k, data, ttlMs);
+      return data;
+    } catch {
+      return null;
+    }
+  }
 
   // Animation durations (ms)
   function getAnimDur(cfg) {
@@ -945,7 +999,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   const Combined = createCombinedStream();
 
   // ===== THEME EDITOR PREVIEW =====
-  const ROOT = document.getElementById("fomo-embed-root");
   const previewEnabled =
     ROOT?.dataset.previewEnabled !== undefined
       ? toBool(ROOT.dataset.previewEnabled)
@@ -1021,18 +1074,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       retries = 0,
       maxRetries = 3,
       retryDelay = 2000;
+    const sessionCacheKey = cacheKey("session");
+    const cachedSession = cache.get(sessionCacheKey);
+    if (cachedSession === true) sessionReady = true;
+    if (!sessionReady) await idle();
     while (!sessionReady && retries < maxRetries) {
       try {
-        const sessionResponse = await fetch(SESSION_ENDPOINT, {
-          headers: { "Content-Type": "application/json" },
-        });
-        if (sessionResponse.ok) {
-          try {
-            const sessionData = await sessionResponse.json();
-            sessionReady = !!sessionData.sessionReady;
-          } catch {
-            sessionReady = false;
-          }
+        const sessionData = await fetchJson(SESSION_ENDPOINT, null, 0);
+        if (sessionData) {
+          sessionReady = !!sessionData.sessionReady;
           if (!sessionReady) {
             await new Promise((r) => setTimeout(r, retryDelay));
             retries++;
@@ -1049,23 +1099,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     }
     if (!sessionReady) return;
+    cache.set(sessionCacheKey, true, 120000);
 
     // App config
     let data = { records: [] };
-    try {
-      const r = await fetch(ENDPOINT, {
-        headers: { "Content-Type": "application/json" },
-      });
-      if (r.ok) {
-        try {
-          data = await r.json();
-        } catch {
-          data = { records: [] };
-        }
-      }
-    } catch (e) {
-      console.warn("[FOMO] fetch failed", e);
-    }
+    const cachedConfig = await fetchJson(ENDPOINT, "config", 60000);
+    if (cachedConfig) data = cachedConfig;
 
     const recs = Array.isArray(data?.records) ? data.records : [];
     const pt = pageType(),
@@ -1177,11 +1216,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           const url = `${ORDERS_ENDPOINT_BASE}?shop=${encodeURIComponent(
             SHOP
           )}&days=${daysWindow}&limit=${limit}`;
-          const ro = await fetch(url, {
-            headers: { "Content-Type": "application/json" },
-          });
-          if (!ro.ok) continue;
-          const payload = await ro.json();
+          const payload = await fetchJson(
+            url,
+            `orders:${daysWindow}:${limit}`,
+            60000
+          );
+          if (!payload) continue;
           const orders = Array.isArray(payload?.orders) ? payload.orders : [];
 
           const hide = flagsFromNamesJson(it.namesJson);
@@ -1297,9 +1337,12 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       if (isPd && includeCurrent && ch) {
         try {
-          const response = await fetch(`/products/${ch}.js`);
-          if (response.ok) {
-            const p = await response.json();
+          const p = await fetchJson(
+            `/products/${ch}.js`,
+            `prod:${ch}`,
+            600000
+          );
+          if (p) {
             const iconSrc0 = resolveIconForIndex(it, 0);
             const nowAbs = formatAbs(new Date());
             const locParts0 = parseLocationParts(
@@ -1358,10 +1401,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         try {
           let p = null;
           if (handle) {
-            const response = await fetch(`/products/${handle}.js`);
-            if (response.ok) {
-              p = await response.json();
-            }
+            p = await fetchJson(
+              `/products/${handle}.js`,
+              `prod:${handle}`,
+              600000
+            );
           }
           const iconSrc = resolveIconForIndex(it, i);
           const nowAbs = formatAbs(new Date());
