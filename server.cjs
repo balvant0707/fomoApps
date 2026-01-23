@@ -31,7 +31,15 @@ app.set("trust proxy", true);
 // -----------------------------------------------------
 // 🔍 Health / Debug / Ping
 // -----------------------------------------------------
-app.get("/healthz", (_req, res) => res.status(200).send("OK"));
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    now: new Date().toISOString(),
+    commit: process.env.VERCEL_GIT_COMMIT_SHA || null,
+    branch: process.env.VERCEL_GIT_COMMIT_REF || null,
+    deployment: process.env.VERCEL_DEPLOYMENT_ID || null,
+  });
+});
 app.get("/ping", (_req, res) => res.type("text").send("pong"));
 app.get("/debug-env", (_req, res) => {
   res.status(200).json({
