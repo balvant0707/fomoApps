@@ -1,6 +1,6 @@
 import { defer } from "@remix-run/node";
-import { Await, useLoaderData } from "@remix-run/react";
-import { Suspense, useEffect, useState } from "react";
+import { useLoaderData } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import {
   Page,
@@ -51,7 +51,18 @@ export const loader = async ({ request }) => {
 
 export default function AppIndex() {
   const { slug, themeId } = useLoaderData();
+  const [resolvedThemeId, setResolvedThemeId] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve(themeId).then((id) => {
+      if (active) setResolvedThemeId(id ?? null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [themeId]);
 
   useEffect(() => {
     const run = () => setShowPreview(true);
@@ -143,15 +154,9 @@ export default function AppIndex() {
               Open Theme Customize → <b>App embeds</b> with this app selected.
             </Text>
             <InlineStack gap="300" align="start">
-              <Suspense fallback={<Button variant="secondary">Open in new tab (fallback)</Button>}>
-                <Await resolve={themeId}>
-                  {(id) => (
-                    <Button variant="secondary" onClick={() => openFallback(id)}>
-                      Open in new tab (fallback)
-                    </Button>
-                  )}
-                </Await>
-              </Suspense>
+              <Button variant="secondary" onClick={() => openFallback(resolvedThemeId)}>
+                Open in new tab (fallback)
+              </Button>
             </InlineStack>
           </BlockStack>
         </Card>
