@@ -241,9 +241,9 @@
     }
   },
   "remixConfig": {
-    "appDirectory": "C:\\xampp\\htdocs\\shopifyApps\\fomoapps\\m2-web-fomo-popup\\app",
+    "appDirectory": "C:\\xampp\\htdocs\\shopifyApps\\m2-web-fomo-popup\\app",
     "basename": "/",
-    "buildDirectory": "C:\\xampp\\htdocs\\shopifyApps\\fomoapps\\m2-web-fomo-popup\\build",
+    "buildDirectory": "C:\\xampp\\htdocs\\shopifyApps\\m2-web-fomo-popup\\build",
     "future": {
       "v3_fetcherPersist": true,
       "v3_relativeSplatPath": true,
