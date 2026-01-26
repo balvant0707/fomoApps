@@ -2,7 +2,7 @@
 
 client_id = "26148cb757de13a36a3fdba09c94034b"
 name = "SmartCartify Test App"
-application_url = "https://shopify-fomo-app-test.vercel.app/app"
+application_url = "https://shopify-fomo-app.vercel.app/app"
 embedded = true
 handle = "smartCartify-test-app"
 
@@ -34,9 +34,9 @@ scopes = "read_products,write_products,read_themes,write_themes,write_orders,rea
 
 [auth]
 redirect_urls = [
-  "https://shopify-fomo-app-test.vercel.app/auth/callback",
-  "https://shopify-fomo-app-test.vercel.app/auth/shopify/callback",
-  "https://shopify-fomo-app-test.vercel.app/api/auth/callback"
+  "https://shopify-fomo-app.vercel.app/auth/callback",
+  "https://shopify-fomo-app.vercel.app/auth/shopify/callback",
+  "https://shopify-fomo-app.vercel.app/api/auth/callback"
 ]
 
 [app_proxy]
