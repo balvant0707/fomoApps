@@ -9,8 +9,7 @@ export default function LcpObserver() {
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         if (entry.entryType === "largest-contentful-paint") {
-          // eslint-disable-next-line no-console
-          console.log("[LCP 1Second = 1000ms]", Math.round(entry.startTime));
+          console.log("[LCP 1 Second = 1000ms]", Math.round(entry.startTime));
         }
       }
     });
