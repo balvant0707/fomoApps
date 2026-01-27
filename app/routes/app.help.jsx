@@ -13,6 +13,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { authenticate } from "../shopify.server";
 
 const CONTACT_URL = "https://pryxotech.com/#inquiry-now";
 const DOCS_URL = "https://pryxotech.com/#inquiry-now";
@@ -25,6 +26,11 @@ const BRAND_GRADIENT =
 function openExternal(url) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
+
+export const loader = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 
 export default function Help() {
   return (
@@ -76,132 +82,6 @@ export default function Help() {
                 </Button>
               </InlineStack>
             </div>
-          </Layout.Section>
-
-          {/* ===== Left: primary actions ===== */}
-          <Layout.Section>
-            <Card>
-              <BlockStack gap="400">
-                <BlockStack gap="100">
-                  <Text as="h2" variant="headingLg">
-                    Get help now
-                  </Text>
-                  <Text as="p" tone="subdued">
-                    Pick the best way to reach us. We typically respond within a
-                    few business hours.
-                  </Text>
-                </BlockStack>
-
-                <InlineStack gap="300" wrap>
-                  <Button
-                    primary
-                    onClick={() => openExternal(CONTACT_URL)}
-                    style={{ background: BRAND_GRADIENT, border: "none" }}
-                  >
-                    Contact form
-                  </Button>
-                  <Button onClick={() => openExternal(CONTACT_URL)}>
-                    Live chat / WhatsApp
-                  </Button>
-                  <Button onClick={() => openExternal(CONTACT_URL)}>
-                    Schedule a call
-                  </Button>
-                  <Button onClick={() => openExternal(DOCS_URL)}>Docs & FAQs</Button>
-                </InlineStack>
-
-                <Divider />
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    Prefer email?
-                  </Text>
-                  <InlineStack gap="300" wrap>
-                    <Button
-                      url={CONTACT_URL}
-                      external
-                      style={{ background: BRAND_GRADIENT, border: "none" }}
-                    >
-                     info@pryxotech.com
-                    </Button>
-                    <PolarisLink url={CONTACT_URL} external>
-                      Send all required details
-                    </PolarisLink>
-                  </InlineStack>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          {/* ===== Right: troubleshooting + app info ===== */}
-          <Layout.Section variant="oneThird">
-            <Card>
-              <BlockStack gap="300">
-                <Text as="h2" variant="headingLg">
-                  Quick troubleshooting
-                </Text>
-                <BlockStack gap="150" as="ul">
-                  <li>
-                    <Text as="p">
-                      <strong>Hard refresh</strong> the admin page (Ctrl/Cmd + Shift + R).
-                    </Text>
-                  </li>
-                  <li>
-                    <Text as="p">
-                      Reinstall or re-auth if asked; embedded apps sometimes
-                      need a fresh token.
-                    </Text>
-                  </li>
-                  <li>
-                    <Text as="p">
-                      Check browser extensions/ad blockers interfering with
-                      Shopify Admin.
-                    </Text>
-                  </li>
-                  <li>
-                    <Text as="p">
-                      Share <strong>console logs</strong> and the{" "}
-                      <strong>exact steps</strong> to reproduce.
-                    </Text>
-                  </li>
-                </BlockStack>
-
-                <Divider />
-
-                <BlockStack gap="200">
-                  <Text as="h3" variant="headingMd">
-                    App status
-                  </Text>
-                  <InlineStack gap="200" align="start">
-                    <Badge tone="success">Operational</Badge>
-                  </InlineStack>
-                  <Text as="p" tone="subdued">
-                    If something is down, we’ll post updates on our contact page.
-                  </Text>
-                </BlockStack>
-              </BlockStack>
-            </Card>
-          </Layout.Section>
-
-          {/* ===== Footer card ===== */}
-          <Layout.Section>
-            <Card>
-              <InlineStack align="space-between" blockAlign="center">
-                <BlockStack gap="050">
-                  <Text as="p" tone="subdued">
-                    Need a human? Click the button to open the support form in a
-                    new tab.
-                  </Text>
-                </BlockStack>
-                <Button
-                  primary
-                  size="large"
-                  onClick={() => openExternal(CONTACT_URL)}
-                  style={{ background: BRAND_GRADIENT, border: "none" }}
-                >
-                  Contact Support
-                </Button>
-              </InlineStack>
-            </Card>
           </Layout.Section>
         </Layout>
       </Page>

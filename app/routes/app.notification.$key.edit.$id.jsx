@@ -858,7 +858,7 @@ function RecentBubble({ form, order, product, isMobile = false }) {
     }}>
       <div>
         {productImg
-          ? <img src={productImg} alt={productTitle || "Product"} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#f4f4f5" }} />
+          ? <img src={productImg} alt={productTitle || "Product"} style={{ width: 60, height: 60, objectFit: "cover", borderRadius: 6, background: "#f4f4f5" }} loading="lazy" decoding="async" />
           : <div style={{ width: 60, height: 60, borderRadius: 6, background: "#f4f4f5" }} />
         }
       </div>

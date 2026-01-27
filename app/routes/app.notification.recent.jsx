@@ -511,7 +511,7 @@ export async function loader({ request }) {
         msgColor: last?.msgColor ?? "#111111",
         ctaBgColor: last?.ctaBgColor ?? null,
         rounded: String(last?.rounded ?? 14),
-        durationSeconds: Number(last?.durationSeconds ?? 8),
+        durationSeconds: Number(last?.durationSeconds ?? 1),
         alternateSeconds: Number(last?.alternateSeconds ?? 10),
         fontWeight: String(last?.fontWeight ?? 600),
 
@@ -939,6 +939,8 @@ function Bubble({ form, order, isMobile = false }) {
               borderRadius: 6,
               background: "#f4f4f5",
             }}
+            loading="lazy"
+            decoding="async"
           />
         ) : (
           <div
@@ -1363,10 +1365,10 @@ export default function RecentOrdersPopupPage() {
                         label="Popup Display Duration (seconds)"
                         type="number"
                         min={1}
-                        max={60}
+                        max={120}
                         step={1}
                         value={String(form.durationSeconds)}
-                        onChange={onNumClamp("durationSeconds", 1, 60)}
+                        onChange={onNumClamp("durationSeconds", 1, 120)}
                         suffix="S"
                         autoComplete="off"
                       />

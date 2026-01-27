@@ -205,6 +205,8 @@ function PreviewCard({
               src={product.image}
               alt={product.title}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              loading="lazy"
+              decoding="async"
             />
           ) : (
             <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>

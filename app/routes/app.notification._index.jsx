@@ -11,6 +11,12 @@ import {
   BlockStack,
 } from "@shopify/polaris";
 import { useNavigate } from "@remix-run/react";
+import { authenticate } from "../shopify.server";
+
+export const loader = async ({ request }) => {
+  await authenticate.admin(request);
+  return null;
+};
 
 /* ---------- small preview pill ---------- */
 function PreviewBox({ text }) {
