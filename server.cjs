@@ -62,11 +62,6 @@ if (fs.existsSync(publicDir)) {
     app.use("/build", express.static(full, { immutable: true, maxAge: "1y" }));
   }
 });
-
-// -----------------------------------------------------
-// 🎨 Polaris CSS without import
-//  - /polaris.css
-//  - fallback for /assets/styles-*.css and /build/assets/styles-*.css
 // -----------------------------------------------------
 let polarisCssPath = null;
 try {
@@ -85,10 +80,6 @@ app.get("/polaris.css", sendPolarisCss);
 app.get("/assets/styles-:hash.css", sendPolarisCss);
 app.get("/build/assets/styles-:hash.css", sendPolarisCss);
 
-// -----------------------------------------------------
-// 🧠 Smart asset resolver for JS/CSS (covers /build/assets/*, /build/_assets/*, /assets/*)
-// Searches common locations and serves the first match.
-// -----------------------------------------------------
 const ASSET_SEARCH_DIRS = [
   path.join(appRoot, "public", "build", "assets"),
   path.join(appRoot, "build", "client", "assets"),
