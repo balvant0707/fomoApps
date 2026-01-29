@@ -42,6 +42,8 @@ export async function action({ request, params }) {
 
   const { form } = await request.json();
   const enabled = form.enabled?.includes("enabled") ?? false;
+  const isRecent = key === "recent";
+  const isFlash = key === "flash";
 
   const data = {
     enabled,
@@ -58,7 +60,13 @@ export async function action({ request, params }) {
     rounded: Number(form.rounded),
     durationSeconds: Number(form.durationSeconds),
     messageTitlesJson: JSON.stringify(form.messageTitle ? [form.messageTitle] : []),
-    namesJson: JSON.stringify(form.name ? [form.name] : []),
+    namesJson: JSON.stringify(
+      isRecent
+        ? (form.hideKeys ?? [])
+        : isFlash
+          ? (form.countdownText ? [form.countdownText] : [])
+          : (form.name ? [form.name] : [])
+    ),
   };
 
   const existing = await prisma.notificationconfig.findFirst({
@@ -83,6 +91,25 @@ const TITLES = {
 };
 const pretty = (s) =>
   s ? s.split("-").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : "app";
+
+const HIDE_CHOICES = [
+  { label: "Customer Name", value: "name" },
+  { label: "City", value: "city" },
+  { label: "State", value: "state" },
+  { label: "Country", value: "country" },
+  { label: "Product Name", value: "productTitle" },
+  { label: "Product Image", value: "productImage" },
+  { label: "Order Time", value: "time" },
+];
+
+const parseArr = (val, fallback = []) => {
+  try {
+    const parsed = JSON.parse(val || "[]");
+    return Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+};
 
 /* -------- color helpers -------- */
 function hexToRgb(hex) { const clean = hex.replace("#", ""); const bigint = parseInt(clean.length === 3 ? clean.split("").map(c => c + c).join("") : clean, 16); return { r: (bigint >> 16) & 255, g: (bigint >> 8) & 255, b: bigint & 255 }; }
@@ -166,9 +193,11 @@ function NotificationPreview({ form }) {
 export default function NotificationConfigPage() {
   const navigate = useNavigate();
   const { key } = useParams();
-  const { existing } = useLoaderData(); // fetched but not used to prefill
+  const { existing } = useLoaderData();
 
   const title = TITLES[key] || pretty(key);
+  const isRecent = key === "recent";
+  const isFlash = key === "flash";
 
   // UI state
   const [saving, setSaving] = useState(false);
@@ -178,23 +207,33 @@ export default function NotificationConfigPage() {
 
   const toggleToast = () => setToastActive((a) => !a);
 
+  const initialMessageTitle = parseArr(existing?.messageTitlesJson)[0] || title;
+  const initialHideKeys = parseArr(existing?.namesJson);
+  const initialCountdownText = parseArr(existing?.namesJson)[0] || "";
+  const initialMobilePosition = (() => {
+    const parsed = parseArr(existing?.mobilePositionJson);
+    return parsed.length ? parsed : ["bottom"];
+  })();
+
   const [form, setForm] = useState({
     title: title,
-    enabled: ["enabled"],
-    showType: "all",
-    messageTitle: title,
-    messageText: "",
-    fontFamily: "System",
-    position: "bottom-left",
-    animation: "fade",
-    mobileSize: "compact",
-    mobilePosition: ["bottom"],
-    titleColor: "#6E62FF",
-    bgColor: "#FFFFFF",
-    msgColor: "#111111",
-    rounded: 12,
+    enabled: existing?.enabled ? ["enabled"] : ["disabled"],
+    showType: existing?.showType || "all",
+    messageTitle: initialMessageTitle,
+    messageText: existing?.messageText || "",
+    fontFamily: existing?.fontFamily || "System",
+    position: existing?.position || "bottom-left",
+    animation: existing?.animation || "fade",
+    mobileSize: existing?.mobileSize || "compact",
+    mobilePosition: initialMobilePosition,
+    titleColor: existing?.titleColor || "#6E62FF",
+    bgColor: existing?.bgColor || "#FFFFFF",
+    msgColor: existing?.msgColor || "#111111",
+    rounded: existing?.rounded ?? 12,
     name: "Rudra Solanki",
-    durationSeconds: 8,
+    durationSeconds: existing?.durationSeconds ?? 8,
+    hideKeys: initialHideKeys,
+    countdownText: initialCountdownText,
   });
 
   const [titleHSB, setTitleHSB] = useState(hexToHsb(form.titleColor));
@@ -351,6 +390,14 @@ export default function NotificationConfigPage() {
               <Text as="h3" variant="headingMd">Message</Text>
               <TextField label="Message Title" value={form.messageTitle} onChange={onText("messageTitle")} autoComplete="off" />
               <TextField label="Message Body" value={form.messageText} onChange={onText("messageText")} multiline={2} autoComplete="off" />
+              {isFlash && (
+                <TextField
+                  label="Countdown Text / Urgency Message"
+                  value={form.countdownText}
+                  onChange={onText("countdownText")}
+                  autoComplete="off"
+                />
+              )}
             </BlockStack>
           </Box>
         </Card>
@@ -390,6 +437,15 @@ export default function NotificationConfigPage() {
               </InlineStack>
               <Text>Rounded Corners (px): {form.rounded}</Text>
               <RangeSlider min={0} max={24} value={form.rounded} onChange={(v) => setForm((f) => ({ ...f, rounded: v }))} />
+              {isRecent && (
+                <ChoiceList
+                  title="Hide Fields (toggle visibility)"
+                  allowMultiple
+                  choices={HIDE_CHOICES}
+                  selected={form.hideKeys}
+                  onChange={onField("hideKeys")}
+                />
+              )}
             </BlockStack>
           </Box>
         </Card>
