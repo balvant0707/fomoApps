@@ -28,8 +28,9 @@ export async function loader({ request, params }) {
   const key = params?.key;
   if (!shop || !key) throw new Response("Missing shop or key", { status: 400 });
 
-  const existing = await prisma.notificationConfig.findUnique({
-    where: { shop_key: { shop, key } },
+  const existing = await prisma.notificationconfig.findFirst({
+    where: { shop, key },
+    orderBy: { id: "desc" },
   });
   return json({ existing: existing ?? null });
 }
@@ -42,57 +43,43 @@ export async function action({ request, params }) {
   const { form } = await request.json();
   const enabled = form.enabled?.includes("enabled") ?? false;
 
-  const saved = await prisma.notificationConfig.upsert({
-    where: { shop_key: { shop, key } },
-    update: {
-      enabled,
-      showType: form.showType,
-      messageTitle: form.messageTitle,
-      messageText: form.messageText,
-      fontFamily: form.fontFamily,
-      position: form.position,
-      animation: form.animation,
-      mobileSize: form.mobileSize,
-      mobilePositionJson: form.mobilePosition ?? [],
-      titleColor: form.titleColor,
-      bgColor: form.bgColor,
-      msgColor: form.msgColor,
-      rounded: Number(form.rounded),
-      name: form.name,
-      durationSeconds: Number(form.durationSeconds),
-    },
-    create: {
-      shop,
-      key,
-      enabled,
-      showType: form.showType,
-      messageTitle: form.messageTitle,
-      messageText: form.messageText,
-      fontFamily: form.fontFamily,
-      position: form.position,
-      animation: form.animation,
-      mobileSize: form.mobileSize,
-      mobilePositionJson: form.mobilePosition ?? [],
-      titleColor: form.titleColor,
-      bgColor: form.bgColor,
-      msgColor: form.msgColor,
-      rounded: Number(form.rounded),
-      name: form.name,
-      durationSeconds: Number(form.durationSeconds),
-    },
+  const data = {
+    enabled,
+    showType: form.showType,
+    messageText: form.messageText,
+    fontFamily: form.fontFamily,
+    position: form.position,
+    animation: form.animation,
+    mobileSize: form.mobileSize,
+    mobilePositionJson: JSON.stringify(form.mobilePosition ?? []),
+    titleColor: form.titleColor,
+    bgColor: form.bgColor,
+    msgColor: form.msgColor,
+    rounded: Number(form.rounded),
+    durationSeconds: Number(form.durationSeconds),
+    messageTitlesJson: JSON.stringify(form.messageTitle ? [form.messageTitle] : []),
+    namesJson: JSON.stringify(form.name ? [form.name] : []),
+  };
+
+  const existing = await prisma.notificationconfig.findFirst({
+    where: { shop, key },
+    orderBy: { id: "desc" },
   });
+
+  const saved = existing
+    ? await prisma.notificationconfig.update({
+        where: { id: existing.id },
+        data,
+      })
+    : await prisma.notificationconfig.create({
+        data: { shop, key, ...data },
+      });
   return json({ success: true, saved });
 }
 
 const TITLES = {
   recent: "Recent Purchases",
-  visitors: "Live Visitor Count",
-  stock: "Low Stock Alerts",
-  reviews: "Product Reviews",
-  cart: "Cart Activity",
   flash: "Flash Sale Bars",
-  announcement: "Announcements",
-  geo: "Geo Messaging",
 };
 const pretty = (s) =>
   s ? s.split("-").map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") : "app";

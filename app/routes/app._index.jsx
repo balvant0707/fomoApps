@@ -64,14 +64,7 @@ export default function AppIndex() {
     };
   }, [themeId]);
 
-  useEffect(() => {
-    const run = () => setShowPreview(true);
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(run, { timeout: 1200 });
-    } else {
-      setTimeout(run, 450);
-    }
-  }, []);
+  const enablePreview = () => setShowPreview(true);
 
   const openFallback = (id) => {
     const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?context=apps`;
@@ -156,6 +149,9 @@ export default function AppIndex() {
             <InlineStack gap="300" align="start">
               <Button variant="secondary" onClick={() => openFallback(resolvedThemeId)}>
                 Open in new tab (fallback)
+              </Button>
+              <Button variant="primary" onClick={enablePreview} disabled={showPreview}>
+                {showPreview ? "Preview loaded" : "Load preview"}
               </Button>
             </InlineStack>
           </BlockStack>
