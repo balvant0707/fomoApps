@@ -873,6 +873,38 @@ const mobileSizeToWidth = (size) =>
   size === "compact" ? 300 : size === "large" ? 360 : 330;
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : 1.06);
 
+function formatOrderAge(createdAt) {
+  if (!createdAt) return "Timing";
+  const orderDate = new Date(createdAt);
+  if (Number.isNaN(orderDate.getTime())) return "Timing";
+
+  const now = new Date();
+  const sameDay = orderDate.toDateString() === now.toDateString();
+
+  if (sameDay) {
+    const diffMs = Math.max(0, now - orderDate);
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    const shown = Math.max(1, hours);
+    return `${shown} hour${shown === 1 ? "" : "s"} ago`;
+  }
+
+  const startOrder = new Date(
+    orderDate.getFullYear(),
+    orderDate.getMonth(),
+    orderDate.getDate()
+  );
+  const startNow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const diffDays = Math.max(
+    1,
+    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
+  );
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
 function Bubble({ form, order, isMobile = false }) {
   const animStyle = useMemo(
     () => getAnimationStyle(form.animation),
@@ -988,9 +1020,7 @@ function Bubble({ form, order, isMobile = false }) {
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
                 <small>
-                  {order?.createdAt
-                    ? new Date(order.createdAt).toLocaleString()
-                    : "Timing"}
+                  {formatOrderAge(order?.createdAt)}
                 </small>
               </span>
             </>
