@@ -152,6 +152,16 @@ function makeSearchString(row) {
   return [title, message, popupType, pages].join(" ").toLowerCase();
 }
 
+function TableSkeleton() {
+  return (
+    <Card>
+      <div style={{ padding: 16 }}>
+        <SkeletonBodyText lines={8} />
+      </div>
+    </Card>
+  );
+}
+
 export default function NotificationTable({
   rows,
   total,
@@ -389,7 +399,9 @@ export default function NotificationTable({
         </div>
       </Card>
 
-      {!isIdleReady ? null : (
+      {!isIdleReady ? (
+        <TableSkeleton />
+      ) : (
         <Card>
           <div className={`rk-table-wrap ${isBusy ? "rk-busy" : ""}`}>
             {isBusy && <div className="rk-overlay" />}
@@ -416,6 +428,7 @@ export default function NotificationTable({
                       page: 1,
                     }),
                 }}
+                image=""
               >
                 <p>Try adjusting your filters or create a new one.</p>
               </EmptyState>
