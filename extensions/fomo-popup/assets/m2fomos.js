@@ -322,11 +322,29 @@ document.addEventListener("DOMContentLoaded", async function () {
   // ======= date + time helpers =======
   const toDate = (v) => {
     try {
-      return new Date(v);
+      const d = v instanceof Date ? v : new Date(v);
+      return Number.isNaN(d.getTime()) ? null : d;
     } catch {
       return null;
     }
   };
+  const parseAbsDMY = (s) => {
+    if (typeof s !== "string") return null;
+    const m = s
+      .trim()
+      .match(/^(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    const d = new Date(
+      Number(m[3]),
+      Number(m[2]) - 1,
+      Number(m[1]),
+      Number(m[4]),
+      Number(m[5]),
+      Number(m[6] || 0)
+    );
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+  const toDateLoose = (v) => toDate(v) || parseAbsDMY(v);
   const withinDays = (iso, days) => {
     const d = toDate(iso);
     if (!d) return false;
@@ -359,6 +377,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     )}/${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(
       d.getMinutes()
     )}:${pad2(d.getSeconds())}`;
+  };
+  const displayRecentTime = (cfg) => {
+    const d = toDateLoose(cfg.timeIso || cfg.timeAbsolute);
+    if (d) return relTime(d);
+    return safe(cfg.timeText, "") || safe(cfg.timeAbsolute, "");
   };
 
   // keyframes (once) — includes direction-aware slides
@@ -854,7 +877,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Time
     if (!cfg.hideTime) {
       const line3 = document.createElement("div");
-      line3.textContent = safe(cfg.timeAbsolute, "") || safe(cfg.timeText, "");
+      line3.textContent = displayRecentTime(cfg);
       line3.style.cssText = `font-size:${Math.max(
         10,
         (Number(cfg.baseFontSize) || 14) - 1
