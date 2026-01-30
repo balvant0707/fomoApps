@@ -249,19 +249,6 @@ export default function NotificationDashboardIndex() {
             loading={loadingKey === 'visitor'}
           /> */}
         </div>
-
-        {/* ====== FOOTER INFO SECTION ====== */}
-        <div
-          style={{
-            marginTop: 32,
-            padding: "20px 24px",
-            borderRadius: 12,
-            border: "1px solid #E5E7EB",
-            background:
-              "linear-gradient(135deg, rgba(33,150,243,0.05), rgba(233,30,99,0.05))",
-          }}
-        >
-        </div>
       </Page>
     </>
   );
