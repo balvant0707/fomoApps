@@ -1,13 +1,9 @@
 // app/routes/app.dashboard.jsx
 import { defer, json, redirect } from "@remix-run/node";
-import { Await, Link, useLoaderData } from "@remix-run/react";
+import { Await, useLoaderData } from "@remix-run/react";
 import {
-  Card,
   Frame,
   Page,
-  SkeletonBodyText,
-  SkeletonDisplayText,
-  Text,
 } from "@shopify/polaris";
 import React, { Suspense } from "react";
 import prisma from "../db.server";
@@ -161,47 +157,26 @@ export async function action({ request }) {
   return safeJson({ ok: false, error: "Unknown action" }, { status: 400 });
 }
 
-function StatsSkeleton() {
-  return (
-    <Card>
-      <div style={{ padding: 16 }}>
-        <SkeletonDisplayText size="small" />
-        <SkeletonBodyText lines={2} />
-      </div>
-    </Card>
-  );
-}
-
-function TableSkeleton() {
-  return (
-    <Card>
-      <div style={{ padding: 16 }}>
-        <SkeletonBodyText lines={8} />
-      </div>
-    </Card>
-  );
-}
-
 export default function NotificationList() {
   const { critical, rows, stats } = useLoaderData();
 
   return (
     <Frame>
       <Page title="Dashboard" fullWidth>
-        <Suspense fallback={<StatsSkeleton />}>
-          <Await resolve={stats} errorElement={<StatsSkeleton />}>
+        <Suspense fallback={null}>
+          <Await resolve={stats} errorElement={null}>
             {(data) => (
-              <Suspense fallback={<StatsSkeleton />}>
+              <Suspense fallback={null}>
                 <StatsPanel stats={data} />
               </Suspense>
             )}
           </Await>
         </Suspense>
 
-        <Suspense fallback={<TableSkeleton />}>
-          <Await resolve={rows} errorElement={<TableSkeleton />}>
+        <Suspense fallback={null}>
+          <Await resolve={rows} errorElement={null}>
             {(data) => (
-              <Suspense fallback={<TableSkeleton />}>
+              <Suspense fallback={null}>
                 <NotificationTable
                   rows={data.rows}
                   total={data.total}
