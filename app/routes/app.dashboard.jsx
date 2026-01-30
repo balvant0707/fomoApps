@@ -17,9 +17,7 @@ import { getOrSetCache } from "../utils/serverCache.server";
 const NotificationTable = React.lazy(
   () => import("../components/dashboard/NotificationTable")
 );
-const StatsPanel = React.lazy(
-  () => import("../components/dashboard/StatsPanel")
-);
+
 
 function buildStats(rows) {
   const total = rows.length;
@@ -215,17 +213,6 @@ export default function NotificationList() {
             )}
           </Await>
         </Suspense>
-
-        <Card>
-          <div style={{ padding: 16 }}>
-            <Text as="p" tone="subdued">
-              Need detailed logs or diagnostics?
-            </Text>
-            <Link to="/app/dashboard/logs" prefetch="intent">
-              View logs
-            </Link>
-          </div>
-        </Card>
       </Page>
     </Frame>
   );

@@ -279,20 +279,6 @@ export default function NotificationDashboardIndex() {
             </li>
           </ul> */}
 
-          <div style={{ marginTop: 16 }}>
-            <Text as="p" tone="subdued">
-              Need help with setup or best practices?{" "}
-              <a
-                href="https://www.m2webdesigning.com/contact-us/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#6E62FF", fontWeight: 500 }}
-              >
-                Contact our support team
-              </a>{" "}
-              for a quick audit of your sales popups and flash bars.
-            </Text>
-          </div>
         </div>
       </Page>
     </>

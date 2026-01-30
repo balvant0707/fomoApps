@@ -261,55 +261,6 @@ export default function NotificationDashboardIndex() {
               "linear-gradient(135deg, rgba(33,150,243,0.05), rgba(233,30,99,0.05))",
           }}
         >
-          {/* <Text as="h3" variant="headingMd">
-            Why use sales popups & countdown bars?
-          </Text>
-          <Text as="p" tone="subdued" style={{ marginTop: 8 }}>
-            Real-time popups add <strong>trust signals</strong>, while countdown
-            bars create <strong>urgency</strong>. Together they reduce friction
-            and nudge shoppers to checkout faster.
-          </Text>
-          <ul
-            style={{
-              marginTop: 12,
-              paddingLeft: 20,
-              color: "#374151",
-              fontSize: 14,
-              lineHeight: 1.6,
-            }}
-          >
-            <li>
-              <strong>Increase conversion rate</strong> with authentic social
-              proof (recent sales notifications).
-            </li>
-            <li>
-              <strong>Drive faster decisions</strong> using time-bound flash
-              deals & countdown timers.
-            </li>
-            <li>
-              <strong>Highlight key promos</strong>: sitewide discounts, new
-              launches, or low-stock alerts.
-            </li>
-            <li>
-              <strong>Recover abandoned carts</strong> by re-engaging hesitant
-              visitors at the right moment.
-            </li>
-          </ul> */}
-
-          <div style={{ marginTop: 16 }}>
-            <Text as="p" tone="subdued">
-              Need help with setup or best practices?{" "}
-              <a
-                href="https://www.m2webdesigning.com/contact-us/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#6E62FF", fontWeight: 500 }}
-              >
-                Contact our support team
-              </a>{" "}
-              for a quick audit of your sales popups and flash bars.
-            </Text>
-          </div>
         </div>
       </Page>
     </>
