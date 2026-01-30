@@ -379,9 +379,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     )}:${pad2(d.getSeconds())}`;
   };
   const displayRecentTime = (cfg) => {
-    const d = toDateLoose(cfg.timeIso || cfg.timeAbsolute);
+    const d = toDateLoose(cfg.timeIso);
     if (d) return relTime(d);
-    return safe(cfg.timeText, "") || safe(cfg.timeAbsolute, "");
+    return safe(cfg.timeText, "");
   };
 
   // keyframes (once) — includes direction-aware slides
@@ -1288,6 +1288,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               uploadedImage: iconSrc,
               timeText: relTime(when),
               timeAbsolute: formatAbs(when),
+              timeIso: when,
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1388,6 +1389,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 safe(it.relativeTimeText, "")
               ),
               timeAbsolute: nowAbs,
+              timeIso: new Date().toISOString(),
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1458,6 +1460,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               safe(it.relativeTimeText, "")
             ),
             timeAbsolute: nowAbs,
+            timeIso: new Date().toISOString(),
             mobilePosition: normMB(
               pickSmart(mbPosArr, i, defaultMB),
               defaultMB
