@@ -428,7 +428,6 @@ export default function NotificationTable({
                       page: 1,
                     }),
                 }}
-                image=""
               >
                 <p>Try adjusting your filters or create a new one.</p>
               </EmptyState>
