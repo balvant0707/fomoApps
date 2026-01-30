@@ -368,10 +368,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const mo = Math.floor(dd / 30);
     return mo < 12 ? `${mo}mo ago` : `${Math.floor(dd / 365)}y ago`;
   };
-  const relDays = (isoOrDate) => {
+  const relDaysOrHours = (isoOrDate) => {
     const d = toDate(isoOrDate);
     if (!d) return "";
     const now = new Date();
+    const diffMs = Math.max(0, now.getTime() - d.getTime());
+    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
+    if (diffHours < 24) return `${diffHours}h ago`;
     const startNow = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -400,7 +403,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
   const displayRecentTime = (cfg) => {
     const d = toDateLoose(cfg.timeIso);
-    if (d) return relDays(d);
+    if (d) return relDaysOrHours(d);
     return safe(cfg.timeText, "");
   };
 
