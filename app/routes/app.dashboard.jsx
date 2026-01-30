@@ -13,6 +13,9 @@ import { getOrSetCache } from "../utils/serverCache.server";
 const NotificationTable = React.lazy(
   () => import("../components/dashboard/NotificationTable")
 );
+const StatsPanel = React.lazy(
+  () => import("../components/dashboard/StatsPanel")
+);
 
 
 function buildStats(rows) {
