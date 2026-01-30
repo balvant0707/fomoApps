@@ -826,6 +826,38 @@ const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large"
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : size === "large" ? 1.06 : 1);
 
 /* ───────────────── Unified bubbles ──────────────── */
+function formatOrderAge(createdAt) {
+  if (!createdAt) return "just now";
+  const orderDate = new Date(createdAt);
+  if (Number.isNaN(orderDate.getTime())) return "just now";
+
+  const now = new Date();
+  const sameDay = orderDate.toDateString() === now.toDateString();
+
+  if (sameDay) {
+    const diffMs = Math.max(0, now - orderDate);
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    const shown = Math.max(1, hours);
+    return `${shown} hour${shown === 1 ? "" : "s"} ago`;
+  }
+
+  const startOrder = new Date(
+    orderDate.getFullYear(),
+    orderDate.getMonth(),
+    orderDate.getDate()
+  );
+  const startNow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const diffDays = Math.max(
+    1,
+    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
+  );
+  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+}
+
 function RecentBubble({ form, order, product, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const hide = new Set(form.hideKeys || []);
@@ -883,7 +915,7 @@ function RecentBubble({ form, order, product, isMobile = false }) {
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>{order?.createdAt ? new Date(order.createdAt).toLocaleString() : "just now"}</small>
+                <small>{formatOrderAge(order?.createdAt)}</small>
               </span>
             </>
           )}
