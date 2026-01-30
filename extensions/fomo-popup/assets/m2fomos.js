@@ -334,30 +334,32 @@ document.addEventListener("DOMContentLoaded", async function () {
     const ms = days * 24 * 60 * 60 * 1000;
     return now - d.getTime() <= ms && d.getTime() <= now;
   };
-  const formatOrderAge = (iso) => {
+  const relTime = (iso) => {
     const d = toDate(iso);
     if (!d) return "";
-    const now = new Date();
-    const sameDay = d.toDateString() === now.toDateString();
-    if (sameDay) {
-      const diffMs = Math.max(0, now - d);
-      const hours = Math.floor(diffMs / (60 * 60 * 1000));
-      const shown = Math.max(1, hours);
-      return `${shown} hour${shown === 1 ? "" : "s"} ago`;
-    }
-    const startD = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const startNow = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    );
-    const diffDays = Math.max(
-      1,
-      Math.round((startNow - startD) / (24 * 60 * 60 * 1000))
-    );
-    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+    const diff = Math.max(0, Date.now() - d.getTime());
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m} min ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const dd = Math.floor(h / 24);
+    if (dd < 7) return `${dd}d ago`;
+    const wk = Math.floor(dd / 7);
+    if (wk < 4) return `${wk}w ago`;
+    const mo = Math.floor(dd / 30);
+    return mo < 12 ? `${mo}mo ago` : `${Math.floor(dd / 365)}y ago`;
   };
-  const relTime = (iso) => formatOrderAge(iso);
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const formatAbs = (isoOrDate) => {
+    const d = isoOrDate instanceof Date ? isoOrDate : toDate(isoOrDate);
+    if (!d) return "";
+    return `${pad2(d.getDate())}/${pad2(
+      d.getMonth() + 1
+    )}/${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(
+      d.getMinutes()
+    )}:${pad2(d.getSeconds())}`;
+  };
 
   // keyframes (once) — includes direction-aware slides
   if (!document.getElementById("kf-fomo-onefile")) {
@@ -852,8 +854,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Time
     if (!cfg.hideTime) {
       const line3 = document.createElement("div");
-      const displayTime = safe(cfg.timeText, "") || formatOrderAge(cfg.timeAbsolute);
-      line3.textContent = displayTime;
+      line3.textContent = safe(cfg.timeAbsolute, "") || safe(cfg.timeText, "");
       line3.style.cssText = `font-size:${Math.max(
         10,
         (Number(cfg.baseFontSize) || 14) - 1
@@ -1263,7 +1264,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               productUrl,
               uploadedImage: iconSrc,
               timeText: relTime(when),
-              timeAbsolute: when,
+              timeAbsolute: formatAbs(when),
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1343,7 +1344,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           );
           if (p) {
             const iconSrc0 = resolveIconForIndex(it, 0);
-            const nowAbs = new Date().toISOString();
+            const nowAbs = formatAbs(new Date());
             const locParts0 = parseLocationParts(
               pickRaw(locsArrRaw, 0, "")
             );
@@ -1407,7 +1408,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             );
           }
           const iconSrc = resolveIconForIndex(it, i);
-          const nowAbs = new Date().toISOString();
+          const nowAbs = formatAbs(new Date());
           const locPartsI = parseLocationParts(
             pickRaw(locsArrRaw, i, "")
           );
