@@ -368,13 +368,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     const mo = Math.floor(dd / 30);
     return mo < 12 ? `${mo}mo ago` : `${Math.floor(dd / 365)}y ago`;
   };
-  const relDaysOrHours = (isoOrDate) => {
+  const relDaysHoursMinutes = (isoOrDate) => {
     const d = toDate(isoOrDate);
     if (!d) return "";
     const now = new Date();
     const diffMs = Math.max(0, now.getTime() - d.getTime());
+    const diffMinutes = Math.floor(diffMs / (60 * 1000));
+    if (diffMinutes < 60)
+      return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
     const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24)
+      return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
     const startNow = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -389,7 +393,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       0,
       Math.floor((startNow - startThen) / (24 * 60 * 60 * 1000))
     );
-    return `${diffDays}d ago`;
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
   };
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatAbs = (isoOrDate) => {
@@ -403,7 +407,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
   const displayRecentTime = (cfg) => {
     const d = toDateLoose(cfg.timeIso);
-    if (d) return relDaysOrHours(d);
+    if (d) return relDaysHoursMinutes(d);
     return safe(cfg.timeText, "");
   };
 
