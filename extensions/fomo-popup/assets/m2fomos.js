@@ -328,6 +328,55 @@ document.addEventListener("DOMContentLoaded", async function () {
       return null;
     }
   };
+  const pickRecentCreatedAt = (record, i = 0) => {
+    const extractRawDate = (v) => {
+      if (v === undefined || v === null) return "";
+      if (typeof v === "object") {
+        for (const k of [
+          "createdAt",
+          "created_at",
+          "orderCreatedAt",
+          "order_created_at",
+          "processedAt",
+          "processed_at",
+          "timeIso",
+          "timeAbsolute",
+          "date",
+          "value",
+        ]) {
+          if (v?.[k]) return String(v[k]).trim();
+        }
+        return "";
+      }
+      return String(v).trim();
+    };
+
+    const fromJson = (field) => {
+      const arr = parseList(record?.[field]);
+      return extractRawDate(pickRaw(arr, i, ""));
+    };
+
+    const candidates = [
+      fromJson("createdAtJson"),
+      fromJson("orderCreatedAtJson"),
+      fromJson("processedAtJson"),
+      extractRawDate(record?.createdAt),
+      extractRawDate(record?.created_at),
+      extractRawDate(record?.orderCreatedAt),
+      extractRawDate(record?.order_created_at),
+      extractRawDate(record?.processedAt),
+      extractRawDate(record?.processed_at),
+      extractRawDate(record?.timeIso),
+      extractRawDate(record?.timeAbsolute),
+    ];
+
+    for (const raw of candidates) {
+      if (!raw) continue;
+      const d = toDateLoose(raw);
+      if (d) return d.toISOString();
+    }
+    return "";
+  };
   const parseAbsDMY = (s) => {
     if (typeof s !== "string") return null;
     const m = s
@@ -390,7 +439,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatAbs = (isoOrDate) => {
-    const d = isoOrDate instanceof Date ? isoOrDate : toDate(isoOrDate);
+    const d = isoOrDate instanceof Date ? isoOrDate : toDateLoose(isoOrDate);
     if (!d) return "";
     return `${pad2(d.getDate())}/${pad2(
       d.getMonth() + 1
@@ -1409,7 +1458,8 @@ document.addEventListener("DOMContentLoaded", async function () {
           );
           if (p) {
             const iconSrc0 = resolveIconForIndex(it, 0);
-            const nowAbs = formatAbs(new Date());
+            const createdAt0 = pickRecentCreatedAt(it, 0);
+            const effectiveTime0 = createdAt0 || new Date().toISOString();
             const locParts0 = parseLocationParts(
               pickRaw(locsArrRaw, 0, "")
             );
@@ -1429,8 +1479,11 @@ document.addEventListener("DOMContentLoaded", async function () {
                 0,
                 safe(it.relativeTimeText, "")
               ),
-              timeAbsolute: nowAbs,
-              timeIso: new Date().toISOString(),
+              timeAbsolute: formatAbs(effectiveTime0),
+              timeIso: effectiveTime0,
+              createdAt: createdAt0,
+              orderCreatedAt: createdAt0,
+              timeMode: "days",
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1474,7 +1527,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             );
           }
           const iconSrc = resolveIconForIndex(it, i);
-          const nowAbs = formatAbs(new Date());
+          const createdAtI = pickRecentCreatedAt(it, i);
+          const effectiveTimeI = createdAtI || new Date().toISOString();
           const locPartsI = parseLocationParts(
             pickRaw(locsArrRaw, i, "")
           );
@@ -1500,8 +1554,11 @@ document.addEventListener("DOMContentLoaded", async function () {
               i,
               safe(it.relativeTimeText, "")
             ),
-            timeAbsolute: nowAbs,
-            timeIso: new Date().toISOString(),
+            timeAbsolute: formatAbs(effectiveTimeI),
+            timeIso: effectiveTimeI,
+            createdAt: createdAtI,
+            orderCreatedAt: createdAtI,
+            timeMode: "days",
             mobilePosition: normMB(
               pickSmart(mbPosArr, i, defaultMB),
               defaultMB
