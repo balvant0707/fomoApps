@@ -380,7 +380,7 @@ export default function NotificationTable({
                 + New Notification
               </Button>
 
-              <Button
+              {/* <Button
                 variant="secondary"
                 onClick={() => {
                   setQuery("");
@@ -393,7 +393,7 @@ export default function NotificationTable({
                 }}
               >
                 Clear Filters
-              </Button>
+              </Button> */}
             </InlineStack>
           </Form>
         </div>

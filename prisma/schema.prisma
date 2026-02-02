@@ -38,6 +38,7 @@ model notificationconfig {
   iconSvg              String?  @db.LongText
   orderDays            Int?      @default(7)   
   createOrderTime      String?  
+  orderDate            String?  
 
   @@index([shop, key], map: "NotificationConfig_shop_key_idx")
    @@map("NotificationConfig")

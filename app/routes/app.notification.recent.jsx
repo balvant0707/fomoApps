@@ -94,6 +94,7 @@ const DEFAULT_SAVED = {
   messageTitlesJson: [],
   orderDays: 1,
   createOrderTime: null,
+  orderDate: null,
 };
 
 /* ───────────────── date helpers ──────────────── */
@@ -522,6 +523,7 @@ export async function loader({ request }) {
 
         orderDays: orderDays,
         createOrderTime: last?.createOrderTime ?? newestCreatedAt ?? null,
+        orderDate: last?.orderDate ?? newestCreatedAt ?? null,
       },
       newestCreatedAt,
       preview,
@@ -667,6 +669,7 @@ export async function action({ request }) {
 
     orderDays: Number(fetchDays),
     createOrderTime: newestOrderCreatedAtISO ?? null,
+    orderDate: newestOrderCreatedAtISO ?? null,
   };
 
   Object.keys(data).forEach((k) => {
@@ -1209,13 +1212,14 @@ export default function RecentOrdersPopupPage() {
 
     orderDays: Number(saved.orderDays ?? usedDays ?? 1),
     createOrderTime: saved.createOrderTime ?? newestCreatedAt ?? null,
+    orderDate: saved.orderDate ?? newestCreatedAt ?? null,
   }));
 
   useEffect(() => {
     const newest = orders?.[0]?.createdAt
       ? trimIso(String(orders[0].createdAt))
       : null;
-    setForm((f) => ({ ...f, createOrderTime: newest }));
+    setForm((f) => ({ ...f, createOrderTime: newest, orderDate: newest }));
   }, [orders]);
 
   const onField = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));

@@ -335,6 +335,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         for (const k of [
           "createdAt",
           "created_at",
+          "createOrderTime",
+          "orderDate",
           "orderCreatedAt",
           "order_created_at",
           "processedAt",
@@ -358,10 +360,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const candidates = [
       fromJson("createdAtJson"),
+      fromJson("createOrderTimeJson"),
+      fromJson("orderDateJson"),
       fromJson("orderCreatedAtJson"),
       fromJson("processedAtJson"),
       extractRawDate(record?.createdAt),
       extractRawDate(record?.created_at),
+      extractRawDate(record?.createOrderTime),
+      extractRawDate(record?.orderDate),
       extractRawDate(record?.orderCreatedAt),
       extractRawDate(record?.order_created_at),
       extractRawDate(record?.processedAt),
@@ -449,6 +455,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
   const displayRecentTime = (cfg) => {
     const rawTime =
+      cfg.createOrderTime ||
       cfg.createdAt ||
       cfg.orderCreatedAt ||
       cfg.orderDate ||
