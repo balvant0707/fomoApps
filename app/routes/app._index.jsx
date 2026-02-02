@@ -11,6 +11,7 @@ import {
   Button,
   InlineStack,
   Spinner,
+  Collapsible,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { getOrSetCache } from "../utils/serverCache.server";
@@ -175,6 +176,7 @@ export async function action({ request }) {
 export default function AppIndex() {
   const { slug, themeId, critical, rows } = useLoaderData();
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
+  const [showSeoSection, setShowSeoSection] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -289,20 +291,6 @@ export default function AppIndex() {
               </div>
             </div>
 
-            <section style={seoBox} itemScope itemType="https://schema.org/SoftwareApplication">
-              <h3 style={seoH3}><span itemProp="name">Fomoify Sales Popup &amp; Proof</span> </h3>
-              <p style={seoP} itemProp="description">
-                Add conversion-focused <strong>sales popups</strong>, <strong>recent purchase notifications</strong>, Fomoify creates instant trust and urgency so more visitors become buyers.
-              </p>
-              <ul style={seoUl}>
-                <li><strong>Social proof</strong>: show real orders, location &amp; time to validate product demand.</li>
-                <li><strong>Urgency</strong>: flash-sale message with a live end time to reduce cart hesitation.</li>
-                <li><strong>Customizable</strong>: colors, timing, visibility, and page targeting fit your brand.</li>
-                <li><strong>Lightweight</strong>: theme app embed; no code required to enable/disable.</li>
-              </ul>
-              <meta itemProp="applicationCategory" content="MarketingApplication" />
-              <meta itemProp="operatingSystem" content="Shopify" />
-            </section>
           </BlockStack>
         </Card>
 
@@ -337,6 +325,62 @@ export default function AppIndex() {
             )}
           </Await>
         </Suspense>
+
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingMd">
+                App Details
+              </Text>
+              <Button
+                onClick={() => setShowSeoSection((prev) => !prev)}
+                disclosure={showSeoSection ? "up" : "down"}
+              >
+                {showSeoSection ? "Hide" : "Show"}
+              </Button>
+            </InlineStack>
+
+            <Collapsible open={showSeoSection} id="seo-details">
+              <section
+                style={seoBox}
+                itemScope
+                itemType="https://schema.org/SoftwareApplication"
+              >
+                <h3 style={seoH3}>
+                  <span itemProp="name">Fomoify Sales Popup &amp; Proof</span>
+                </h3>
+                <p style={seoP} itemProp="description">
+                  Add conversion-focused <strong>sales popups</strong>,{" "}
+                  <strong>recent purchase notifications</strong>, Fomoify creates
+                  instant trust and urgency so more visitors become buyers.
+                </p>
+                <ul style={seoUl}>
+                  <li>
+                    <strong>Social proof</strong>: show real orders, location
+                    &amp; time to validate product demand.
+                  </li>
+                  <li>
+                    <strong>Urgency</strong>: flash-sale message with a live end
+                    time to reduce cart hesitation.
+                  </li>
+                  <li>
+                    <strong>Customizable</strong>: colors, timing, visibility,
+                    and page targeting fit your brand.
+                  </li>
+                  <li>
+                    <strong>Lightweight</strong>: theme app embed; no code
+                    required to enable/disable.
+                  </li>
+                </ul>
+                <meta
+                  itemProp="applicationCategory"
+                  content="MarketingApplication"
+                />
+                <meta itemProp="operatingSystem" content="Shopify" />
+              </section>
+            </Collapsible>
+          </BlockStack>
+        </Card>
       </BlockStack>
     </Page>
   );
