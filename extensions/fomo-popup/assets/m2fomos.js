@@ -400,10 +400,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
   const displayRecentTime = (cfg) => {
     const rawTime =
-      cfg.timeIso ||
-      cfg.orderDate ||
-      cfg.orderCreatedAt ||
       cfg.createdAt ||
+      cfg.orderCreatedAt ||
+      cfg.orderDate ||
+      cfg.timeIso ||
       cfg.timeAbsolute;
     if (String(cfg.timeMode || "").toLowerCase() === "days") {
       const daysOnly = relDaysOnly(rawTime);
@@ -1282,7 +1282,13 @@ document.addEventListener("DOMContentLoaded", async function () {
           const hide = flagsFromNamesJson(it.namesJson);
 
           for (const o of orders) {
-            const whenCreated = o.created_at || o.processed_at;
+            const whenCreated =
+              o.createdAt ||
+              o.created_at ||
+              o.orderCreatedAt ||
+              o.order_created_at ||
+              o.processedAt ||
+              o.processed_at;
             if (!whenCreated || !withinDays(whenCreated, daysWindow)) continue;
 
             const fn = safe(o?.customer?.first_name, "").trim();
@@ -1321,6 +1327,8 @@ document.addEventListener("DOMContentLoaded", async function () {
               timeText: relTime(whenCreated),
               timeAbsolute: formatAbs(whenCreated),
               timeIso: whenCreated,
+              createdAt: whenCreated,
+              orderCreatedAt: whenCreated,
               timeMode: "days",
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
