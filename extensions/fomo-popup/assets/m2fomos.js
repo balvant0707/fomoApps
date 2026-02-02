@@ -381,6 +381,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
     return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
   };
+  const relDaysOnly = (isoOrDate) => {
+    const d = toDateLoose(isoOrDate);
+    if (!d) return "";
+    const diffMs = Math.max(0, Date.now() - d.getTime());
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  };
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatAbs = (isoOrDate) => {
     const d = isoOrDate instanceof Date ? isoOrDate : toDate(isoOrDate);
@@ -392,12 +399,18 @@ document.addEventListener("DOMContentLoaded", async function () {
     )}:${pad2(d.getSeconds())}`;
   };
   const displayRecentTime = (cfg) => {
-    const computed = relDaysHoursMinutes(
+    const rawTime =
       cfg.timeIso ||
       cfg.orderDate ||
       cfg.orderCreatedAt ||
       cfg.createdAt ||
-      cfg.timeAbsolute
+      cfg.timeAbsolute;
+    if (String(cfg.timeMode || "").toLowerCase() === "days") {
+      const daysOnly = relDaysOnly(rawTime);
+      if (daysOnly) return daysOnly;
+    }
+    const computed = relDaysHoursMinutes(
+      rawTime
     );
     if (computed) return computed;
     return safe(cfg.timeText, "");
@@ -1269,8 +1282,8 @@ document.addEventListener("DOMContentLoaded", async function () {
           const hide = flagsFromNamesJson(it.namesJson);
 
           for (const o of orders) {
-            const when = o.processed_at || o.created_at;
-            if (!when || !withinDays(when, daysWindow)) continue;
+            const whenCreated = o.created_at || o.processed_at;
+            if (!whenCreated || !withinDays(whenCreated, daysWindow)) continue;
 
             const fn = safe(o?.customer?.first_name, "").trim();
             const ln = safe(o?.customer?.last_name, "").trim();
@@ -1305,9 +1318,10 @@ document.addEventListener("DOMContentLoaded", async function () {
               image: pImg,
               productUrl,
               uploadedImage: iconSrc,
-              timeText: relTime(when),
-              timeAbsolute: formatAbs(when),
-              timeIso: when,
+              timeText: relTime(whenCreated),
+              timeAbsolute: formatAbs(whenCreated),
+              timeIso: whenCreated,
+              timeMode: "days",
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
