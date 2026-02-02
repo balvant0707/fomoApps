@@ -13,7 +13,6 @@ import {
   Spinner,
   Collapsible,
 } from "@shopify/polaris";
-import { TitleBar } from "@shopify/app-bridge-react";
 import { getOrSetCache } from "../utils/serverCache.server";
 import NotificationTable from "../components/dashboard/NotificationTable";
 
@@ -232,8 +231,7 @@ export default function AppIndex() {
   const seoUl = { margin: "0 0 0 16px", padding: 0, lineHeight: 1.5 };
 
   return (
-    <Page title="Fomoify Sales Popup & Proof">
-      <TitleBar title="Fomoify Sales Popup & Proof" />
+    <Page>
       <BlockStack gap="400">
         <Card>
           <BlockStack gap="300">
