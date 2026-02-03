@@ -173,6 +173,7 @@ const Q_ORDERS_FULL = `
         node {
           id
           createdAt
+          processedAt
           customer { firstName lastName }
           shippingAddress { city province provinceCode country }
           billingAddress  { city province provinceCode country }
@@ -202,6 +203,7 @@ function mapEdgesToOrders(edges) {
     return {
       id: o.id,
       createdAt: o.createdAt,
+      processedAt: o.processedAt || null,
       firstName: o.customer?.firstName || "",
       lastName: o.customer?.lastName || "",
       city: addr?.city || "",
@@ -249,7 +251,8 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     const edges = block?.edges || [];
     const mapped = mapEdgesToOrders(edges);
     for (const o of mapped) {
-      const ms = Date.parse(o?.createdAt || "");
+      const orderTime = o?.processedAt || o?.createdAt || "";
+      const ms = Date.parse(orderTime);
       if (!Number.isFinite(ms)) continue;
       if (ms >= startMs && ms <= endMs) all.push(o);
       if (ms < startMs) {
@@ -261,6 +264,11 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     after = block?.pageInfo?.endCursor || null;
     if (stopPaging || !hasNext || !after) break;
   }
+  all.sort((a, b) => {
+    const am = Date.parse(a?.processedAt || a?.createdAt || "");
+    const bm = Date.parse(b?.processedAt || b?.createdAt || "");
+    return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
+  });
   return all;
 }
 
@@ -496,7 +504,9 @@ export async function loader({ request }) {
 
       if (strictOrders.length > 0) {
         // newest order in selected window
-        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
+        newestCreatedAt = trimIso(
+          String(strictOrders[0].processedAt || strictOrders[0].createdAt || "")
+        );
         const p0 = strictOrders[0]?.products?.[0] || {};
         preview = {
           ...strictOrders[0],
@@ -665,8 +675,8 @@ export async function action({ request }) {
   // 4) Build save payload
   const { locations, customerNames } = deriveBucketsFromOrders(orders);
   const newestOrderCreatedAtISO =
-    orders.length > 0 && orders[0]?.createdAt
-      ? trimIso(String(orders[0].createdAt))
+    orders.length > 0 && (orders[0]?.processedAt || orders[0]?.createdAt)
+      ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
       : null;
 
   const selectedProductsJson = JSON.stringify(allHandlesWindow);
@@ -1256,8 +1266,8 @@ export default function RecentOrdersPopupPage() {
   }));
 
   useEffect(() => {
-    const newest = orders?.[0]?.createdAt
-      ? trimIso(String(orders[0].createdAt))
+    const newest = orders?.[0]?.processedAt || orders?.[0]?.createdAt
+      ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
       : null;
     setForm((f) => ({ ...f, createOrderTime: newest, orderDate: newest }));
   }, [orders]);
