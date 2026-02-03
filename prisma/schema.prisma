@@ -29,12 +29,14 @@ model session {
 }
 
 model shop {
-  id          Int      @id @default(autoincrement())
-  shop        String   @unique(map: "Shop_shop_key")
-  accessToken String?
-  installed   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  shop          String   @unique(map: "Shop_shop_key")
+  accessToken   String?
+  installed     Boolean  @default(false)
+  uninstalledAt DateTime?
+  onboardedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model notificationconfig {

@@ -8,9 +8,8 @@ import {
 } from "@shopify/shopify-app-remix/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
+import { upsertInstalledShop } from "./utils/upsertShop.server";
 
-
-const norm = (s) => (s || "").toLowerCase();
 
 export const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -56,20 +55,9 @@ export const shopify = shopifyApp({
   hooks: {
     // OAuth complete → save token, mark installed, and (re)register webhooks
     afterAuth: async ({ session }) => {
-      const s = norm(session.shop);
-
-      await prisma.shop.upsert({
-        where: { shop: s },
-        update: {
-          accessToken: session.accessToken ?? null,
-          installed: true,
-          uninstalledAt: null,
-        },
-        create: {
-          shop: s,
-          accessToken: session.accessToken ?? null,
-          installed: true,
-        },
+      await upsertInstalledShop({
+        shop: session.shop,
+        accessToken: session.accessToken ?? null,
       });
 
       const reg = await shopify.registerWebhooks({ session });

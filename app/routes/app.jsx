@@ -5,8 +5,8 @@ import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import LcpObserver from "../components/LcpObserver";
+import { upsertInstalledShop } from "../utils/upsertShop.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -18,18 +18,9 @@ export const loader = async ({ request }) => {
   // Soft-guard: prisma failures should not 500 the whole app frame
   try {
     if (session?.shop) {
-      await prisma.shop.upsert({
-        where: { shop: norm(session.shop) },
-        update: {
-          accessToken: session.accessToken ?? null,
-          installed: true,
-          uninstalledAt: null,
-        },
-        create: {
-          shop: norm(session.shop),
-          accessToken: session.accessToken ?? null,
-          installed: true,
-        },
+      await upsertInstalledShop({
+        shop: norm(session.shop),
+        accessToken: session.accessToken ?? null,
       });
     }
   } catch (e) {

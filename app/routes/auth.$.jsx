@@ -4,6 +4,7 @@ import { authenticate, registerWebhooks } from "../shopify.server";
 import prisma from "../db.server";
 import { ensureShopRow } from "../utils/ensureShop.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
+import { upsertInstalledShop } from "../utils/upsertShop.server";
 
 const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
 
@@ -22,21 +23,9 @@ export const loader = async ({ request }) => {
   });
 
   // Primary upsert (install/update)
-  await prisma.shop.upsert({
-    where: { shop },
-    update: {
-      accessToken: session.accessToken ?? null,
-      installed: true,
-      uninstalledAt: null,
-      updatedAt: new Date(),
-    },
-    create: {
-      shop,
-      accessToken: session.accessToken ?? null,
-      installed: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
+  await upsertInstalledShop({
+    shop,
+    accessToken: session.accessToken ?? null,
   });
 
   // Safety net: even if above silently skips, ensure row exists from session table
