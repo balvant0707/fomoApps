@@ -107,8 +107,9 @@ const trimIso = (iso) => {
 };
 
 function zonedStartOfDay(date, timeZone) {
+  const tz = timeZone || "UTC";
   const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
+    timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -117,7 +118,27 @@ function zonedStartOfDay(date, timeZone) {
   const Y = Number(parts.find((p) => p.type === "year")?.value || "1970");
   const M = Number(parts.find((p) => p.type === "month")?.value || "01");
   const D = Number(parts.find((p) => p.type === "day")?.value || "01");
-  return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
+
+  // Convert local midnight in shop timezone to the correct UTC instant.
+  const localMidnightUTC = Date.UTC(Y, M - 1, D, 0, 0, 0, 0);
+  const offFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const tzName =
+    offFmt
+      .formatToParts(new Date(localMidnightUTC))
+      .find((p) => p.type === "timeZoneName")?.value || "GMT+0";
+  const m = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/i);
+  const sign = m?.[1] === "-" ? -1 : 1;
+  const hh = Number(m?.[2] || 0);
+  const mm = Number(m?.[3] || 0);
+  const offsetMs = sign * (hh * 60 + mm) * 60 * 1000;
+
+  return new Date(localMidnightUTC - offsetMs);
 }
 
 function daysRangeZoned(days, timeZone) {
@@ -211,6 +232,13 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
       js = await resp.json();
     } catch (e) {
       console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
+      break;
+    }
+    if (Array.isArray(js?.errors) && js.errors.length) {
+      console.error(
+        "[Fomoify] Orders query GraphQL errors (window):",
+        js.errors
+      );
       break;
     }
     const block = js?.data?.orders;
