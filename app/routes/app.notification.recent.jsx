@@ -108,37 +108,40 @@ const trimIso = (iso) => {
 
 function zonedStartOfDay(date, timeZone) {
   const tz = timeZone || "UTC";
-  const fmt = new Intl.DateTimeFormat("en-CA", {
+  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const parts = fmt.formatToParts(date);
+  const parts = ymdFmt.formatToParts(date);
   const Y = Number(parts.find((p) => p.type === "year")?.value || "1970");
   const M = Number(parts.find((p) => p.type === "month")?.value || "01");
   const D = Number(parts.find((p) => p.type === "day")?.value || "01");
+  const utcGuess = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
 
-  // Convert local midnight in shop timezone to the correct UTC instant.
-  const localMidnightUTC = Date.UTC(Y, M - 1, D, 0, 0, 0, 0);
-  const offFmt = new Intl.DateTimeFormat("en-US", {
+  // Robust timezone offset derivation (does not rely on shortOffset support).
+  const fullFmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
-    timeZoneName: "shortOffset",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    second: "2-digit",
     hour12: false,
   });
-  const tzName =
-    offFmt
-      .formatToParts(new Date(localMidnightUTC))
-      .find((p) => p.type === "timeZoneName")?.value || "GMT+0";
-  const m = tzName.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/i);
-  const sign = m?.[1] === "-" ? -1 : 1;
-  const hh = Number(m?.[2] || 0);
-  const mm = Number(m?.[3] || 0);
-  const offsetMs = sign * (hh * 60 + mm) * 60 * 1000;
+  const g = fullFmt.formatToParts(utcGuess);
+  const gY = Number(g.find((p) => p.type === "year")?.value || "1970");
+  const gM = Number(g.find((p) => p.type === "month")?.value || "01");
+  const gD = Number(g.find((p) => p.type === "day")?.value || "01");
+  const gH = Number(g.find((p) => p.type === "hour")?.value || "00");
+  const gMin = Number(g.find((p) => p.type === "minute")?.value || "00");
+  const gS = Number(g.find((p) => p.type === "second")?.value || "00");
 
-  return new Date(localMidnightUTC - offsetMs);
+  const asUTC = Date.UTC(gY, gM - 1, gD, gH, gMin, gS, 0);
+  const offsetMs = asUTC - utcGuess.getTime();
+  return new Date(utcGuess.getTime() - offsetMs);
 }
 
 function daysRangeZoned(days, timeZone) {
@@ -253,9 +256,10 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     for (const o of mapped) {
       const orderTime = o?.processedAt || o?.createdAt || "";
       const ms = Date.parse(orderTime);
+      const createdMs = Date.parse(o?.createdAt || "");
       if (!Number.isFinite(ms)) continue;
       if (ms >= startMs && ms <= endMs) all.push(o);
-      if (ms < startMs) {
+      if (Number.isFinite(createdMs) && createdMs < startMs) {
         // orders are sorted by createdAt desc, so next pages will be older
         stopPaging = true;
       }
