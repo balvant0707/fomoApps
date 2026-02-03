@@ -213,10 +213,13 @@ function mapEdgesToOrders(edges) {
 }
 
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
-  const search = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  const startMs = Date.parse(startISO);
+  const endMs = Date.parse(endISO);
+  const search = `status:any`;
   const FIRST = 100;
   let after = null;
   let all = [];
+  let stopPaging = false;
   for (let page = 0; page < 20; page++) {
     let resp;
     try {
@@ -244,10 +247,19 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     const block = js?.data?.orders;
     if (!block) break;
     const edges = block?.edges || [];
-    all = all.concat(mapEdgesToOrders(edges));
+    const mapped = mapEdgesToOrders(edges);
+    for (const o of mapped) {
+      const ms = Date.parse(o?.createdAt || "");
+      if (!Number.isFinite(ms)) continue;
+      if (ms >= startMs && ms <= endMs) all.push(o);
+      if (ms < startMs) {
+        // orders are sorted by createdAt desc, so next pages will be older
+        stopPaging = true;
+      }
+    }
     const hasNext = block?.pageInfo?.hasNextPage;
     after = block?.pageInfo?.endCursor || null;
-    if (!hasNext || !after) break;
+    if (stopPaging || !hasNext || !after) break;
   }
   return all;
 }
