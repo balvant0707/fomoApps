@@ -962,7 +962,7 @@ function formatOrderAge(createdAt) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function Bubble({ form, order, isMobile = false }) {
+function Bubble({ form, order, isMobile = false, hydrated = false }) {
   const animStyle = useMemo(
     () => getAnimationStyle(form.animation),
     [form.animation]
@@ -1077,7 +1077,9 @@ function Bubble({ form, order, isMobile = false }) {
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
                 <small>
-                  {formatOrderAge(order?.createdAt)}
+                  {hydrated
+                    ? formatOrderAge(order?.processedAt || order?.createdAt)
+                    : "Timing"}
                 </small>
               </span>
             </>
@@ -1088,7 +1090,7 @@ function Bubble({ form, order, isMobile = false }) {
   );
 }
 
-function DesktopPreview({ form, order }) {
+function DesktopPreview({ form, order, hydrated = false }) {
   const flex = posToFlex(form.position);
   return (
     <div
@@ -1108,11 +1110,11 @@ function DesktopPreview({ form, order }) {
         ...flex,
       }}
     >
-      <Bubble form={form} order={order} />
+      <Bubble form={form} order={order} hydrated={hydrated} />
     </div>
   );
 }
-function MobilePreview({ form, order }) {
+function MobilePreview({ form, order, hydrated = false }) {
   const posArr = Array.isArray(form.mobilePosition)
     ? form.mobilePosition
     : [form.mobilePosition || "bottom"];
@@ -1147,13 +1149,13 @@ function MobilePreview({ form, order }) {
           }}
         />
         <div style={{ padding: 8 }}>
-          <Bubble form={form} order={order} isMobile />
+          <Bubble form={form} order={order} isMobile hydrated={hydrated} />
         </div>
       </div>
     </div>
   );
 }
-function LivePreview({ form, order }) {
+function LivePreview({ form, order, hydrated = false }) {
   const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
@@ -1182,15 +1184,19 @@ function LivePreview({ form, order }) {
           </Button>
         </ButtonGroup>
       </InlineStack>
-      {mode === "desktop" && <DesktopPreview form={form} order={order} />}
-      {mode === "mobile" && <MobilePreview form={form} order={order} />}
+      {mode === "desktop" && (
+        <DesktopPreview form={form} order={order} hydrated={hydrated} />
+      )}
+      {mode === "mobile" && (
+        <MobilePreview form={form} order={order} hydrated={hydrated} />
+      )}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
           <Box width="58%">
-            <DesktopPreview form={form} order={order} />
+            <DesktopPreview form={form} order={order} hydrated={hydrated} />
           </Box>
           <Box width="40%">
-            <MobilePreview form={form} order={order} />
+            <MobilePreview form={form} order={order} hydrated={hydrated} />
           </Box>
         </InlineStack>
       )}
@@ -1215,6 +1221,11 @@ export default function RecentOrdersPopupPage() {
     loaderError,
   } = useLoaderData();
   const navigate = useNavigate();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     console.log(
@@ -1358,7 +1369,7 @@ export default function RecentOrdersPopupPage() {
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
-                <LivePreview form={form} order={preview} />
+                <LivePreview form={form} order={preview} hydrated={hydrated} />
               </Box>
             </Card>
           </Layout.Section>
@@ -1400,7 +1411,9 @@ export default function RecentOrdersPopupPage() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     Last newest order time (static):{" "}
                     {form.createOrderTime
-                      ? new Date(form.createOrderTime).toLocaleString()
+                      ? hydrated
+                        ? new Date(form.createOrderTime).toLocaleString()
+                        : trimIso(String(form.createOrderTime))
                       : "—"}
                   </Text>
 
