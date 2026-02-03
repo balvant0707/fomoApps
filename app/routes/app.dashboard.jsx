@@ -10,9 +10,6 @@ import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getOrSetCache } from "../utils/serverCache.server";
 
-const NotificationTable = React.lazy(
-  () => import("../components/dashboard/NotificationTable")
-);
 const StatsPanel = React.lazy(
   () => import("../components/dashboard/StatsPanel")
 );
@@ -80,14 +77,6 @@ export async function loader({ request }) {
   const shop = session?.shop;
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
-  const url = new URL(request.url);
-  const type = url.searchParams.get("type") || "all";
-  const status = url.searchParams.get("status") || "all";
-  const q = (url.searchParams.get("q") || "").trim();
-  const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
-  const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
-  const pageSize = [10, 25, 50].includes(pageSizeRaw) ? pageSizeRaw : 10;
-
   const cacheKey = `dashboard:rows:${shop}`;
 
   const rowsPromise = getOrSetCache(cacheKey, 10000, () => fetchRows(shop)).catch(
@@ -112,8 +101,6 @@ export async function loader({ request }) {
   );
 
   return defer({
-    critical: { page, pageSize, filters: { type, status, q } },
-    rows: rowsPromise,
     stats: statsPromise,
   });
 }
@@ -202,7 +189,7 @@ export async function action({ request }) {
 }
 
 export default function NotificationList() {
-  const { critical, rows, stats } = useLoaderData();
+  const { stats } = useLoaderData();
 
   return (
     <Frame>
@@ -212,22 +199,6 @@ export default function NotificationList() {
             {(data) => (
               <Suspense fallback={null}>
                 <StatsPanel stats={data} />
-              </Suspense>
-            )}
-          </Await>
-        </Suspense>
-
-        <Suspense fallback={null}>
-          <Await resolve={rows} errorElement={null}>
-            {(data) => (
-              <Suspense fallback={null}>
-                <NotificationTable
-                  rows={data.rows}
-                  total={data.total}
-                  page={critical.page}
-                  pageSize={critical.pageSize}
-                  filters={critical.filters}
-                />
               </Suspense>
             )}
           </Await>

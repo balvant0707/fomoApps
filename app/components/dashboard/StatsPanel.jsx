@@ -52,7 +52,7 @@ export default function StatsPanel({ stats }) {
         <Card padding="300">
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">
-              Analysis Chart ({analytics.days || 30} days)
+              Bar Chart ({analytics.days || 30} days)
             </Text>
             {chartRows.map((row) => (
               <BlockStack key={row.key} gap="100">
