@@ -1,6 +1,12 @@
 import { Badge, BlockStack, Card, InlineStack, Text } from "@shopify/polaris";
 
-const EMPTY_STATS = { total: 0, enabled: 0, disabled: 0, byType: {} };
+const EMPTY_STATS = {
+  total: 0,
+  enabled: 0,
+  disabled: 0,
+  byType: {},
+  analytics: { visitors: 0, clicks: 0, orders: 0, days: 30 },
+};
 
 function titleCase(value) {
   return String(value || "")
@@ -12,6 +18,7 @@ export default function StatsPanel({ stats }) {
   const safeStats = stats || EMPTY_STATS;
   const byType = safeStats.byType || {};
   const entries = Object.entries(byType);
+  const analytics = safeStats.analytics || EMPTY_STATS.analytics;
 
   return (
     <Card>
@@ -24,6 +31,15 @@ export default function StatsPanel({ stats }) {
             <Badge tone="success">Enabled: {safeStats.enabled || 0}</Badge>
             <Badge tone="critical">Disabled: {safeStats.disabled || 0}</Badge>
             <Badge tone="info">Total: {safeStats.total || 0}</Badge>
+            <Badge tone="attention">
+              Visitors ({analytics.days || 30}d): {analytics.visitors || 0}
+            </Badge>
+            <Badge>
+              Popup Clicks ({analytics.days || 30}d): {analytics.clicks || 0}
+            </Badge>
+            <Badge tone="success">
+              Orders ({analytics.days || 30}d): {analytics.orders || 0}
+            </Badge>
           </InlineStack>
         </InlineStack>
 

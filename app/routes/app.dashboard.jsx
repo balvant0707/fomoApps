@@ -18,7 +18,9 @@ const StatsPanel = React.lazy(
 );
 
 
-function buildStats(rows) {
+const EMPTY_ANALYTICS = { visitors: 0, clicks: 0, orders: 0, days: 30 };
+
+function buildStats(rows, analytics = EMPTY_ANALYTICS) {
   const total = rows.length;
   const enabled = rows.filter((r) => r.enabled).length;
   const disabled = total - enabled;
@@ -26,7 +28,7 @@ function buildStats(rows) {
     acc[row.key] = (acc[row.key] || 0) + 1;
     return acc;
   }, {});
-  return { total, enabled, disabled, byType };
+  return { total, enabled, disabled, byType, analytics };
 }
 
 async function fetchRows(shop) {
@@ -40,6 +42,37 @@ async function fetchRows(shop) {
   });
 
   return { rows, total: rows.length };
+}
+
+async function fetchAnalytics(shop, days = 30) {
+  const model = prisma.popupAnalyticsEvent || prisma.popupanalyticsevent;
+  if (!model) return { ...EMPTY_ANALYTICS, days };
+
+  const d = Number(days) || 30;
+  const since = new Date(Date.now() - d * 24 * 60 * 60 * 1000);
+  const where = { shop, createdAt: { gte: since } };
+
+  try {
+    const [clicks, orders, visitors] = await Promise.all([
+      model.count({ where: { ...where, eventType: "click" } }),
+      model.count({ where: { ...where, eventType: "order" } }),
+      model.findMany({
+        where: { ...where, eventType: "view", visitorId: { not: null } },
+        select: { visitorId: true },
+        distinct: ["visitorId"],
+      }),
+    ]);
+
+    return {
+      visitors: visitors.length,
+      clicks,
+      orders,
+      days: d,
+    };
+  } catch (e) {
+    console.error("[dashboard.analytics] query failed:", e);
+    return { ...EMPTY_ANALYTICS, days: d };
+  }
 }
 
 export async function loader({ request }) {
@@ -68,7 +101,15 @@ export async function loader({ request }) {
     }
   );
 
-  const statsPromise = rowsPromise.then((data) => buildStats(data.rows || []));
+  const analyticsPromise = getOrSetCache(
+    `dashboard:analytics:${shop}`,
+    15000,
+    () => fetchAnalytics(shop, 30)
+  ).catch(() => EMPTY_ANALYTICS);
+
+  const statsPromise = Promise.all([rowsPromise, analyticsPromise]).then(
+    ([data, analytics]) => buildStats(data.rows || [], analytics)
+  );
 
   return defer({
     critical: { page, pageSize, filters: { type, status, q } },

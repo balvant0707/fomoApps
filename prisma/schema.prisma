@@ -8,14 +8,46 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+model session {
+  id            String    @id @db.VarChar(255)
+  shop          String    @db.VarChar(255)
+  state         String    @db.VarChar(255)
+  isOnline      Boolean   @default(false)
+  scope         String?   @db.Text
+  expires       DateTime?
+  accessToken   String    @db.Text
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?   @db.VarChar(320)
+  accountOwner  Boolean   @default(false)
+  locale        String?   @db.VarChar(20)
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+}
+
+model shop {
+  id          Int      @id @default(autoincrement())
+  shop        String   @unique(map: "Shop_shop_key")
+  accessToken String?
+  installed   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 model notificationconfig {
   id                   Int      @id @default(autoincrement())
   createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  updatedAt            DateTime
   shop                 String
   key                  String
   enabled              Boolean  @default(false)
   showType             String?
+  messageTitle         String?
+  location             String?
+  name                 String?
   messageText          String?
   fontFamily           String?
   position             String?
@@ -30,47 +62,15 @@ model notificationconfig {
   durationSeconds      Int?
   alternateSeconds     Int?
   fontWeight           Int?
+  productHandle        String
   messageTitlesJson    String?  @db.LongText
+  orderDays            Int?     @default(7)
+  createOrderTime      String?  @db.VarChar(32)
   locationsJson        String?  @db.LongText
   namesJson            String?  @db.LongText
   selectedProductsJson String?  @db.LongText
   iconKey              String?
   iconSvg              String?  @db.LongText
-  orderDays            Int?      @default(7)   
-  createOrderTime      String?  
-  orderDate            String?  
 
   @@index([shop, key], map: "NotificationConfig_shop_key_idx")
-   @@map("NotificationConfig")
-}
-
-model session {
-  id            String   @id @db.VarChar(255)
-  shop          String   @db.VarChar(255)
-  state         String   @db.VarChar(255)
-  isOnline      Boolean  @default(false)
-  scope         String?  @db.Text
-  expires       DateTime?
-  accessToken   String   @db.Text
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?  @db.VarChar(320)
-  accountOwner  Boolean  @default(false)
-  locale        String?  @db.VarChar(20)
-  collaborator  Boolean? @default(false)
-  emailVerified Boolean? @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-model shop {
-  id            Int      @id @default(autoincrement())
-  shop          String   @unique(map: "Shop_shop_key")
-  accessToken   String?
-  installed     Boolean  @default(false)
-  uninstalledAt DateTime?
-  onboardedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
 }

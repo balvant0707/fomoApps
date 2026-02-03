@@ -2,10 +2,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (window.__fomoOneFile) return;
   window.__fomoOneFile = true;
 
-  const SHOP = (window.Shopify && Shopify.shop) || "";
+  const SHOP = (window.Shopify && window.Shopify.shop) || "";
   const ENDPOINT = `/apps/fomo/popup?shop=${SHOP}`;
   const SESSION_ENDPOINT = `/apps/fomo/session?shop=${SHOP}`;
   const ORDERS_ENDPOINT_BASE = `/apps/fomo/orders`; // expects ?shop=&days=&limit=
+  const TRACK_ENDPOINT = `/apps/fomo/track?shop=${SHOP}`;
   const ROOT = document.getElementById("fomo-embed-root");
   if (!ROOT) return;
 
@@ -91,6 +92,63 @@ document.addEventListener("DOMContentLoaded", async function () {
         setTimeout(r, 350);
       }
     });
+
+  const VISITOR_ID_KEY = cacheKey("visitor-id");
+  function ensureVisitorId() {
+    const mk = () =>
+      `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    try {
+      const existing = window.localStorage.getItem(VISITOR_ID_KEY);
+      if (existing) return existing;
+      const fresh = mk();
+      window.localStorage.setItem(VISITOR_ID_KEY, fresh);
+      return fresh;
+    } catch {
+      return mk();
+    }
+  }
+
+  function productHandleFromUrl(raw) {
+    const value = safe(raw, "");
+    if (!value) return "";
+    try {
+      const u = new URL(value, window.location.origin);
+      const m = u.pathname.match(/\/products\/([^/?#]+)/i);
+      return m?.[1] ? decodeURIComponent(m[1]) : "";
+    } catch {
+      const m = String(value).match(/\/products\/([^/?#]+)/i);
+      return m?.[1] ? decodeURIComponent(m[1]) : "";
+    }
+  }
+
+  function sendTrack(payload) {
+    if (!SHOP || !payload || !payload.eventType || !payload.popupType) return;
+    if (toBool(window.Shopify?.designMode)) return;
+
+    const body = JSON.stringify({
+      ...payload,
+      shop: SHOP,
+      visitorId: ensureVisitorId(),
+      pagePath: safe(window.location.pathname, "/"),
+      sourceUrl: safe(window.location.href, ""),
+      productHandle: payload.productHandle || productHandleFromUrl(payload.productUrl),
+      ts: new Date().toISOString(),
+    });
+
+    try {
+      if (navigator.sendBeacon) {
+        const blob = new Blob([body], { type: "application/json" });
+        if (navigator.sendBeacon(TRACK_ENDPOINT, blob)) return;
+      }
+    } catch { }
+
+    fetch(TRACK_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => { });
+  }
 
   async function fetchJson(url, key, ttlMs) {
     const k = key ? cacheKey(key) : null;
@@ -322,84 +380,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   // ======= date + time helpers =======
   const toDate = (v) => {
     try {
-      const d = v instanceof Date ? v : new Date(v);
-      return Number.isNaN(d.getTime()) ? null : d;
+      return new Date(v);
     } catch {
       return null;
     }
   };
-  const pickRecentCreatedAt = (record, i = 0) => {
-    const extractRawDate = (v) => {
-      if (v === undefined || v === null) return "";
-      if (typeof v === "object") {
-        for (const k of [
-          "createdAt",
-          "created_at",
-          "createOrderTime",
-          "orderDate",
-          "orderCreatedAt",
-          "order_created_at",
-          "processedAt",
-          "processed_at",
-          "timeIso",
-          "timeAbsolute",
-          "date",
-          "value",
-        ]) {
-          if (v?.[k]) return String(v[k]).trim();
-        }
-        return "";
-      }
-      return String(v).trim();
-    };
-
-    const fromJson = (field) => {
-      const arr = parseList(record?.[field]);
-      return extractRawDate(pickRaw(arr, i, ""));
-    };
-
-    const candidates = [
-      fromJson("createdAtJson"),
-      fromJson("createOrderTimeJson"),
-      fromJson("orderDateJson"),
-      fromJson("orderCreatedAtJson"),
-      fromJson("processedAtJson"),
-      extractRawDate(record?.createdAt),
-      extractRawDate(record?.created_at),
-      extractRawDate(record?.createOrderTime),
-      extractRawDate(record?.orderDate),
-      extractRawDate(record?.orderCreatedAt),
-      extractRawDate(record?.order_created_at),
-      extractRawDate(record?.processedAt),
-      extractRawDate(record?.processed_at),
-      extractRawDate(record?.timeIso),
-      extractRawDate(record?.timeAbsolute),
-    ];
-
-    for (const raw of candidates) {
-      if (!raw) continue;
-      const d = toDateLoose(raw);
-      if (d) return d.toISOString();
-    }
-    return "";
-  };
-  const parseAbsDMY = (s) => {
-    if (typeof s !== "string") return null;
-    const m = s
-      .trim()
-      .match(/^(\d{2})\/(\d{2})\/(\d{4}),\s*(\d{2}):(\d{2})(?::(\d{2}))?$/);
-    if (!m) return null;
-    const d = new Date(
-      Number(m[3]),
-      Number(m[2]) - 1,
-      Number(m[1]),
-      Number(m[4]),
-      Number(m[5]),
-      Number(m[6] || 0)
-    );
-    return Number.isNaN(d.getTime()) ? null : d;
-  };
-  const toDateLoose = (v) => toDate(v) || parseAbsDMY(v);
   const withinDays = (iso, days) => {
     const d = toDate(iso);
     if (!d) return false;
@@ -423,53 +408,35 @@ document.addEventListener("DOMContentLoaded", async function () {
     const mo = Math.floor(dd / 30);
     return mo < 12 ? `${mo}mo ago` : `${Math.floor(dd / 365)}y ago`;
   };
-  const relDaysHoursMinutes = (isoOrDate) => {
-    const d = toDateLoose(isoOrDate);
-    if (!d) return "";
-    const diffMs = Math.max(0, Date.now() - d.getTime());
-    const diffMinutes = Math.floor(diffMs / (60 * 1000));
-    if (diffMinutes < 60)
-      return `${diffMinutes} minute${diffMinutes === 1 ? "" : "s"} ago`;
-    const diffHours = Math.floor(diffMs / (60 * 60 * 1000));
-    if (diffHours < 24)
-      return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-  };
-  const relDaysOnly = (isoOrDate) => {
-    const d = toDateLoose(isoOrDate);
-    if (!d) return "";
-    const diffMs = Math.max(0, Date.now() - d.getTime());
-    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-    return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  const relDaysAgo = (iso) => {
+    const d = toDate(iso);
+    if (!d || Number.isNaN(d.getTime())) return "";
+    const diff = Date.now() - d.getTime();
+    if (diff <= 0) return "Just Now";
+
+    const mins = Math.floor(diff / (60 * 1000));
+    if (mins < 60) {
+      const m = Math.max(1, mins);
+      return `${m} Minute${m === 1 ? "" : "s"} Ago`;
+    }
+
+    const hours = Math.floor(diff / (60 * 60 * 1000));
+    if (hours < 24) {
+      return `${hours} Hour${hours === 1 ? "" : "s"} Ago`;
+    }
+
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+    return `${days} Day${days === 1 ? "" : "s"} Ago`;
   };
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatAbs = (isoOrDate) => {
-    const d = isoOrDate instanceof Date ? isoOrDate : toDateLoose(isoOrDate);
+    const d = isoOrDate instanceof Date ? isoOrDate : toDate(isoOrDate);
     if (!d) return "";
     return `${pad2(d.getDate())}/${pad2(
       d.getMonth() + 1
     )}/${d.getFullYear()}, ${pad2(d.getHours())}:${pad2(
       d.getMinutes()
     )}:${pad2(d.getSeconds())}`;
-  };
-  const displayRecentTime = (cfg) => {
-    const rawTime =
-      cfg.createOrderTime ||
-      cfg.createdAt ||
-      cfg.orderCreatedAt ||
-      cfg.orderDate ||
-      cfg.timeIso ||
-      cfg.timeAbsolute;
-    if (String(cfg.timeMode || "").toLowerCase() === "days") {
-      const daysOnly = relDaysOnly(rawTime);
-      if (daysOnly) return daysOnly;
-    }
-    const computed = relDaysHoursMinutes(
-      rawTime
-    );
-    if (computed) return computed;
-    return safe(cfg.timeText, "");
   };
 
   // keyframes (once) — includes direction-aware slides
@@ -675,6 +642,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     wrap.addEventListener("click", (e) => {
       if (e.target === close) return;
+      sendTrack({
+        eventType: "click",
+        popupType: "flash",
+        productUrl: cfg.productUrl,
+      });
       if (cfg.productUrl) window.location.href = cfg.productUrl;
     });
 
@@ -694,162 +666,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     document.body.appendChild(wrap);
+    sendTrack({
+      eventType: "view",
+      popupType: "flash",
+      productUrl: cfg.productUrl,
+    });
     return wrap;
   }
 
-  // /* ========== RECENT renderer (granular hide) ========== */
-  // function renderRecent(cfg, mode, onDone) {
-  //   const mt = mobileTokens(cfg.mobileSize);
-  //   const visibleSec =
-  //     Number(cfg.durationSeconds ?? cfg.visibleSeconds ?? 6) || 6;
-  //   const visibleMs = Math.max(1, visibleSec) * 1000;
-  //   const theAnim = getAnimPair(cfg, mode);
-  //   const { inAnim, outAnim } = theAnim;
-  //   const DUR = getAnimDur(cfg);
-  //   const ACCENT = cfg.accentColor || cfg.titleColor || "#6C63FF";
-
-  //   const wrap = document.createElement("div");
-  //   wrap.style.cssText = `
-  //     position:fixed; z-index:9999; box-sizing:border-box;
-  //     width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
-  //     border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
-  //     background:${cfg.bgColor || "#ffffff"}; color:${cfg.fontColor || "#111"};
-  //     box-shadow:0 10px 30px rgba(0,0,0,.12);
-  //     font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
-  //     animation:${inAnim} ${DUR.in}ms ease-out both;
-  //   `;
-  //   (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
-
-  //   const card = document.createElement("div");
-  //   card.style.cssText = `
-  //     display:flex; gap:12px; align-items:flex-start; position:relative;
-  //     padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12
-  //     }px 12px;
-  //     font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
-  //     }px; line-height:1.35;
-  //   `;
-
-  //   const img = document.createElement("img");
-  //   img.src = cfg.uploadedImage || cfg.image || "";
-  //   img.alt = safe(cfg.productTitle, "Product");
-  //   const iSize = mode === "mobile" ? mt.img : 50,
-  //     iRad = Math.round(iSize * 0.18);
-  //   img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:cover;border-radius:${iRad}px;background:#eee;flex:0 0 ${iSize}px;pointer-events:none;`;
-  //   img.onerror = () => {
-  //     img.style.display = "none";
-  //   };
-  //   if (cfg.hideProductImage) img.style.display = "none";
-
-  //   const body = document.createElement("div");
-  //   body.style.cssText = `flex:1;min-width:0;pointer-events:none;`;
-
-  //   // Name + granular location
-  //   const line1 = document.createElement("div");
-  //   line1.style.cssText = `margin:0 0 2px 0;`;
-  //   const fw = safe(cfg.fontWeight, "700");
-  //   const nameText = cfg.hideName ? "" : safe(cfg.name, "Someone");
-
-  //   // derived location
-  //   const derived = deriveLocationParts(cfg);
-  //   let cityText = derived.city;
-  //   let stateText = derived.state;
-  //   let countryText = derived.country;
-
-  //   const locParts = [];
-  //   if (!cfg.hideCity && cityText) locParts.push(cityText);
-  //   if (!cfg.hideState && stateText) locParts.push(stateText);
-  //   if (!cfg.hideCountry && countryText) locParts.push(countryText);
-
-  //   let locFinal = locParts.join(", ");
-  //   const anyLocHide = cfg.hideCity || cfg.hideState || cfg.hideCountry;
-
-  //   if (!locFinal && !anyLocHide && cfg.location) {
-  //     const fromLocation = formatLocationEntry(cfg.location);
-  //     if (fromLocation && fromLocation !== "[object Object]") {
-  //       locFinal = fromLocation;
-  //     }
-  //   }
-
-  //   if (nameText || locFinal) {
-  //     const nameHtml = nameText
-  //       ? `<span style="font-weight:${fw};color:${ACCENT};">${nameText}</span>`
-  //       : "";
-  //     const locHtml = locFinal
-  //       ? `<span style="font-weight:${fw};color:${ACCENT};">${locFinal}</span>`
-  //       : "";
-  //     const spacer = nameText && locFinal ? " from " : "";
-  //     line1.innerHTML = `${nameHtml}${spacer}${locHtml}`;
-  //     body.appendChild(line1);
-  //   }
-
-  //   // Product line
-  //   const line2 = document.createElement("div");
-  //   const msgTxt = safe(cfg.message, "recently bought");
-  //   const boughtTxt = cfg.hideProductTitle
-  //     ? "placed an order"
-  //     : `${msgTxt} ${safe(cfg.productTitle, "")
-  //       ? `&ldquo;${safe(cfg.productTitle, "")}&rdquo;`
-  //       : "this product"
-  //     }`;
-  //   line2.innerHTML = boughtTxt;
-  //   line2.style.cssText = `opacity:.95;margin:0 0 6px 0;`;
-  //   body.appendChild(line2);
-
-  //   // Time
-  //   if (!cfg.hideTime) {
-  //     const line3 = document.createElement("div");
-  //     line3.textContent = safe(cfg.timeAbsolute, "") || safe(cfg.timeText, "");
-  //     line3.style.cssText = `font-size:${Math.max(
-  //       10,
-  //       (Number(cfg.baseFontSize) || 14) - 1
-  //     )}px;opacity:.7;`;
-  //     body.appendChild(line3);
-  //   }
-
-  //   const close = document.createElement("button");
-  //   close.type = "button";
-  //   close.setAttribute("aria-label", "Close");
-  //   close.innerHTML = "&times;";
-  //   close.style.cssText = `position:absolute;top:6px;right:10px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
-  //   close.onmouseenter = () => (close.style.opacity = "1");
-  //   close.onmouseleave = () => (close.style.opacity = ".8");
-
-  //   card.appendChild(img);
-  //   card.appendChild(body);
-  //   card.appendChild(close);
-  //   wrap.appendChild(card);
-
-  //   const barWrap = document.createElement("div");
-  //   barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
-  //   const bar = document.createElement("div");
-  //   bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || ACCENT
-  //     };animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
-  //   barWrap.appendChild(bar);
-  //   wrap.appendChild(barWrap);
-
-  //   wrap.addEventListener("click", (e) => {
-  //     if (e.target === close) return;
-  //     if (cfg.productUrl) window.location.href = cfg.productUrl;
-  //   });
-
-  //   let tid = setTimeout(autoClose, visibleMs);
-  //   function autoClose() {
-  //     wrap.style.animation = `${outAnim} ${DUR.out}ms ease-in forwards`;
-  //     setTimeout(() => {
-  //       wrap.remove();
-  //       onDone && onDone("auto");
-  //     }, DUR.out + 20);
-  //   }
-  //   close.onclick = (e) => {
-  //     e.stopPropagation();
-  //     clearTimeout(tid);
-  //     autoClose();
-  //     onDone && onDone("closed");
-  //   };
-
-  //   document.body.appendChild(wrap);
-  //   return wrap;
-  // }
 
   /* ========== RECENT renderer (granular hide) ========== */
   function renderRecent(cfg, mode, onDone) {
@@ -965,7 +789,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Time
     if (!cfg.hideTime) {
       const line3 = document.createElement("div");
-      line3.textContent = displayRecentTime(cfg);
+      const orderDaysText = relDaysAgo(cfg.createOrderTime);
+      line3.textContent =
+        orderDaysText ||
+        safe(cfg.createOrderTime, "") ||
+        safe(cfg.timeAbsolute, "") ||
+        safe(cfg.timeText, "");
       line3.style.cssText = `font-size:${Math.max(
         10,
         (Number(cfg.baseFontSize) || 14) - 1
@@ -996,6 +825,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     wrap.addEventListener("click", (e) => {
       if (e.target === close) return;
+      sendTrack({
+        eventType: "click",
+        popupType: "recent",
+        productUrl: cfg.productUrl,
+      });
       if (cfg.productUrl) window.location.href = cfg.productUrl;
     });
 
@@ -1015,6 +849,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     document.body.appendChild(wrap);
+    sendTrack({
+      eventType: "view",
+      popupType: "recent",
+      productUrl: cfg.productUrl,
+    });
     return wrap;
   }
 
@@ -1338,14 +1177,8 @@ document.addEventListener("DOMContentLoaded", async function () {
           const hide = flagsFromNamesJson(it.namesJson);
 
           for (const o of orders) {
-            const whenCreated =
-              o.createdAt ||
-              o.created_at ||
-              o.orderCreatedAt ||
-              o.order_created_at ||
-              o.processedAt ||
-              o.processed_at;
-            if (!whenCreated || !withinDays(whenCreated, daysWindow)) continue;
+            const when = o.processed_at || o.created_at;
+            if (!when || !withinDays(when, daysWindow)) continue;
 
             const fn = safe(o?.customer?.first_name, "").trim();
             const ln = safe(o?.customer?.last_name, "").trim();
@@ -1380,12 +1213,9 @@ document.addEventListener("DOMContentLoaded", async function () {
               image: pImg,
               productUrl,
               uploadedImage: iconSrc,
-              timeText: relTime(whenCreated),
-              timeAbsolute: formatAbs(whenCreated),
-              timeIso: whenCreated,
-              createdAt: whenCreated,
-              orderCreatedAt: whenCreated,
-              timeMode: "days",
+              createOrderTime: safe(o?.createOrderTime || it?.createOrderTime, ""),
+              timeText: relTime(when),
+              timeAbsolute: formatAbs(when),
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1465,8 +1295,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           );
           if (p) {
             const iconSrc0 = resolveIconForIndex(it, 0);
-            const createdAt0 = pickRecentCreatedAt(it, 0);
-            const effectiveTime0 = createdAt0 || new Date().toISOString();
+            const nowAbs = formatAbs(new Date());
             const locParts0 = parseLocationParts(
               pickRaw(locsArrRaw, 0, "")
             );
@@ -1481,16 +1310,13 @@ document.addEventListener("DOMContentLoaded", async function () {
               image: (p?.images && p.images[0]) || "",
               productUrl: p?.url || `/products/${ch}`,
               uploadedImage: iconSrc0,
+              createOrderTime: safe(it.createOrderTime, ""),
               timeText: pickSmart(
                 timesArr,
                 0,
                 safe(it.relativeTimeText, "")
               ),
-              timeAbsolute: formatAbs(effectiveTime0),
-              timeIso: effectiveTime0,
-              createdAt: createdAt0,
-              orderCreatedAt: createdAt0,
-              timeMode: "days",
+              timeAbsolute: nowAbs,
               mobilePosition: normMB(
                 pickSmart(mbPosArr, 0, defaultMB),
                 defaultMB
@@ -1534,8 +1360,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             );
           }
           const iconSrc = resolveIconForIndex(it, i);
-          const createdAtI = pickRecentCreatedAt(it, i);
-          const effectiveTimeI = createdAtI || new Date().toISOString();
+          const nowAbs = formatAbs(new Date());
           const locPartsI = parseLocationParts(
             pickRaw(locsArrRaw, i, "")
           );
@@ -1556,16 +1381,13 @@ document.addEventListener("DOMContentLoaded", async function () {
                   ? `/products/${ch}`
                   : "#"),
             uploadedImage: iconSrc,
+            createOrderTime: safe(it.createOrderTime, ""),
             timeText: pickSmart(
               timesArr,
               i,
               safe(it.relativeTimeText, "")
             ),
-            timeAbsolute: formatAbs(effectiveTimeI),
-            timeIso: effectiveTimeI,
-            createdAt: createdAtI,
-            orderCreatedAt: createdAtI,
-            timeMode: "days",
+            timeAbsolute: nowAbs,
             mobilePosition: normMB(
               pickSmart(mbPosArr, i, defaultMB),
               defaultMB
