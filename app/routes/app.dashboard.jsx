@@ -15,7 +15,13 @@ const StatsPanel = React.lazy(
 );
 
 
-const EMPTY_ANALYTICS = { visitors: 0, clicks: 0, orders: 0, days: 30 };
+const EMPTY_ANALYTICS = {
+  visitors: 0,
+  clicks: 0,
+  orders: 0,
+  days: 30,
+  series: { labels: [], visitors: [], clicks: [], orders: [] },
+};
 
 function buildStats(rows, analytics = EMPTY_ANALYTICS) {
   const total = rows.length;
@@ -50,7 +56,7 @@ async function fetchAnalytics(shop, days = 30) {
   const where = { shop, createdAt: { gte: since } };
 
   try {
-    const [clicks, orders, visitors] = await Promise.all([
+    const [clicks, orders, visitors, events] = await Promise.all([
       model.count({ where: { ...where, eventType: "click" } }),
       model.count({ where: { ...where, eventType: "order" } }),
       model.findMany({
@@ -58,13 +64,47 @@ async function fetchAnalytics(shop, days = 30) {
         select: { visitorId: true },
         distinct: ["visitorId"],
       }),
+      model.findMany({
+        where,
+        select: { eventType: true, visitorId: true, createdAt: true },
+      }),
     ]);
+
+    const dayList = [];
+    for (let i = d - 1; i >= 0; i--) {
+      const dt = new Date();
+      dt.setHours(0, 0, 0, 0);
+      dt.setDate(dt.getDate() - i);
+      dayList.push(dt.toISOString().slice(0, 10));
+    }
+
+    const clicksByDay = new Map(dayList.map((k) => [k, 0]));
+    const ordersByDay = new Map(dayList.map((k) => [k, 0]));
+    const visitorsByDaySet = new Map(dayList.map((k) => [k, new Set()]));
+
+    for (const ev of events || []) {
+      const day = new Date(ev.createdAt).toISOString().slice(0, 10);
+      if (!clicksByDay.has(day)) continue;
+      if (ev.eventType === "click") {
+        clicksByDay.set(day, (clicksByDay.get(day) || 0) + 1);
+      } else if (ev.eventType === "order") {
+        ordersByDay.set(day, (ordersByDay.get(day) || 0) + 1);
+      } else if (ev.eventType === "view" && ev.visitorId) {
+        visitorsByDaySet.get(day)?.add(ev.visitorId);
+      }
+    }
 
     return {
       visitors: visitors.length,
       clicks,
       orders,
       days: d,
+      series: {
+        labels: dayList,
+        visitors: dayList.map((k) => visitorsByDaySet.get(k)?.size || 0),
+        clicks: dayList.map((k) => clicksByDay.get(k) || 0),
+        orders: dayList.map((k) => ordersByDay.get(k) || 0),
+      },
     };
   } catch (e) {
     console.error("[dashboard.analytics] query failed:", e);

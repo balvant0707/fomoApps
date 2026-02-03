@@ -5,7 +5,13 @@ const EMPTY_STATS = {
   enabled: 0,
   disabled: 0,
   byType: {},
-  analytics: { visitors: 0, clicks: 0, orders: 0, days: 30 },
+  analytics: {
+    visitors: 0,
+    clicks: 0,
+    orders: 0,
+    days: 30,
+    series: { labels: [], visitors: [], clicks: [], orders: [] },
+  },
 };
 
 function titleCase(value) {
@@ -19,12 +25,23 @@ export default function StatsPanel({ stats }) {
   const byType = safeStats.byType || {};
   const entries = Object.entries(byType);
   const analytics = safeStats.analytics || EMPTY_STATS.analytics;
-  const chartRows = [
-    { key: "Visitors", value: Number(analytics.visitors || 0), tone: "#1E88E5" },
-    { key: "Popup Clicks", value: Number(analytics.clicks || 0), tone: "#FB8C00" },
-    { key: "Orders", value: Number(analytics.orders || 0), tone: "#43A047" },
-  ];
-  const maxVal = Math.max(1, ...chartRows.map((r) => r.value));
+  const series = analytics.series || EMPTY_STATS.analytics.series || {};
+  const labels = Array.isArray(series.labels) ? series.labels : [];
+  const visitorsSeries = Array.isArray(series.visitors) ? series.visitors : [];
+  const clicksSeries = Array.isArray(series.clicks) ? series.clicks : [];
+  const ordersSeries = Array.isArray(series.orders) ? series.orders : [];
+  const chartMax = Math.max(
+    1,
+    ...visitorsSeries,
+    ...clicksSeries,
+    ...ordersSeries
+  );
+  const yTicks = 5;
+  const xTickEvery = Math.max(1, Math.floor(labels.length / 4));
+  const formatDateLabel = (value) => {
+    const d = new Date(`${value}T00:00:00`);
+    return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
+  };
 
   return (
     <Card>
@@ -54,37 +71,99 @@ export default function StatsPanel({ stats }) {
             <Text variant="headingSm" as="h3">
               Bar Chart ({analytics.days || 30} days)
             </Text>
-            {chartRows.map((row) => (
-              <BlockStack key={row.key} gap="100">
-                <InlineStack align="space-between">
-                  <Text as="span" variant="bodySm">
-                    {row.key}
-                  </Text>
-                  <Text as="span" variant="bodySm" fontWeight="semibold">
-                    {row.value}
-                  </Text>
+            <div
+              style={{
+                height: 260,
+                border: "1px solid #E5E7EB",
+                borderRadius: 10,
+                padding: "12px 10px 10px 10px",
+                background: "#FFFFFF",
+              }}
+            >
+              <div
+                style={{
+                  height: 200,
+                  display: "flex",
+                  alignItems: "flex-end",
+                  gap: 3,
+                  borderLeft: "1px solid #D1D5DB",
+                  borderBottom: "1px solid #D1D5DB",
+                  paddingLeft: 6,
+                  paddingRight: 4,
+                  position: "relative",
+                }}
+              >
+                {[...Array(yTicks)].map((_, i) => {
+                  const y = (i / (yTicks - 1)) * 100;
+                  return (
+                    <div
+                      key={`grid-${i}`}
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        bottom: `${y}%`,
+                        borderTop: "1px solid #EEF2F7",
+                      }}
+                    />
+                  );
+                })}
+                {labels.map((day, idx) => {
+                  const v = Number(visitorsSeries[idx] || 0);
+                  const c = Number(clicksSeries[idx] || 0);
+                  const o = Number(ordersSeries[idx] || 0);
+                  const hV = `${(v / chartMax) * 100}%`;
+                  const hC = `${(c / chartMax) * 100}%`;
+                  const hO = `${(o / chartMax) * 100}%`;
+                  return (
+                    <div
+                      key={day}
+                      style={{
+                        flex: 1,
+                        minWidth: 8,
+                        maxWidth: 14,
+                        height: "100%",
+                        display: "flex",
+                        alignItems: "flex-end",
+                        justifyContent: "center",
+                        gap: 1,
+                        zIndex: 1,
+                      }}
+                      title={`${formatDateLabel(day)} | Visitors: ${v}, Clicks: ${c}, Orders: ${o}`}
+                    >
+                      <div style={{ width: 3, height: hV, background: "#00A5A5", borderRadius: "2px 2px 0 0" }} />
+                      <div style={{ width: 3, height: hC, background: "#1E3A8A", borderRadius: "2px 2px 0 0" }} />
+                      <div style={{ width: 3, height: hO, background: "#43A047", borderRadius: "2px 2px 0 0" }} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                {labels.map((day, idx) => (
+                  <div key={`x-${day}`} style={{ flex: 1, minWidth: 8, maxWidth: 14, textAlign: "center" }}>
+                    {idx % xTickEvery === 0 || idx === labels.length - 1 ? (
+                      <Text as="span" variant="bodySm" tone="subdued">
+                        {formatDateLabel(day)}
+                      </Text>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <InlineStack gap="300" align="center">
+                <InlineStack gap="100" blockAlign="center">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#00A5A5", display: "inline-block" }} />
+                  <Text as="span" variant="bodySm">Visitors</Text>
                 </InlineStack>
-                <div
-                  style={{
-                    width: "100%",
-                    height: 10,
-                    borderRadius: 999,
-                    background: "#EEF1F4",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: `${Math.max(6, (row.value / maxVal) * 100)}%`,
-                      height: "100%",
-                      borderRadius: 999,
-                      background: row.tone,
-                      transition: "width 280ms ease",
-                    }}
-                  />
-                </div>
-              </BlockStack>
-            ))}
+                <InlineStack gap="100" blockAlign="center">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#1E3A8A", display: "inline-block" }} />
+                  <Text as="span" variant="bodySm">Popup Clicks</Text>
+                </InlineStack>
+                <InlineStack gap="100" blockAlign="center">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#43A047", display: "inline-block" }} />
+                  <Text as="span" variant="bodySm">Orders</Text>
+                </InlineStack>
+              </InlineStack>
+            </div>
           </BlockStack>
         </Card>
 
