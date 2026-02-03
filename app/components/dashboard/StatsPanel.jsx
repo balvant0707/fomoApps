@@ -19,6 +19,12 @@ export default function StatsPanel({ stats }) {
   const byType = safeStats.byType || {};
   const entries = Object.entries(byType);
   const analytics = safeStats.analytics || EMPTY_STATS.analytics;
+  const chartRows = [
+    { key: "Visitors", value: Number(analytics.visitors || 0), tone: "#1E88E5" },
+    { key: "Popup Clicks", value: Number(analytics.clicks || 0), tone: "#FB8C00" },
+    { key: "Orders", value: Number(analytics.orders || 0), tone: "#43A047" },
+  ];
+  const maxVal = Math.max(1, ...chartRows.map((r) => r.value));
 
   return (
     <Card>
@@ -42,6 +48,45 @@ export default function StatsPanel({ stats }) {
             </Badge>
           </InlineStack>
         </InlineStack>
+
+        <Card padding="300">
+          <BlockStack gap="200">
+            <Text variant="headingSm" as="h3">
+              Analysis Chart ({analytics.days || 30} days)
+            </Text>
+            {chartRows.map((row) => (
+              <BlockStack key={row.key} gap="100">
+                <InlineStack align="space-between">
+                  <Text as="span" variant="bodySm">
+                    {row.key}
+                  </Text>
+                  <Text as="span" variant="bodySm" fontWeight="semibold">
+                    {row.value}
+                  </Text>
+                </InlineStack>
+                <div
+                  style={{
+                    width: "100%",
+                    height: 10,
+                    borderRadius: 999,
+                    background: "#EEF1F4",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${Math.max(6, (row.value / maxVal) * 100)}%`,
+                      height: "100%",
+                      borderRadius: 999,
+                      background: row.tone,
+                      transition: "width 280ms ease",
+                    }}
+                  />
+                </div>
+              </BlockStack>
+            ))}
+          </BlockStack>
+        </Card>
 
         {entries.length > 0 ? (
           <InlineStack gap="300" wrap>

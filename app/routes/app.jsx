@@ -59,7 +59,7 @@ export default function App() {
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
         <Link to="/app" rel="home" prefetch="intent">Home</Link>
-        {/* <Link to="/app/dashboard" prefetch="intent">Dashboard</Link> */}
+        <Link to="/app/dashboard" prefetch="intent">Dashboard</Link>
         <Link to="/app/notification" prefetch="intent">Notification</Link>
         <Link to="/app/documents" prefetch="intent">Documents</Link>
         <Link to="/app/help" prefetch="intent">Help</Link>
