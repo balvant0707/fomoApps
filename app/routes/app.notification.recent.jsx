@@ -259,6 +259,12 @@ function mapEdgesToOrders(edges) {
 }
 
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
+  console.log("[Fomoify][OrdersAPI] fetchOrdersWithinWindow:start", {
+    startISO,
+    endISO,
+    hasAdminGraphql: !!admin?.graphql,
+  });
+
   const buildWindowSearchQueries = () => {
     const startDate = String(startISO || "").slice(0, 10);
     const endDate = String(endISO || "").slice(0, 10);
@@ -281,8 +287,21 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     for (let page = 0; page < 20; page++) {
       let resp;
       try {
+        console.log("[Fomoify][OrdersAPI] GraphQL call", {
+          mode: "FULL",
+          page: page + 1,
+          search,
+          after,
+          first: FIRST,
+        });
         resp = await admin.graphql(Q_ORDERS_FULL, {
           variables: { first: FIRST, query: search, after },
+        });
+        console.log("[Fomoify][OrdersAPI] GraphQL response", {
+          mode: "FULL",
+          page: page + 1,
+          status: resp?.status,
+          ok: resp?.ok,
         });
       } catch (e) {
         console.error("[Fomoify] admin.graphql failed (window):", e);
@@ -301,8 +320,21 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
         admin?.graphql
       ) {
         try {
+          console.log("[Fomoify][OrdersAPI] GraphQL call", {
+            mode: "SAFE",
+            page: page + 1,
+            search,
+            after,
+            first: FIRST,
+          });
           const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
             variables: { first: FIRST, query: search, after },
+          });
+          console.log("[Fomoify][OrdersAPI] GraphQL response", {
+            mode: "SAFE",
+            page: page + 1,
+            status: safeResp?.status,
+            ok: safeResp?.ok,
           });
           const safeJs = await safeResp.json();
           const safeBlock = safeJs?.data?.orders;
@@ -337,6 +369,12 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
 
       const edges = block?.edges || [];
       const mapped = mapEdgesToOrders(edges);
+      console.log("[Fomoify][OrdersAPI] page mapped", {
+        page: page + 1,
+        edges: edges.length,
+        mapped: mapped.length,
+        filterWindow,
+      });
       if (!filterWindow) {
         all = all.concat(mapped);
       } else {
@@ -357,6 +395,11 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
       after = block?.pageInfo?.endCursor || null;
       if (stopPaging || !hasNext || !after) break;
     }
+    console.log("[Fomoify][OrdersAPI] fetchOrdersBySearch:done", {
+      search,
+      filterWindow,
+      total: all.length,
+    });
     return all;
   }
 
@@ -391,6 +434,11 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     const bm = Date.parse(b?.processedAt || b?.createdAt || "");
     return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
   });
+  console.log("[Fomoify][OrdersAPI] final orders count", all.length);
+  console.log(
+    "[Fomoify][OrdersAPI] final orders payload",
+    JSON.stringify(all, null, 2)
+  );
   return all;
 }
 
