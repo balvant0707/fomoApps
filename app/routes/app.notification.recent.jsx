@@ -211,6 +211,29 @@ const Q_ORDERS_FULL = `
     }
   }`;
 
+const Q_ORDERS_SAFE = `
+  query OrdersSafe($first:Int!, $query:String, $after:String) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
+      pageInfo { hasNextPage endCursor }
+      edges {
+        cursor
+        node {
+          id
+          createdAt
+          processedAt
+          lineItems(first: 100) {
+            edges {
+              node {
+                title
+                product { handle title featuredImage { url } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
 function mapEdgesToOrders(edges) {
   return (edges || []).map((e) => {
     const o = e?.node || {};
@@ -272,14 +295,44 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
         console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
         break;
       }
-      if (Array.isArray(js?.errors) && js.errors.length) {
-        console.error(
-          "[Fomoify] Orders query GraphQL errors (window):",
-          js.errors
-        );
-        break;
+      let block = js?.data?.orders;
+      if (
+        (!block || (Array.isArray(js?.errors) && js.errors.length)) &&
+        admin?.graphql
+      ) {
+        try {
+          const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
+            variables: { first: FIRST, query: search, after },
+          });
+          const safeJs = await safeResp.json();
+          const safeBlock = safeJs?.data?.orders;
+          if (safeBlock) {
+            if (Array.isArray(js?.errors) && js.errors.length) {
+              console.warn(
+                "[Fomoify] Full orders query failed; SAFE query used.",
+                js.errors
+              );
+            }
+            js = safeJs;
+            block = safeBlock;
+          } else if (Array.isArray(js?.errors) && js.errors.length) {
+            console.error(
+              "[Fomoify] Orders query GraphQL errors (window):",
+              js.errors
+            );
+            break;
+          }
+        } catch (safeErr) {
+          if (Array.isArray(js?.errors) && js.errors.length) {
+            console.error(
+              "[Fomoify] Orders query GraphQL errors (window):",
+              js.errors
+            );
+          }
+          console.error("[Fomoify] SAFE orders query failed (window):", safeErr);
+          break;
+        }
       }
-      const block = js?.data?.orders;
       if (!block) break;
 
       const edges = block?.edges || [];
