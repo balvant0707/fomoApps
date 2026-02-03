@@ -183,21 +183,54 @@ const trimIso = (iso) => {
   return `${date}T${(hms || "00:00:00Z").replace(/Z?$/, "Z")}`;
 };
 function zonedStartOfDay(date, timeZone) {
+  const tz = timeZone || "UTC";
   const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
   });
   const parts = fmt.formatToParts(date);
   const Y = Number(parts.find(p => p.type === "year")?.value || "1970");
   const M = Number(parts.find(p => p.type === "month")?.value || "01");
   const D = Number(parts.find(p => p.type === "day")?.value || "01");
-  return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
+  const utcGuess = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
+  const fullFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const g = fullFmt.formatToParts(utcGuess);
+  const gY = Number(g.find((p) => p.type === "year")?.value || "1970");
+  const gM = Number(g.find((p) => p.type === "month")?.value || "01");
+  const gD = Number(g.find((p) => p.type === "day")?.value || "01");
+  const gH = Number(g.find((p) => p.type === "hour")?.value || "00");
+  const gMin = Number(g.find((p) => p.type === "minute")?.value || "00");
+  const gS = Number(g.find((p) => p.type === "second")?.value || "00");
+  const asUTC = Date.UTC(gY, gM - 1, gD, gH, gMin, gS, 0);
+  const offsetMs = asUTC - utcGuess.getTime();
+  return new Date(utcGuess.getTime() - offsetMs);
 }
 function daysRangeZoned(days, timeZone) {
+  const tz = timeZone || "UTC";
   const now = new Date();
   const endISO = trimIso(now.toISOString());
   const daysClamped = Math.max(1, Number(days || 1));
-  const base = new Date(now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000);
-  const start = zonedStartOfDay(base, timeZone || "UTC");
+  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const p = ymdFmt.formatToParts(now);
+  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
+  const M = Number(p.find((x) => x.type === "month")?.value || "01");
+  const D = Number(p.find((x) => x.type === "day")?.value || "01");
+  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
+  localDayAnchorUtc.setUTCDate(localDayAnchorUtc.getUTCDate() - (daysClamped - 1));
+  const start = zonedStartOfDay(localDayAnchorUtc, tz);
   return { startISO: trimIso(start.toISOString()), endISO };
 }
 async function getShopTimezone(admin) {
@@ -221,6 +254,7 @@ const Q_ORDERS_FULL = `
         node {
           id
           createdAt
+          processedAt
           customer { firstName lastName }
           shippingAddress { city province provinceCode country }
           billingAddress  { city province provinceCode country }
@@ -249,6 +283,7 @@ function mapEdgesToOrders(edges) {
     return {
       id: o.id,
       createdAt: o.createdAt,
+      processedAt: o.processedAt || null,
       firstName: o.customer?.firstName || "",
       lastName: o.customer?.lastName || "",
       city: addr?.city || "",
@@ -259,20 +294,50 @@ function mapEdgesToOrders(edges) {
   });
 }
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
-  const search = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
-  const FIRST = 100;
-  let after = null;
-  let all = [];
-  for (let page = 0; page < 20; page++) {
-    const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: FIRST, query: search, after } });
-    const js = await resp.json();
-    const block = js?.data?.orders;
-    const edges = block?.edges || [];
-    all = all.concat(mapEdgesToOrders(edges));
-    const hasNext = block?.pageInfo?.hasNextPage;
-    after = block?.pageInfo?.endCursor || null;
-    if (!hasNext || !after) break;
+  async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
+    const startMs = Date.parse(startISO);
+    const endMs = Date.parse(endISO);
+    const FIRST = 100;
+    let after = null;
+    let all = [];
+    let stopPaging = false;
+    for (let page = 0; page < 20; page++) {
+      const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: FIRST, query: search, after } });
+      const js = await resp.json();
+      const block = js?.data?.orders;
+      const edges = block?.edges || [];
+      const mapped = mapEdgesToOrders(edges);
+      if (!filterWindow) {
+        all = all.concat(mapped);
+      } else {
+        for (const o of mapped) {
+          const orderTime = o?.processedAt || o?.createdAt || "";
+          const ms = Date.parse(orderTime);
+          const createdMs = Date.parse(o?.createdAt || "");
+          if (!Number.isFinite(ms)) continue;
+          if (ms >= startMs && ms <= endMs) all.push(o);
+          if (Number.isFinite(createdMs) && createdMs < startMs) stopPaging = true;
+        }
+      }
+      const hasNext = block?.pageInfo?.hasNextPage;
+      after = block?.pageInfo?.endCursor || null;
+      if (stopPaging || !hasNext || !after) break;
+    }
+    return all;
   }
+
+  const apiWindowSearch = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  let all = await fetchOrdersBySearch(apiWindowSearch, { filterWindow: false });
+  console.log("[Fomoify][OrdersAPI][Edit] day-wise search", { startISO, endISO, count: all.length });
+  if (!all.length) {
+    all = await fetchOrdersBySearch("status:any", { filterWindow: true });
+    console.log("[Fomoify][OrdersAPI][Edit] fallback JS day-filter", { startISO, endISO, count: all.length });
+  }
+  all.sort((a, b) => {
+    const am = Date.parse(a?.processedAt || a?.createdAt || "");
+    const bm = Date.parse(b?.processedAt || b?.createdAt || "");
+    return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
+  });
   return all;
 }
 
@@ -447,12 +512,14 @@ export async function loader({ request, params }) {
       try { await persistCustomerProductHandles(prisma, shop, strictOrders); } catch {}
 
       if (strictOrders.length > 0) {
-        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
+        newestCreatedAt = trimIso(String(strictOrders[0].processedAt || strictOrders[0].createdAt || ""));
       } else {
         const r = await admin.graphql(Q_ORDERS_FULL, { variables: { first: 1, query: "status:any" } });
         const j = await r.json();
         strictOrders = mapEdgesToOrders(j?.data?.orders?.edges || []);
-        if (strictOrders[0]?.createdAt) newestCreatedAt = trimIso(String(strictOrders[0].createdAt));
+        if (strictOrders[0]?.processedAt || strictOrders[0]?.createdAt) {
+          newestCreatedAt = trimIso(String(strictOrders[0].processedAt || strictOrders[0].createdAt));
+        }
       }
 
       buckets = deriveBucketsFromOrders(strictOrders);
@@ -568,7 +635,9 @@ export async function action({ request, params }) {
 
       try { await persistCustomerProductHandles(prisma, shop, orders); } catch {}
 
-      if (orders?.[0]?.createdAt) createOrderTime = trimIso(String(orders[0].createdAt));
+      if (orders?.[0]?.processedAt || orders?.[0]?.createdAt) {
+        createOrderTime = trimIso(String(orders[0].processedAt || orders[0].createdAt));
+      }
 
       const namesSet = new Set();
       const locSet = new Set();
