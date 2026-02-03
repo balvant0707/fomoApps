@@ -294,6 +294,17 @@ function mapEdgesToOrders(edges) {
   });
 }
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
+  const buildWindowSearchQueries = () => {
+    const startDate = String(startISO || "").slice(0, 10);
+    const endDate = String(endISO || "").slice(0, 10);
+    return [
+      `created_at:>=${startISO} created_at:<=${endISO} status:any`,
+      `created_at:>='${startISO}' created_at:<='${endISO}' status:any`,
+      `created_at:>=${startDate} created_at:<=${endDate} status:any`,
+      `created_at:>='${startDate}' created_at:<='${endDate}' status:any`,
+    ];
+  };
+
   async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
     const startMs = Date.parse(startISO);
     const endMs = Date.parse(endISO);
@@ -326,9 +337,21 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
     return all;
   }
 
-  const apiWindowSearch = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
-  let all = await fetchOrdersBySearch(apiWindowSearch, { filterWindow: false });
-  console.log("[Fomoify][OrdersAPI][Edit] day-wise search", { startISO, endISO, count: all.length });
+  let all = [];
+  let selectedSearch = null;
+  for (const search of buildWindowSearchQueries()) {
+    all = await fetchOrdersBySearch(search, { filterWindow: true });
+    if (all.length) {
+      selectedSearch = search;
+      break;
+    }
+  }
+  console.log("[Fomoify][OrdersAPI][Edit] day-wise search", {
+    startISO,
+    endISO,
+    search: selectedSearch,
+    count: all.length,
+  });
   if (!all.length) {
     all = await fetchOrdersBySearch("status:any", { filterWindow: true });
     console.log("[Fomoify][OrdersAPI][Edit] fallback JS day-filter", { startISO, endISO, count: all.length });
