@@ -145,13 +145,31 @@ function zonedStartOfDay(date, timeZone) {
 }
 
 function daysRangeZoned(days, timeZone) {
+  const tz = timeZone || "UTC";
   const now = new Date();
   const endISO = trimIso(now.toISOString());
   const daysClamped = Math.max(1, Number(days || 1));
-  const base = new Date(
-    now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000
+
+  // Calendar-day based window in shop timezone:
+  // 1 day => today (shop TZ), N days => today + previous N-1 days.
+  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const p = ymdFmt.formatToParts(now);
+  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
+  const M = Number(p.find((x) => x.type === "month")?.value || "01");
+  const D = Number(p.find((x) => x.type === "day")?.value || "01");
+
+  // Use noon anchor to avoid DST edge ambiguity, then jump calendar days.
+  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
+  localDayAnchorUtc.setUTCDate(
+    localDayAnchorUtc.getUTCDate() - (daysClamped - 1)
   );
-  const start = zonedStartOfDay(base, timeZone || "UTC");
+
+  const start = zonedStartOfDay(localDayAnchorUtc, tz);
   return { startISO: trimIso(start.toISOString()), endISO };
 }
 
