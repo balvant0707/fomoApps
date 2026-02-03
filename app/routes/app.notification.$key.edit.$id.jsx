@@ -1049,7 +1049,7 @@ function formatOrderAge(createdAt) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function RecentBubble({ form, order, product, isMobile = false }) {
+function RecentBubble({ form, order, product, isMobile = false, hydrated = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const hide = new Set(form.hideKeys || []);
 
@@ -1106,7 +1106,11 @@ function RecentBubble({ form, order, product, isMobile = false }) {
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>{formatOrderAge(order?.createdAt)}</small>
+                <small>
+                  {hydrated
+                    ? formatOrderAge(order?.processedAt || order?.createdAt)
+                    : "Timing"}
+                </small>
               </span>
             </>
           )}
@@ -1154,7 +1158,7 @@ function FlashBubble({ form, isMobile = false }) {
 }
 
 /* Desktop frame */
-function DesktopPreview({ keyName, form, product, order }) {
+function DesktopPreview({ keyName, form, product, order, hydrated = false }) {
   const flex = posToFlex(form?.position);
   return (
     <div
@@ -1165,7 +1169,7 @@ function DesktopPreview({ keyName, form, product, order }) {
       }}
     >
       {keyName === "recent" ? (
-        <RecentBubble form={form} product={product} order={order} isMobile={false} />
+        <RecentBubble form={form} product={product} order={order} isMobile={false} hydrated={hydrated} />
       ) : (
         <FlashBubble form={form} isMobile={false} />
       )}
@@ -1174,7 +1178,7 @@ function DesktopPreview({ keyName, form, product, order }) {
 }
 
 /* Mobile frame */
-function MobilePreview({ keyName, form, product, order }) {
+function MobilePreview({ keyName, form, product, order, hydrated = false }) {
   const pos = (form?.mobilePosition && form.mobilePosition[0]) || "bottom";
   const flex = mobilePosToFlex(pos);
   return (
@@ -1189,7 +1193,7 @@ function MobilePreview({ keyName, form, product, order }) {
         <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 120, height: 18, borderRadius: 10, background: "#0f172a0f" }} />
         <div style={{ padding: 8 }}>
           {keyName === "recent" ? (
-            <RecentBubble form={form} product={product} order={order} isMobile />
+            <RecentBubble form={form} product={product} order={order} isMobile hydrated={hydrated} />
           ) : (
             <FlashBubble form={form} isMobile />
           )}
@@ -1200,7 +1204,7 @@ function MobilePreview({ keyName, form, product, order }) {
 }
 
 /* Wrapper */
-function LivePreview({ keyName, form, product, order }) {
+function LivePreview({ keyName, form, product, order, hydrated = false }) {
   const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
@@ -1213,12 +1217,12 @@ function LivePreview({ keyName, form, product, order }) {
         </ButtonGroup>
       </InlineStack>
 
-      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} order={order} />}
-      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} order={order} />}
+      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} />}
+      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} order={order} /></Box>
-          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} order={order} /></Box>
+          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} /></Box>
+          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} /></Box>
         </InlineStack>
       )}
 
@@ -1246,6 +1250,11 @@ export default function NotificationEditGeneric() {
   const safeNewestCreatedAt = newestCreatedAt ?? null;
   const safeUsedDays =
     typeof usedDays === "number" && !Number.isNaN(usedDays) ? usedDays : null;
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; } catch { return false; }
@@ -1452,6 +1461,7 @@ export default function NotificationEditGeneric() {
                   form={form}
                   product={isRecent ? (selectedProduct || previewProduct) : null}
                   order={previewOrder}
+                  hydrated={hydrated}
                 />
               </Box>
             </Card>
@@ -1519,7 +1529,11 @@ export default function NotificationEditGeneric() {
                     />
 
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Last newest order time: {form.createOrderTime ? new Date(form.createOrderTime).toLocaleString() : "—"}
+                      Last newest order time: {form.createOrderTime
+                        ? hydrated
+                          ? new Date(form.createOrderTime).toLocaleString()
+                          : trimIso(String(form.createOrderTime))
+                        : "—"}
                     </Text>
 
                     <ChoiceList
