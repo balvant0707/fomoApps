@@ -236,56 +236,84 @@ function mapEdgesToOrders(edges) {
 }
 
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
-  const startMs = Date.parse(startISO);
-  const endMs = Date.parse(endISO);
-  const search = `status:any`;
-  const FIRST = 100;
-  let after = null;
-  let all = [];
-  let stopPaging = false;
-  for (let page = 0; page < 20; page++) {
-    let resp;
-    try {
-      resp = await admin.graphql(Q_ORDERS_FULL, {
-        variables: { first: FIRST, query: search, after },
-      });
-    } catch (e) {
-      console.error("[Fomoify] admin.graphql failed (window):", e);
-      break;
-    }
-    let js;
-    try {
-      js = await resp.json();
-    } catch (e) {
-      console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
-      break;
-    }
-    if (Array.isArray(js?.errors) && js.errors.length) {
-      console.error(
-        "[Fomoify] Orders query GraphQL errors (window):",
-        js.errors
-      );
-      break;
-    }
-    const block = js?.data?.orders;
-    if (!block) break;
-    const edges = block?.edges || [];
-    const mapped = mapEdgesToOrders(edges);
-    for (const o of mapped) {
-      const orderTime = o?.processedAt || o?.createdAt || "";
-      const ms = Date.parse(orderTime);
-      const createdMs = Date.parse(o?.createdAt || "");
-      if (!Number.isFinite(ms)) continue;
-      if (ms >= startMs && ms <= endMs) all.push(o);
-      if (Number.isFinite(createdMs) && createdMs < startMs) {
-        // orders are sorted by createdAt desc, so next pages will be older
-        stopPaging = true;
+  async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
+    const startMs = Date.parse(startISO);
+    const endMs = Date.parse(endISO);
+    const FIRST = 100;
+    let after = null;
+    let all = [];
+    let stopPaging = false;
+
+    for (let page = 0; page < 20; page++) {
+      let resp;
+      try {
+        resp = await admin.graphql(Q_ORDERS_FULL, {
+          variables: { first: FIRST, query: search, after },
+        });
+      } catch (e) {
+        console.error("[Fomoify] admin.graphql failed (window):", e);
+        break;
       }
+      let js;
+      try {
+        js = await resp.json();
+      } catch (e) {
+        console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
+        break;
+      }
+      if (Array.isArray(js?.errors) && js.errors.length) {
+        console.error(
+          "[Fomoify] Orders query GraphQL errors (window):",
+          js.errors
+        );
+        break;
+      }
+      const block = js?.data?.orders;
+      if (!block) break;
+
+      const edges = block?.edges || [];
+      const mapped = mapEdgesToOrders(edges);
+      if (!filterWindow) {
+        all = all.concat(mapped);
+      } else {
+        for (const o of mapped) {
+          const orderTime = o?.processedAt || o?.createdAt || "";
+          const ms = Date.parse(orderTime);
+          const createdMs = Date.parse(o?.createdAt || "");
+          if (!Number.isFinite(ms)) continue;
+          if (ms >= startMs && ms <= endMs) all.push(o);
+          if (Number.isFinite(createdMs) && createdMs < startMs) {
+            // orders are sorted by createdAt desc, so next pages will be older
+            stopPaging = true;
+          }
+        }
+      }
+
+      const hasNext = block?.pageInfo?.hasNextPage;
+      after = block?.pageInfo?.endCursor || null;
+      if (stopPaging || !hasNext || !after) break;
     }
-    const hasNext = block?.pageInfo?.hasNextPage;
-    after = block?.pageInfo?.endCursor || null;
-    if (stopPaging || !hasNext || !after) break;
+    return all;
   }
+
+  const apiWindowSearch = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  let all = await fetchOrdersBySearch(apiWindowSearch, { filterWindow: false });
+  console.log("[Fomoify][OrdersAPI] day-wise search", {
+    startISO,
+    endISO,
+    count: all.length,
+  });
+
+  // If API-level day filter returns empty on some shops, fallback to JS window filter.
+  if (!all.length) {
+    all = await fetchOrdersBySearch("status:any", { filterWindow: true });
+    console.log("[Fomoify][OrdersAPI] fallback JS day-filter", {
+      startISO,
+      endISO,
+      count: all.length,
+    });
+  }
+
   all.sort((a, b) => {
     const am = Date.parse(a?.processedAt || a?.createdAt || "");
     const bm = Date.parse(b?.processedAt || b?.createdAt || "");
