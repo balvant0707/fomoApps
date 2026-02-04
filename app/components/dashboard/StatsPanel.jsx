@@ -50,14 +50,9 @@ export default function StatsPanel({ stats }) {
   }, [labels, visitorsSeries, clicksSeries, ordersSeries]);
   const displayLabels = useMemo(() => {
     const start = new Date(`${todayKey}T00:00:00`);
-    start.setDate(start.getDate() - 365);
-    if (labels.length > 0) {
-      const first = new Date(`${labels[0]}T00:00:00`);
-      if (first < start) {
-        start.setTime(first.getTime());
-      }
-    }
-    const end = new Date("2030-12-31T00:00:00");
+    start.setDate(start.getDate() - 30);
+    const end = new Date(`${todayKey}T00:00:00`);
+    end.setDate(end.getDate() + 30);
     const out = [];
     const d = new Date(start);
     while (d <= end) {
@@ -84,9 +79,9 @@ export default function StatsPanel({ stats }) {
   for (let v = chartMax; v >= 0; v -= yStep) yTickValues.push(v);
   if (yTickValues[yTickValues.length - 1] !== 0) yTickValues.push(0);
   const yTicks = yTickValues.length;
-  const xTickEvery = Math.max(1, Math.floor(displayLabels.length / 32));
+  const xTickEvery = 7;
   const chartHeight = 220;
-  const chartWidth = Math.max(420, displayLabels.length * 22);
+  const chartWidth = Math.max(420, displayLabels.length * 36);
   const groupWidth = displayLabels.length > 0 ? chartWidth / displayLabels.length : chartWidth;
   const clusterWidth = groupWidth * 0.82;
   const barGap = 0;
@@ -100,7 +95,7 @@ export default function StatsPanel({ stats }) {
     if (!el) return;
     const idx = displayLabels.indexOf(todayKey);
     if (idx < 0) return;
-    const target = Math.max(0, idx * groupWidth - 20);
+    const target = Math.max(0, idx * groupWidth - el.clientWidth / 2 + groupWidth / 2);
     el.scrollLeft = target;
   }, [displayLabels, groupWidth, todayKey]);
 
@@ -131,7 +126,7 @@ export default function StatsPanel({ stats }) {
         <Card padding="300">
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">
-              Date-wise Analysis ({analytics.days || 30} days)
+              Date-wise Analysis (30 days back + 30 days ahead)
             </Text>
             <div
               style={{
