@@ -127,11 +127,12 @@ function AnalyticsChart({ analytics }) {
   const yMax = Math.max(1, ...visitors, ...clicks, ...orders);
   const yTicks = 6;
   const chartHeight = 220;
-  const chartWidth = Math.max(420, labels.length * 54);
+  const chartWidth = Math.max(420, labels.length * 64);
   const xTickEvery = Math.max(1, Math.floor(labels.length / 6));
   const groupWidth = labels.length > 0 ? chartWidth / labels.length : chartWidth;
-  const barWidth = Math.max(8, Math.min(14, groupWidth / 5));
-  const barGap = Math.max(4, barWidth * 0.5);
+  const clusterWidth = groupWidth * 0.82;
+  const barGap = 0;
+  const barWidth = clusterWidth / 3;
 
   const formatDateLabel = (value) => {
     const d = new Date(`${value}T00:00:00`);
@@ -191,8 +192,7 @@ function AnalyticsChart({ analytics }) {
                       const ch = (c / yMax) * chartHeight;
                       const oh = (o / yMax) * chartHeight;
                       const baseY = 10 + chartHeight;
-                      const startX =
-                        30 + groupX + (groupWidth - (barWidth * 3 + barGap * 2)) / 2;
+                      const startX = 30 + groupX + (groupWidth - clusterWidth) / 2;
                       const dateTooltip =
                         `${formatDateLabel(day)}\n` +
                         `Visitors: ${v}\n` +
@@ -206,8 +206,8 @@ function AnalyticsChart({ analytics }) {
                             y={baseY - vh}
                             width={barWidth}
                             height={Math.max(1, vh)}
-                            rx="2"
-                            fill="#0EA5A4"
+                            rx="0"
+                            fill="#E8C15F"
                           >
                             <title>{dateTooltip}</title>
                           </rect>
@@ -216,8 +216,8 @@ function AnalyticsChart({ analytics }) {
                             y={baseY - ch}
                             width={barWidth}
                             height={Math.max(1, ch)}
-                            rx="2"
-                            fill="#2563EB"
+                            rx="0"
+                            fill="#4A98D0"
                           >
                             <title>{dateTooltip}</title>
                           </rect>
@@ -226,8 +226,8 @@ function AnalyticsChart({ analytics }) {
                             y={baseY - oh}
                             width={barWidth}
                             height={Math.max(1, oh)}
-                            rx="2"
-                            fill="#16A34A"
+                            rx="0"
+                            fill="#7A63B8"
                           >
                             <title>{dateTooltip}</title>
                           </rect>
@@ -257,7 +257,7 @@ function AnalyticsChart({ analytics }) {
                       width: 12,
                       height: 12,
                       borderRadius: 3,
-                      background: "#0EA5A4",
+                      background: "#E8C15F",
                       display: "inline-block",
                     }}
                   />
@@ -271,7 +271,7 @@ function AnalyticsChart({ analytics }) {
                       width: 12,
                       height: 12,
                       borderRadius: 3,
-                      background: "#2563EB",
+                      background: "#4A98D0",
                       display: "inline-block",
                     }}
                   />
@@ -285,7 +285,7 @@ function AnalyticsChart({ analytics }) {
                       width: 12,
                       height: 12,
                       borderRadius: 3,
-                      background: "#16A34A",
+                      background: "#7A63B8",
                       display: "inline-block",
                     }}
                   />
