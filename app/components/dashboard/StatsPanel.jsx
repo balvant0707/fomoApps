@@ -79,7 +79,7 @@ export default function StatsPanel({ stats }) {
   for (let v = chartMax; v >= 0; v -= yStep) yTickValues.push(v);
   if (yTickValues[yTickValues.length - 1] !== 0) yTickValues.push(0);
   const yTicks = yTickValues.length;
-  const xTickEvery = 7;
+  const xTickEvery = 1;
   const chartHeight = 220;
   const chartWidth = Math.max(420, displayLabels.length * 36);
   const groupWidth = displayLabels.length > 0 ? chartWidth / displayLabels.length : chartWidth;
