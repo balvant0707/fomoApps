@@ -1,10 +1,20 @@
 import { json } from "@remix-run/node";
 import { prisma } from "../db.server";
 
+const norm = (s) =>
+  String(s || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+
+const configModel = () =>
+  prisma.notificationconfig || prisma.notificationConfig || null;
+
 export const loader = async ({ request, params }) => {
   try {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop");
+    const shop = norm(url.searchParams.get("shop"));
     const subpath = params.subpath;
 
     if (!shop) {
@@ -12,7 +22,12 @@ export const loader = async ({ request, params }) => {
     }
 
     if (subpath === "popup") {
-      const configs = await prisma.notificationConfig.findMany({
+      const model = configModel();
+      if (!model) {
+        return json({ showPopup: false, error: "Config model not found" });
+      }
+
+      const configs = await model.findMany({
         where: { shop },
         orderBy: { id: "desc" }, // optional: latest first
       });

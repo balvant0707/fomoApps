@@ -28,20 +28,27 @@ export default function StatsPanel({ stats }) {
   const series = analytics.series || EMPTY_STATS.analytics.series || {};
   const labels = Array.isArray(series.labels) ? series.labels : [];
   const visitorsSeries = Array.isArray(series.visitors) ? series.visitors : [];
-  const clicksSeries = Array.isArray(series.clicks) ? series.clicks : [];
-  const ordersSeries = Array.isArray(series.orders) ? series.orders : [];
-  const chartMax = Math.max(
-    1,
-    ...visitorsSeries,
-    ...clicksSeries,
-    ...ordersSeries
-  );
-  const yTicks = 5;
+  const trendSeries = visitorsSeries;
+  const chartMin = Math.min(...trendSeries, 0);
+  const chartMax = Math.max(1, ...trendSeries);
+  const yTicks = 6;
   const xTickEvery = Math.max(1, Math.floor(labels.length / 4));
+  const chartHeight = 220;
+  const chartWidth = Math.max(320, labels.length * 26);
+  const valueRange = Math.max(1, chartMax - chartMin);
   const formatDateLabel = (value) => {
     const d = new Date(`${value}T00:00:00`);
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
   };
+  const points = labels
+    .map((day, idx) => {
+      const value = Number(trendSeries[idx] || 0);
+      const x =
+        labels.length > 1 ? (idx / (labels.length - 1)) * chartWidth : chartWidth / 2;
+      const y = chartHeight - ((value - chartMin) / valueRange) * chartHeight;
+      return `${x},${y}`;
+    })
+    .join(" ");
 
   return (
     <Card>
@@ -69,78 +76,47 @@ export default function StatsPanel({ stats }) {
         <Card padding="300">
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">
-              Bar Chart ({analytics.days || 30} days)
+              Visitors Trend ({analytics.days || 30} days)
             </Text>
             <div
               style={{
-                height: 260,
+                minHeight: 320,
                 border: "1px solid #E5E7EB",
                 borderRadius: 10,
-                padding: "12px 10px 10px 10px",
+                padding: 12,
                 background: "#FFFFFF",
               }}
             >
-              <div
-                style={{
-                  height: 200,
-                  display: "flex",
-                  alignItems: "flex-end",
-                  gap: 3,
-                  borderLeft: "1px solid #D1D5DB",
-                  borderBottom: "1px solid #D1D5DB",
-                  paddingLeft: 6,
-                  paddingRight: 4,
-                  position: "relative",
-                }}
-              >
-                {[...Array(yTicks)].map((_, i) => {
-                  const y = (i / (yTicks - 1)) * 100;
-                  return (
-                    <div
-                      key={`grid-${i}`}
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        bottom: `${y}%`,
-                        borderTop: "1px solid #EEF2F7",
-                      }}
+              <div style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: chartWidth + 40 }}>
+                  <svg width={chartWidth + 40} height={chartHeight + 40}>
+                    {[...Array(yTicks)].map((_, i) => {
+                      const y = 10 + (i / (yTicks - 1)) * chartHeight;
+                      const tickValue = Math.round(chartMax - (i / (yTicks - 1)) * valueRange);
+                      return (
+                        <g key={`grid-${i}`}>
+                          <line x1="30" y1={y} x2={chartWidth + 30} y2={y} stroke="#E6E8EB" />
+                          <text x="6" y={y + 4} fontSize="11" fill="#6B7280">
+                            {tickValue}
+                          </text>
+                        </g>
+                      );
+                    })}
+                    <polyline
+                      fill="none"
+                      stroke="#0EA5A4"
+                      strokeWidth="4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={points}
+                      transform="translate(30,10)"
                     />
-                  );
-                })}
-                {labels.map((day, idx) => {
-                  const v = Number(visitorsSeries[idx] || 0);
-                  const c = Number(clicksSeries[idx] || 0);
-                  const o = Number(ordersSeries[idx] || 0);
-                  const hV = `${(v / chartMax) * 100}%`;
-                  const hC = `${(c / chartMax) * 100}%`;
-                  const hO = `${(o / chartMax) * 100}%`;
-                  return (
-                    <div
-                      key={day}
-                      style={{
-                        flex: 1,
-                        minWidth: 8,
-                        maxWidth: 14,
-                        height: "100%",
-                        display: "flex",
-                        alignItems: "flex-end",
-                        justifyContent: "center",
-                        gap: 1,
-                        zIndex: 1,
-                      }}
-                      title={`${formatDateLabel(day)} | Visitors: ${v}, Clicks: ${c}, Orders: ${o}`}
-                    >
-                      <div style={{ width: 3, height: hV, background: "#00A5A5", borderRadius: "2px 2px 0 0" }} />
-                      <div style={{ width: 3, height: hC, background: "#1E3A8A", borderRadius: "2px 2px 0 0" }} />
-                      <div style={{ width: 3, height: hO, background: "#43A047", borderRadius: "2px 2px 0 0" }} />
-                    </div>
-                  );
-                })}
+                  </svg>
+                </div>
               </div>
               <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
                 {labels.map((day, idx) => (
-                  <div key={`x-${day}`} style={{ flex: 1, minWidth: 8, maxWidth: 14, textAlign: "center" }}>
+                  <div key={`x-${day}`} style={{ flex: 1, minWidth: 28, textAlign: "center" }}>
                     {idx % xTickEvery === 0 || idx === labels.length - 1 ? (
                       <Text as="span" variant="bodySm" tone="subdued">
                         {formatDateLabel(day)}
@@ -151,16 +127,8 @@ export default function StatsPanel({ stats }) {
               </div>
               <InlineStack gap="300" align="center">
                 <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#00A5A5", display: "inline-block" }} />
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#0EA5A4", display: "inline-block" }} />
                   <Text as="span" variant="bodySm">Visitors</Text>
-                </InlineStack>
-                <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#1E3A8A", display: "inline-block" }} />
-                  <Text as="span" variant="bodySm">Popup Clicks</Text>
-                </InlineStack>
-                <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#43A047", display: "inline-block" }} />
-                  <Text as="span" variant="bodySm">Orders</Text>
                 </InlineStack>
               </InlineStack>
             </div>

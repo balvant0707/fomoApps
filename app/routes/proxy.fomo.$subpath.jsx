@@ -3,13 +3,20 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";                // <-- default import (IMPORTANT)
 import { ensureShopRow } from "../utils/ensureShop.server";
 
-const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
+const norm = (s) =>
+  (s || "")
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .trim();
 const ok = (d, s = 200) => json(d, { status: s });
 const bad = (d, s = 400) => json(d, { status: s });
 const EVENTS = new Set(["view", "click", "order"]);
 const POPUPS = new Set(["recent", "flash", "orders"]);
 const analyticsModel = () =>
   prisma.popupanalyticsevent || prisma.popupAnalyticsEvent || null;
+const configModel = () =>
+  prisma.notificationconfig || prisma.notificationConfig || null;
 
 const clean = (v, max = 255) => {
   const s = String(v || "").trim();
@@ -95,7 +102,18 @@ export const loader = async ({ request, params }) => {
       }
 
       // Fetch configs (adjust to your schema/table names)
-      const configs = await prisma.notificationconfig.findMany({
+      const model = configModel();
+      if (!model) {
+        return ok({
+          showPopup: false,
+          sessionReady: true,
+          shop,
+          error: "Config model not found",
+          timestamp,
+        });
+      }
+
+      const configs = await model.findMany({
         where: { shop },
         orderBy: { id: "desc" },
       });

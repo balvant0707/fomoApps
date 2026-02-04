@@ -183,54 +183,21 @@ const trimIso = (iso) => {
   return `${date}T${(hms || "00:00:00Z").replace(/Z?$/, "Z")}`;
 };
 function zonedStartOfDay(date, timeZone) {
-  const tz = timeZone || "UTC";
   const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
   });
   const parts = fmt.formatToParts(date);
   const Y = Number(parts.find(p => p.type === "year")?.value || "1970");
   const M = Number(parts.find(p => p.type === "month")?.value || "01");
   const D = Number(parts.find(p => p.type === "day")?.value || "01");
-  const utcGuess = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
-  const fullFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const g = fullFmt.formatToParts(utcGuess);
-  const gY = Number(g.find((p) => p.type === "year")?.value || "1970");
-  const gM = Number(g.find((p) => p.type === "month")?.value || "01");
-  const gD = Number(g.find((p) => p.type === "day")?.value || "01");
-  const gH = Number(g.find((p) => p.type === "hour")?.value || "00");
-  const gMin = Number(g.find((p) => p.type === "minute")?.value || "00");
-  const gS = Number(g.find((p) => p.type === "second")?.value || "00");
-  const asUTC = Date.UTC(gY, gM - 1, gD, gH, gMin, gS, 0);
-  const offsetMs = asUTC - utcGuess.getTime();
-  return new Date(utcGuess.getTime() - offsetMs);
+  return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
 }
 function daysRangeZoned(days, timeZone) {
-  const tz = timeZone || "UTC";
   const now = new Date();
   const endISO = trimIso(now.toISOString());
   const daysClamped = Math.max(1, Number(days || 1));
-  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const p = ymdFmt.formatToParts(now);
-  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
-  const M = Number(p.find((x) => x.type === "month")?.value || "01");
-  const D = Number(p.find((x) => x.type === "day")?.value || "01");
-  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
-  localDayAnchorUtc.setUTCDate(localDayAnchorUtc.getUTCDate() - (daysClamped - 1));
-  const start = zonedStartOfDay(localDayAnchorUtc, tz);
+  const base = new Date(now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000);
+  const start = zonedStartOfDay(base, timeZone || "UTC");
   return { startISO: trimIso(start.toISOString()), endISO };
 }
 async function getShopTimezone(admin) {
@@ -254,33 +221,9 @@ const Q_ORDERS_FULL = `
         node {
           id
           createdAt
-          processedAt
           customer { firstName lastName }
           shippingAddress { city province provinceCode country }
           billingAddress  { city province provinceCode country }
-          lineItems(first: 100) {
-            edges {
-              node {
-                title
-                product { handle title featuredImage { url } }
-              }
-            }
-          }
-        }
-      }
-    }
-  }`;
-
-const Q_ORDERS_SAFE = `
-  query OrdersSafe($first:Int!, $query:String, $after:String) {
-    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        cursor
-        node {
-          id
-          createdAt
-          processedAt
           lineItems(first: 100) {
             edges {
               node {
@@ -306,7 +249,6 @@ function mapEdgesToOrders(edges) {
     return {
       id: o.id,
       createdAt: o.createdAt,
-      processedAt: o.processedAt || null,
       firstName: o.customer?.firstName || "",
       lastName: o.customer?.lastName || "",
       city: addr?.city || "",
@@ -317,149 +259,20 @@ function mapEdgesToOrders(edges) {
   });
 }
 async function fetchOrdersWithinWindow(admin, startISO, endISO) {
-  console.log("[Fomoify][OrdersAPI][Edit] fetchOrdersWithinWindow:start", {
-    startISO,
-    endISO,
-    hasAdminGraphql: !!admin?.graphql,
-  });
-
-  const buildWindowSearchQueries = () => {
-    const startDate = String(startISO || "").slice(0, 10);
-    const endDate = String(endISO || "").slice(0, 10);
-    return [
-      `created_at:>=${startISO} created_at:<=${endISO} status:any`,
-      `created_at:>='${startISO}' created_at:<='${endISO}' status:any`,
-      `created_at:>=${startDate} created_at:<=${endDate} status:any`,
-      `created_at:>='${startDate}' created_at:<='${endDate}' status:any`,
-    ];
-  };
-
-  async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
-    const startMs = Date.parse(startISO);
-    const endMs = Date.parse(endISO);
-    const FIRST = 100;
-    let after = null;
-    let all = [];
-    let stopPaging = false;
-    for (let page = 0; page < 20; page++) {
-      console.log("[Fomoify][OrdersAPI][Edit] GraphQL call", {
-        mode: "FULL",
-        page: page + 1,
-        search,
-        after,
-        first: FIRST,
-      });
-      const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: FIRST, query: search, after } });
-      console.log("[Fomoify][OrdersAPI][Edit] GraphQL response", {
-        mode: "FULL",
-        page: page + 1,
-        status: resp?.status,
-        ok: resp?.ok,
-      });
-      let js = await resp.json();
-      let block = js?.data?.orders;
-      if (
-        (!block || (Array.isArray(js?.errors) && js.errors.length)) &&
-        admin?.graphql
-      ) {
-        try {
-          console.log("[Fomoify][OrdersAPI][Edit] GraphQL call", {
-            mode: "SAFE",
-            page: page + 1,
-            search,
-            after,
-            first: FIRST,
-          });
-          const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
-            variables: { first: FIRST, query: search, after },
-          });
-          console.log("[Fomoify][OrdersAPI][Edit] GraphQL response", {
-            mode: "SAFE",
-            page: page + 1,
-            status: safeResp?.status,
-            ok: safeResp?.ok,
-          });
-          const safeJs = await safeResp.json();
-          const safeBlock = safeJs?.data?.orders;
-          if (safeBlock) {
-            if (Array.isArray(js?.errors) && js.errors.length) {
-              console.warn("[Fomoify] Full orders query failed; SAFE query used.", js.errors);
-            }
-            js = safeJs;
-            block = safeBlock;
-          } else if (Array.isArray(js?.errors) && js.errors.length) {
-            console.error("[Fomoify] Orders query GraphQL errors (edit window):", js.errors);
-            break;
-          }
-        } catch (safeErr) {
-          if (Array.isArray(js?.errors) && js.errors.length) {
-            console.error("[Fomoify] Orders query GraphQL errors (edit window):", js.errors);
-          }
-          console.error("[Fomoify] SAFE orders query failed (edit window):", safeErr);
-          break;
-        }
-      }
-      const edges = block?.edges || [];
-      const mapped = mapEdgesToOrders(edges);
-      console.log("[Fomoify][OrdersAPI][Edit] page mapped", {
-        page: page + 1,
-        edges: edges.length,
-        mapped: mapped.length,
-        filterWindow,
-      });
-      if (!filterWindow) {
-        all = all.concat(mapped);
-      } else {
-        for (const o of mapped) {
-          const orderTime = o?.processedAt || o?.createdAt || "";
-          const ms = Date.parse(orderTime);
-          const createdMs = Date.parse(o?.createdAt || "");
-          if (!Number.isFinite(ms)) continue;
-          if (ms >= startMs && ms <= endMs) all.push(o);
-          if (Number.isFinite(createdMs) && createdMs < startMs) stopPaging = true;
-        }
-      }
-      const hasNext = block?.pageInfo?.hasNextPage;
-      after = block?.pageInfo?.endCursor || null;
-      if (stopPaging || !hasNext || !after) break;
-    }
-    console.log("[Fomoify][OrdersAPI][Edit] fetchOrdersBySearch:done", {
-      search,
-      filterWindow,
-      total: all.length,
-    });
-    return all;
-  }
-
+  const search = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  const FIRST = 100;
+  let after = null;
   let all = [];
-  let selectedSearch = null;
-  for (const search of buildWindowSearchQueries()) {
-    all = await fetchOrdersBySearch(search, { filterWindow: true });
-    if (all.length) {
-      selectedSearch = search;
-      break;
-    }
+  for (let page = 0; page < 20; page++) {
+    const resp = await admin.graphql(Q_ORDERS_FULL, { variables: { first: FIRST, query: search, after } });
+    const js = await resp.json();
+    const block = js?.data?.orders;
+    const edges = block?.edges || [];
+    all = all.concat(mapEdgesToOrders(edges));
+    const hasNext = block?.pageInfo?.hasNextPage;
+    after = block?.pageInfo?.endCursor || null;
+    if (!hasNext || !after) break;
   }
-  console.log("[Fomoify][OrdersAPI][Edit] day-wise search", {
-    startISO,
-    endISO,
-    search: selectedSearch,
-    count: all.length,
-  });
-  if (!all.length) {
-    all = await fetchOrdersBySearch("status:any", { filterWindow: true });
-    console.log("[Fomoify][OrdersAPI][Edit] fallback JS day-filter", { startISO, endISO, count: all.length });
-  }
-  all.sort((a, b) => {
-    const am = Date.parse(a?.processedAt || a?.createdAt || "");
-    const bm = Date.parse(b?.processedAt || b?.createdAt || "");
-    return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
-  });
-  console.log("[Fomoify][OrdersAPI][Edit] final orders count", all.length);
-  console.log(
-    "[Fomoify][OrdersAPI][Edit] final orders payload",
-    JSON.stringify(all, null, 2)
-  );
   return all;
 }
 
@@ -634,14 +447,12 @@ export async function loader({ request, params }) {
       try { await persistCustomerProductHandles(prisma, shop, strictOrders); } catch {}
 
       if (strictOrders.length > 0) {
-        newestCreatedAt = trimIso(String(strictOrders[0].processedAt || strictOrders[0].createdAt || ""));
+        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
       } else {
         const r = await admin.graphql(Q_ORDERS_FULL, { variables: { first: 1, query: "status:any" } });
         const j = await r.json();
         strictOrders = mapEdgesToOrders(j?.data?.orders?.edges || []);
-        if (strictOrders[0]?.processedAt || strictOrders[0]?.createdAt) {
-          newestCreatedAt = trimIso(String(strictOrders[0].processedAt || strictOrders[0].createdAt));
-        }
+        if (strictOrders[0]?.createdAt) newestCreatedAt = trimIso(String(strictOrders[0].createdAt));
       }
 
       buckets = deriveBucketsFromOrders(strictOrders);
@@ -757,9 +568,7 @@ export async function action({ request, params }) {
 
       try { await persistCustomerProductHandles(prisma, shop, orders); } catch {}
 
-      if (orders?.[0]?.processedAt || orders?.[0]?.createdAt) {
-        createOrderTime = trimIso(String(orders[0].processedAt || orders[0].createdAt));
-      }
+      if (orders?.[0]?.createdAt) createOrderTime = trimIso(String(orders[0].createdAt));
 
       const namesSet = new Set();
       const locSet = new Set();
@@ -1017,39 +826,7 @@ const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large"
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : size === "large" ? 1.06 : 1);
 
 /* ───────────────── Unified bubbles ──────────────── */
-function formatOrderAge(createdAt) {
-  if (!createdAt) return "just now";
-  const orderDate = new Date(createdAt);
-  if (Number.isNaN(orderDate.getTime())) return "just now";
-
-  const now = new Date();
-  const sameDay = orderDate.toDateString() === now.toDateString();
-
-  if (sameDay) {
-    const diffMs = Math.max(0, now - orderDate);
-    const hours = Math.floor(diffMs / (60 * 60 * 1000));
-    const shown = Math.max(1, hours);
-    return `${shown} hour${shown === 1 ? "" : "s"} ago`;
-  }
-
-  const startOrder = new Date(
-    orderDate.getFullYear(),
-    orderDate.getMonth(),
-    orderDate.getDate()
-  );
-  const startNow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
-  const diffDays = Math.max(
-    1,
-    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
-  );
-  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
-function RecentBubble({ form, order, product, isMobile = false, hydrated = false }) {
+function RecentBubble({ form, order, product, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const hide = new Set(form.hideKeys || []);
 
@@ -1106,11 +883,7 @@ function RecentBubble({ form, order, product, isMobile = false, hydrated = false
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>
-                  {hydrated
-                    ? formatOrderAge(order?.processedAt || order?.createdAt)
-                    : "Timing"}
-                </small>
+                <small>{order?.createdAt ? new Date(order.createdAt).toLocaleString() : "just now"}</small>
               </span>
             </>
           )}
@@ -1158,7 +931,7 @@ function FlashBubble({ form, isMobile = false }) {
 }
 
 /* Desktop frame */
-function DesktopPreview({ keyName, form, product, order, hydrated = false }) {
+function DesktopPreview({ keyName, form, product, order }) {
   const flex = posToFlex(form?.position);
   return (
     <div
@@ -1169,7 +942,7 @@ function DesktopPreview({ keyName, form, product, order, hydrated = false }) {
       }}
     >
       {keyName === "recent" ? (
-        <RecentBubble form={form} product={product} order={order} isMobile={false} hydrated={hydrated} />
+        <RecentBubble form={form} product={product} order={order} isMobile={false} />
       ) : (
         <FlashBubble form={form} isMobile={false} />
       )}
@@ -1178,7 +951,7 @@ function DesktopPreview({ keyName, form, product, order, hydrated = false }) {
 }
 
 /* Mobile frame */
-function MobilePreview({ keyName, form, product, order, hydrated = false }) {
+function MobilePreview({ keyName, form, product, order }) {
   const pos = (form?.mobilePosition && form.mobilePosition[0]) || "bottom";
   const flex = mobilePosToFlex(pos);
   return (
@@ -1193,7 +966,7 @@ function MobilePreview({ keyName, form, product, order, hydrated = false }) {
         <div style={{ position: "absolute", top: 10, left: "50%", transform: "translateX(-50%)", width: 120, height: 18, borderRadius: 10, background: "#0f172a0f" }} />
         <div style={{ padding: 8 }}>
           {keyName === "recent" ? (
-            <RecentBubble form={form} product={product} order={order} isMobile hydrated={hydrated} />
+            <RecentBubble form={form} product={product} order={order} isMobile />
           ) : (
             <FlashBubble form={form} isMobile />
           )}
@@ -1204,7 +977,7 @@ function MobilePreview({ keyName, form, product, order, hydrated = false }) {
 }
 
 /* Wrapper */
-function LivePreview({ keyName, form, product, order, hydrated = false }) {
+function LivePreview({ keyName, form, product, order }) {
   const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
@@ -1217,12 +990,12 @@ function LivePreview({ keyName, form, product, order, hydrated = false }) {
         </ButtonGroup>
       </InlineStack>
 
-      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} />}
-      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} />}
+      {mode === "desktop" && <DesktopPreview keyName={keyName} form={form} product={product} order={order} />}
+      {mode === "mobile" && <MobilePreview keyName={keyName} form={form} product={product} order={order} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} /></Box>
-          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} order={order} hydrated={hydrated} /></Box>
+          <Box width="58%"><DesktopPreview keyName={keyName} form={form} product={product} order={order} /></Box>
+          <Box width="40%"><MobilePreview keyName={keyName} form={form} product={product} order={order} /></Box>
         </InlineStack>
       )}
 
@@ -1250,11 +1023,6 @@ export default function NotificationEditGeneric() {
   const safeNewestCreatedAt = newestCreatedAt ?? null;
   const safeUsedDays =
     typeof usedDays === "number" && !Number.isNaN(usedDays) ? usedDays : null;
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
 
   const [showSaved, setShowSaved] = useState(() => {
     try { return new URLSearchParams(location.search).get("saved") === "1"; } catch { return false; }
@@ -1461,7 +1229,6 @@ export default function NotificationEditGeneric() {
                   form={form}
                   product={isRecent ? (selectedProduct || previewProduct) : null}
                   order={previewOrder}
-                  hydrated={hydrated}
                 />
               </Box>
             </Card>
@@ -1529,11 +1296,7 @@ export default function NotificationEditGeneric() {
                     />
 
                     <Text as="p" variant="bodySm" tone="subdued">
-                      Last newest order time: {form.createOrderTime
-                        ? hydrated
-                          ? new Date(form.createOrderTime).toLocaleString()
-                          : trimIso(String(form.createOrderTime))
-                        : "—"}
+                      Last newest order time: {form.createOrderTime ? new Date(form.createOrderTime).toLocaleString() : "—"}
                     </Text>
 
                     <ChoiceList
