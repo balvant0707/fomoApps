@@ -29,14 +29,14 @@ model session {
 }
 
 model shop {
-  id            Int      @id @default(autoincrement())
-  shop          String   @unique(map: "Shop_shop_key")
+  id            Int       @id @default(autoincrement())
+  shop          String    @unique(map: "Shop_shop_key")
   accessToken   String?
-  installed     Boolean  @default(false)
-  uninstalledAt DateTime?
+  installed     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   onboardedAt   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  uninstalledAt DateTime?
 }
 
 model notificationconfig {
@@ -47,9 +47,6 @@ model notificationconfig {
   key                  String
   enabled              Boolean  @default(false)
   showType             String?
-  messageTitle         String?
-  location             String?
-  name                 String?
   messageText          String?
   fontFamily           String?
   position             String?
@@ -64,10 +61,10 @@ model notificationconfig {
   durationSeconds      Int?
   alternateSeconds     Int?
   fontWeight           Int?
-  productHandle        String?
   messageTitlesJson    String?  @db.LongText
   orderDays            Int?     @default(7)
   createOrderTime      String?  @db.VarChar(32)
+  orderDate            String?  @db.VarChar(32)
   locationsJson        String?  @db.LongText
   namesJson            String?  @db.LongText
   selectedProductsJson String?  @db.LongText
@@ -75,4 +72,20 @@ model notificationconfig {
   iconSvg              String?  @db.LongText
 
   @@index([shop, key], map: "NotificationConfig_shop_key_idx")
+}
+
+model popupanalyticsevent {
+  id            Int      @id @default(autoincrement())
+  shop          String   @db.VarChar(255)
+  popupType     String   @db.VarChar(32)
+  eventType     String   @db.VarChar(32)
+  visitorId     String?  @db.VarChar(128)
+  productHandle String?  @db.VarChar(128)
+  pagePath      String?  @db.VarChar(255)
+  sourceUrl     String?  @db.VarChar(500)
+  createdAt     DateTime @default(now())
+
+  @@index([shop, createdAt], map: "PopupAnalyticsEvent_shop_createdAt_idx")
+  @@index([shop, popupType, eventType, createdAt], map: "PopupAnalyticsEvent_shop_type_event_createdAt_idx")
+  @@index([shop, visitorId], map: "PopupAnalyticsEvent_shop_visitorId_idx")
 }
