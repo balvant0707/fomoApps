@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   window.__fomoOneFile = true;
 
   const SHOP = (window.Shopify && window.Shopify.shop) || "";
-  const PROXY_BASES = ["/apps/fomo-v2", "/apps/fomo"];
+  const PROXY_BASES = ["/apps/fomo-v2"];
   const PROXY_STORE_KEY = "__fomo_proxy_base__";
   const readSavedProxyBase = () => {
     try {
