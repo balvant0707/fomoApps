@@ -1,6 +1,6 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
-client_id = "566eaad8ff3a144a38768da34f9a805f"
+client_id = "7a85831b0c4fec1f323dc285f026c1fd"
 name = "Fomoify Test App"
 application_url = "https://fomo-apps-lyart.vercel.app/app"
 embedded = true
