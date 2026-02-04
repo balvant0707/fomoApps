@@ -1,4 +1,11 @@
 // app/routes/app.notification.recent.jsx
+// ✅ FULL UPDATED FILE (Fixes 500 save errors + better error visibility)
+// - Forces node runtime for Prisma on Vercel
+// - Safer authenticate.admin with try/catch
+// - Prisma model fallback (notificationconfig / notificationConfig / notification_config)
+// - More detailed error response (code/meta) so frontend Toast shows exact reason
+// - Frontend save() shows server payload in Toast
+
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Page,
@@ -24,6 +31,8 @@ import { useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+
+export const runtime = "nodejs"; // ✅ IMPORTANT: Prisma must run on Node runtime (not edge)
 
 /* ───────────────── constants ──────────────── */
 const KEY = "recent";
@@ -140,11 +149,8 @@ function zonedStartOfDay(date, timeZone) {
 }
 
 /**
- * ✅ FIX: Shopify search query માટે ISO datetime બદલે DATE window use કરીએ.
- * - startDate = (today - (days-1)) in shop TZ
- * - endDate = today in shop TZ
- * - endNextDate = endDate + 1 day (exclusive upper bound)
- * - startISO/endISO = JS filtering માટે UTC ISO window
+ * ✅ Shopify search query માટે DATE-only window (most reliable):
+ * created_at:>=YYYY-MM-DD created_at:<YYYY-MM-DD
  */
 function daysRangeZoned(days, timeZone) {
   const tz = timeZone || "UTC";
@@ -158,11 +164,6 @@ function daysRangeZoned(days, timeZone) {
     day: "2-digit",
   });
 
-  const p = ymdFmt.formatToParts(now);
-  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
-  const M = Number(p.find((x) => x.type === "month")?.value || "01");
-  const D = Number(p.find((x) => x.type === "day")?.value || "01");
-
   const toYMD = (dt) => {
     const parts = ymdFmt.formatToParts(dt);
     const y = parts.find((x) => x.type === "year")?.value;
@@ -171,27 +172,28 @@ function daysRangeZoned(days, timeZone) {
     return `${y}-${m}-${d}`;
   };
 
-  // Anchor at noon UTC to avoid DST weirdness, then move calendar days.
-  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
-  const startAnchor = new Date(localDayAnchorUtc);
+  // today in shop timezone (by reading Y/M/D)
+  const p = ymdFmt.formatToParts(now);
+  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
+  const M = Number(p.find((x) => x.type === "month")?.value || "01");
+  const D = Number(p.find((x) => x.type === "day")?.value || "01");
+
+  // anchor noon UTC to avoid DST issues
+  const todayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
+
+  const startAnchor = new Date(todayAnchorUtc);
   startAnchor.setUTCDate(startAnchor.getUTCDate() - (daysClamped - 1));
 
-  // start-of-day (shop TZ) converted to UTC ISO
   const start = zonedStartOfDay(startAnchor, tz);
-
-  // endISO: now (UTC ISO) for JS filtering
-  const endISO = trimIso(now.toISOString());
   const startISO = trimIso(start.toISOString());
-
-  // Date-only window for Shopify query:
-  const endDateObj = localDayAnchorUtc; // "today" in shop tz
-  const endDate = toYMD(endDateObj);
-
-  const endNextObj = new Date(endDateObj);
-  endNextObj.setUTCDate(endNextObj.getUTCDate() + 1);
-  const endNextDate = toYMD(endNextObj);
+  const endISO = trimIso(now.toISOString());
 
   const startDate = toYMD(startAnchor);
+  const endDate = toYMD(todayAnchorUtc);
+
+  const endNextObj = new Date(todayAnchorUtc);
+  endNextObj.setUTCDate(endNextObj.getUTCDate() + 1);
+  const endNextDate = toYMD(endNextObj);
 
   return { startISO, endISO, startDate, endDate, endNextDate };
 }
@@ -207,7 +209,7 @@ async function getShopTimezone(admin) {
   }
 }
 
-/* ───────────────── Orders query + mapping ──────────────── */
+/* ───────────────── Orders query + mapping (with pagination) ──────────────── */
 const Q_ORDERS_FULL = `
   query Orders($first:Int!, $query:String, $after:String) {
     orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
@@ -281,11 +283,6 @@ function mapEdgesToOrders(edges) {
   });
 }
 
-/**
- * ✅ FIX: created_at date-only search
- * Query example:
- * created_at:>=2026-02-04 created_at:<2026-02-05 status:any
- */
 async function fetchOrdersWithinWindow(admin, range) {
   const { startISO, endISO, startDate, endNextDate } = range;
 
@@ -297,15 +294,11 @@ async function fetchOrdersWithinWindow(admin, range) {
     hasAdminGraphql: !!admin?.graphql,
   });
 
-  const buildWindowSearchQueries = () => {
-    // most reliable first
-    return [
-      `created_at:>=${startDate} created_at:<${endNextDate} status:any`,
-      `created_at:>=${startDate} created_at:<${endNextDate}`,
-      `created_at:>=${startDate} created_at:<${endNextDate} financial_status:any`,
-      `status:any`,
-    ];
-  };
+  const buildWindowSearchQueries = () => [
+    `created_at:>=${startDate} created_at:<${endNextDate} status:any`,
+    `created_at:>=${startDate} created_at:<${endNextDate}`,
+    "status:any",
+  ];
 
   async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
     const startMs = Date.parse(startISO);
@@ -318,18 +311,11 @@ async function fetchOrdersWithinWindow(admin, range) {
     for (let page = 0; page < 20; page++) {
       let resp;
       try {
-        console.log("[Fomoify][OrdersAPI] GraphQL call", {
-          mode: "FULL",
-          page: page + 1,
-          search,
-          after,
-          first: FIRST,
-        });
         resp = await admin.graphql(Q_ORDERS_FULL, {
           variables: { first: FIRST, query: search, after },
         });
       } catch (e) {
-        console.error("[Fomoify] admin.graphql failed (window):", e);
+        console.error("[Fomoify] admin.graphql failed:", e);
         break;
       }
 
@@ -337,32 +323,25 @@ async function fetchOrdersWithinWindow(admin, range) {
       try {
         js = await resp.json();
       } catch (e) {
-        console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
+        console.error("[Fomoify] admin.graphql JSON parse failed:", e);
         break;
       }
 
-      // hard log errors (so you can see exact reason in logs)
       if (Array.isArray(js?.errors) && js.errors.length) {
         console.error("[Fomoify][OrdersAPI] GraphQL errors:", js.errors);
       }
 
       let block = js?.data?.orders;
 
-      // fallback safe query
       if (!block) {
         try {
-          console.log("[Fomoify][OrdersAPI] GraphQL SAFE fallback", {
-            page: page + 1,
-            search,
-            after,
-          });
           const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
             variables: { first: FIRST, query: search, after },
           });
           const safeJs = await safeResp.json();
           block = safeJs?.data?.orders;
         } catch (e) {
-          console.error("[Fomoify][OrdersAPI] SAFE failed:", e);
+          console.error("[Fomoify] SAFE orders query failed:", e);
           break;
         }
       }
@@ -375,18 +354,13 @@ async function fetchOrdersWithinWindow(admin, range) {
       if (!filterWindow) {
         all = all.concat(mapped);
       } else {
-        // JS window filter: processedAt OR createdAt
         for (const o of mapped) {
-          const t = o?.processedAt || o?.createdAt || "";
-          const ms = Date.parse(t);
+          const orderTime = o?.processedAt || o?.createdAt || "";
+          const ms = Date.parse(orderTime);
           const createdMs = Date.parse(o?.createdAt || "");
           if (!Number.isFinite(ms)) continue;
-
           if (ms >= startMs && ms <= endMs) all.push(o);
-
-          if (Number.isFinite(createdMs) && createdMs < startMs) {
-            stopPaging = true;
-          }
+          if (Number.isFinite(createdMs) && createdMs < startMs) stopPaging = true;
         }
       }
 
@@ -395,16 +369,9 @@ async function fetchOrdersWithinWindow(admin, range) {
       if (stopPaging || !hasNext || !after) break;
     }
 
-    console.log("[Fomoify][OrdersAPI] fetchOrdersBySearch:done", {
-      search,
-      filterWindow,
-      total: all.length,
-    });
-
     return all;
   }
 
-  // 1) Try reliable date-only search first
   let all = [];
   let selectedSearch = null;
 
@@ -419,13 +386,8 @@ async function fetchOrdersWithinWindow(admin, range) {
   console.log("[Fomoify][OrdersAPI] day-wise result", {
     selectedSearch,
     count: all.length,
-    startISO,
-    endISO,
-    startDate,
-    endNextDate,
   });
 
-  // Sorting newest first
   all.sort((a, b) => {
     const am = Date.parse(a?.processedAt || a?.createdAt || "");
     const bm = Date.parse(b?.processedAt || b?.createdAt || "");
@@ -474,6 +436,7 @@ function deriveBucketsFromOrders(orders) {
     }
     return out;
   };
+
   const uniqLocations = (arr) => {
     const seen = new Set();
     const out = [];
@@ -497,8 +460,10 @@ function deriveBucketsFromOrders(orders) {
   for (const o of orders || []) {
     const full = [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
     if (full) customerNames.push(full);
+
     const l = { city: o.city, state: o.state, country: o.country };
     if (l.city || l.state || l.country) locations.push(l);
+
     for (const p of o.products || []) if (p.handle) productHandles.push(p.handle);
   }
 
@@ -513,6 +478,7 @@ function deriveBucketsFromOrders(orders) {
 function flattenCustomerProductRows(shop, orders) {
   const seen = new Set();
   const rows = [];
+
   for (const o of orders || []) {
     const created = o?.createdAt ? new Date(o.createdAt) : null;
     const orderId = String(o?.id || "").trim();
@@ -520,12 +486,14 @@ function flattenCustomerProductRows(shop, orders) {
     const last = (o?.lastName || "").trim();
     const customerName = first || last ? `${first} ${last}`.trim() : "Anonymous";
     if (!orderId || !created) continue;
+
     for (const p of o?.products || []) {
       const handle = String(p?.handle || "").trim();
       if (!handle) continue;
       const key = `${shop}|${orderId}|${handle}`;
       if (seen.has(key)) continue;
       seen.add(key);
+
       rows.push({
         shop,
         orderId,
@@ -535,6 +503,7 @@ function flattenCustomerProductRows(shop, orders) {
       });
     }
   }
+
   return rows;
 }
 
@@ -542,12 +511,18 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
   try {
     if (!prismaClient) throw new Error("Prisma not available");
     const table =
-      prismaClient.customerproducthandle || prismaClient.customerProductHandle;
+      prismaClient.customerproducthandle ||
+      prismaClient.customerProductHandle ||
+      prismaClient.customer_product_handle;
+
     if (!table) throw new Error("Prisma model missing: customerProductHandle");
+
     const rows = flattenCustomerProductRows(shop, orders);
     if (!rows.length) return { inserted: 0, total: 0 };
+
     const CHUNK = 200;
     let done = 0;
+
     for (let i = 0; i < rows.length; i += CHUNK) {
       const slice = rows.slice(i, i + CHUNK);
       await prismaClient.$transaction(
@@ -568,6 +543,7 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
       );
       done += slice.length;
     }
+
     return { inserted: done, total: rows.length };
   } catch (e) {
     console.error("[persistCustomerProductHandles] failed:", e);
@@ -584,16 +560,8 @@ export async function loader({ request }) {
   try {
     ({ admin, session } = await authenticate.admin(request));
     shop = session?.shop;
-    const accessToken = session?.accessToken;
-    console.log("[Fomoify][OrdersAPI] auth check (loader)", {
-      shop,
-      hasAccessToken: !!accessToken,
-      tokenPreview: accessToken
-        ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}`
-        : null,
-    });
   } catch (e) {
-    console.error("[Fomoify] authenticate.admin failed in recent loader:", e);
+    console.error("[recent.loader] authenticate.admin failed:", e);
     return json(
       {
         key: KEY,
@@ -631,16 +599,22 @@ export async function loader({ request }) {
     const url = new URL(request.url);
     const daysParam = url.searchParams.get("days");
 
+    // Prisma model fallback for read as well
+    const model =
+      prisma?.notificationconfig ||
+      prisma?.notificationConfig ||
+      prisma?.notification_config;
+
     let last = null;
     try {
-      if (prisma?.notificationconfig?.findFirst) {
-        last = await prisma.notificationconfig.findFirst({
+      if (model?.findFirst) {
+        last = await model.findFirst({
           where: { shop, key: KEY },
           orderBy: { id: "desc" },
         });
       }
     } catch (e) {
-      console.error("[Fomoify] prisma.findFirst failed (loader).", e);
+      console.error("[recent.loader] prisma.findFirst failed:", e);
     }
 
     const parseArr = (s) => {
@@ -698,7 +672,7 @@ export async function loader({ request }) {
 
       buckets = deriveBucketsFromOrders(strictOrders);
     } catch (e) {
-      console.error("[Fomoify] Orders fetch (loader) failed:", e);
+      console.error("[recent.loader] Orders fetch failed:", e);
     }
 
     const allHandlesWindow = collectAllProductHandles(strictOrders);
@@ -750,7 +724,7 @@ export async function loader({ request }) {
       loaderError: null,
     });
   } catch (e) {
-    console.error("[Fomoify] loader fatal error:", e);
+    console.error("[recent.loader] fatal error:", e);
     return json(
       {
         key: KEY,
@@ -770,19 +744,20 @@ export async function loader({ request }) {
 
 /* ───────────────── action ──────────────── */
 export async function action({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+  let admin, session;
+
+  try {
+    ({ admin, session } = await authenticate.admin(request));
+  } catch (e) {
+    console.error("[recent.action] authenticate.admin failed:", e);
+    return json(
+      { success: false, error: "Unauthorized (auth failed)", details: String(e?.message || e) },
+      { status: 401 }
+    );
+  }
+
   const shop = session?.shop;
-  const accessToken = session?.accessToken;
-
-  console.log("[Fomoify][OrdersAPI] auth check (action)", {
-    shop,
-    hasAccessToken: !!accessToken,
-    tokenPreview: accessToken
-      ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}`
-      : null,
-  });
-
-  if (!shop) throw new Response("Unauthorized", { status: 401 });
+  if (!shop) return json({ success: false, error: "Unauthorized (missing shop)" }, { status: 401 });
 
   let body;
   try {
@@ -813,58 +788,59 @@ export async function action({ request }) {
   const shopTZ = await getShopTimezone(admin);
   const range = daysRangeZoned(fetchDays, shopTZ);
 
+  // 1) Fetch window orders
   let orders = [];
   try {
     orders = await fetchOrdersWithinWindow(admin, range);
   } catch (e) {
-    console.error("[Fomoify] Orders fetch (action) failed:", e);
+    console.error("[recent.action] Orders fetch failed:", e);
   }
 
+  // 2) Strong validation: require at least one product handle
   const allHandlesWindow = collectAllProductHandles(orders);
-
   if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
     return json(
       {
         success: false,
         error:
-          "No usable orders found in the selected window. Try selecting more days (e.g., 7/14) OR ensure orders contain products that still exist (product handle required).",
+          "No usable orders found in the selected window. Try selecting more days (7/14/30) or ensure orders contain products.",
         validation: "NO_USABLE_ORDERS",
+        window: range,
       },
       { status: 422 }
     );
   }
 
+  // 3) Persist only after validation
   try {
     const persistRes = await persistCustomerProductHandles(prisma, shop, orders);
     if (persistRes?.error)
-      console.warn("[action] persist warning:", persistRes.error);
+      console.warn("[recent.action] persist warning:", persistRes.error);
   } catch (e) {
-    console.error("[action] persist failed:", e);
+    console.error("[recent.action] persist failed:", e);
   }
 
+  // 4) Build save payload
   const { locations, customerNames } = deriveBucketsFromOrders(orders);
+
   const newestOrderCreatedAtISO =
     orders.length > 0 && (orders[0]?.processedAt || orders[0]?.createdAt)
       ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
       : null;
-
-  // DB schema keeps productHandle required for notificationconfig rows.
-  const fallbackProductHandle =
-    allHandlesWindow.find((h) => String(h || "").trim()) || "recent-orders";
 
   const selectedProductsJson = JSON.stringify(allHandlesWindow);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
   const namesJson = JSON.stringify(Array.isArray(form?.namesJson) ? form.namesJson : []);
   const mobilePositionJson = JSON.stringify(
-    Array.isArray(form?.mobilePosition) ? form.mobilePosition : [form?.mobilePosition || "bottom"]
+    Array.isArray(form?.mobilePosition)
+      ? form.mobilePosition
+      : [form?.mobilePosition || "bottom"]
   );
 
   const data = {
     shop,
     key: KEY,
-    updatedAt: new Date(),
-    productHandle: fallbackProductHandle,
 
     enabled: !!(form?.enabled?.includes?.("enabled")),
     showType: nullIfBlank(form?.showType),
@@ -897,11 +873,20 @@ export async function action({ request }) {
     if (data[k] === undefined) delete data[k];
   });
 
-  try {
-    if (!prisma?.notificationconfig)
-      throw new Error("Prisma model missing: notificationconfig");
+  // ✅ Prisma model fallback
+  const model =
+    prisma?.notificationconfig ||
+    prisma?.notificationConfig ||
+    prisma?.notification_config;
 
-    const existing = await prisma.notificationconfig.findFirst({
+  try {
+    if (!model) {
+      throw new Error(
+        "Prisma model missing. Expected prisma.notificationConfig (or notificationconfig)."
+      );
+    }
+
+    const existing = await model.findFirst({
       where: { shop, key: KEY },
       orderBy: { id: "desc" },
       select: { id: true },
@@ -909,12 +894,12 @@ export async function action({ request }) {
 
     let saved;
     if (existing?.id) {
-      saved = await prisma.notificationconfig.update({
+      saved = await model.update({
         where: { id: existing.id },
         data,
       });
     } else {
-      saved = await prisma.notificationconfig.create({ data });
+      saved = await model.create({ data });
     }
 
     return json({
@@ -927,18 +912,18 @@ export async function action({ request }) {
         locations: (locations || []).length,
         names: (customerNames || []).length,
       },
-      window: { startISO: range.startISO, endISO: range.endISO, startDate: range.startDate, endNextDate: range.endNextDate },
+      window: range,
     });
   } catch (e) {
-    console.error("[NotificationConfig save failed]", e?.code, e?.meta, e);
+    console.error("[recent.action] DB save failed:", e);
     return json(
       {
         success: false,
         error: String(e?.message || e),
         code: e?.code || null,
-        cause: e?.meta?.cause || null,
+        meta: e?.meta || null,
         hint:
-          "If create() fails, check DB legacy NOT NULL columns not in Prisma model.",
+          "DB schema mismatch OR missing required columns OR Prisma model name mismatch OR Prisma running on edge runtime.",
       },
       { status: 500 }
     );
@@ -995,14 +980,18 @@ function hsvToRgb({ hue: h, saturation: s, brightness: v }) {
   };
 }
 const rgbToHex = ({ r, g, b }) =>
-  `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+  `#${[r, g, b]
+    .map((v) => v.toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
 const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
 const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   const [open, setOpen] = useState(false);
   const [hsb, setHsb] = useState(
-    hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 }
+    hex6(value)
+      ? hexToHSB(value)
+      : { hue: 212, saturation: 0.7, brightness: 0.55 }
   );
   useEffect(() => {
     if (hex6(value)) setHsb(hexToHSB(value));
@@ -1085,7 +1074,8 @@ const mobilePosToFlex = (pos) => ({
   justifyContent: "center",
   alignItems: pos === "top" ? "flex-start" : "flex-end",
 });
-const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large" ? 360 : 330);
+const mobileSizeToWidth = (size) =>
+  size === "compact" ? 300 : size === "large" ? 360 : 330;
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : 1.06);
 
 function formatOrderAge(createdAt) {
@@ -1103,9 +1093,16 @@ function formatOrderAge(createdAt) {
     return `${shown} hour${shown === 1 ? "" : "s"} ago`;
   }
 
-  const startOrder = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+  const startOrder = new Date(
+    orderDate.getFullYear(),
+    orderDate.getMonth(),
+    orderDate.getDate()
+  );
   const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.max(1, Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000)));
+  const diffDays = Math.max(
+    1,
+    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
+  );
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
@@ -1114,7 +1111,10 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
   const sizeBase = Number(form.rounded ?? 14) || 14;
   const sized = Math.max(
     10,
-    Math.min(28, Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1)))
+    Math.min(
+      28,
+      Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1))
+    )
   );
   const hide = new Set(form.namesJson || []);
 
@@ -1133,6 +1133,7 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
   const moreCount = Math.max(0, products.length - 1);
 
   const showTime = !hide.has("time");
+
   return (
     <div
       style={{
@@ -1201,7 +1202,9 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>{hydrated ? formatOrderAge(order?.processedAt || order?.createdAt) : "Timing"}</small>
+                <small>
+                  {hydrated ? formatOrderAge(order?.processedAt || order?.createdAt) : "Timing"}
+                </small>
               </span>
             </>
           )}
@@ -1320,8 +1323,7 @@ function LivePreview({ form, order, hydrated = false }) {
 
 /* ───────────────── page ──────────────── */
 export default function RecentOrdersPopupPage() {
-  const { title, saved, preview, orders, usedDays, hasUsableOrders, newestCreatedAt, loaderError } =
-    useLoaderData();
+  const { title, saved, preview, orders, usedDays, hasUsableOrders, newestCreatedAt, loaderError } = useLoaderData();
   const navigate = useNavigate();
   const [hydrated, setHydrated] = useState(false);
 
@@ -1330,7 +1332,7 @@ export default function RecentOrdersPopupPage() {
   useEffect(() => {
     console.log(`[Fomoify] STRICT ${usedDays}-day window orders:`, orders);
     console.log("[Fomoify] Preview:", preview);
-    if (loaderError) console.warn("[Fomoify] Loader reported error:", loaderError);
+    if (loaderError) console.warn("[Fomoify] Loader error:", loaderError);
   }, [orders, usedDays, preview, loaderError]);
 
   const [saving, setSaving] = useState(false);
@@ -1386,31 +1388,39 @@ export default function RecentOrdersPopupPage() {
     setForm((f) => ({ ...f, [k]: clamped }));
   };
 
+  // ✅ UPDATED SAVE: show server error details in toast
   const save = async () => {
     try {
       setSaving(true);
       const loc = new URL(window.location.href);
       const endpoint = `${loc.pathname}${loc.search || ""}`;
+
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ form }),
       });
 
-      const isJSON = res.headers.get("content-type")?.includes("application/json");
-      const payload = isJSON ? await res.json() : { error: await res.text() };
+      const ct = res.headers.get("content-type") || "";
+      const payload = ct.includes("application/json")
+        ? await res.json()
+        : { error: await res.text() };
 
       if (!res.ok) {
         const msg =
           payload?.error ||
-          "Save failed. Try selecting a different day window or try again later.";
+          payload?.message ||
+          payload?.hint ||
+          `Save failed (HTTP ${res.status})`;
+
+        console.error("SAVE ERROR payload:", payload);
         setToast({ on: true, error: true, msg });
         return;
       }
 
       navigate("/app/dashboard?saved=1");
     } catch (e) {
-      setToast({ on: true, error: true, msg: String(e.message || "Error") });
+      setToast({ on: true, error: true, msg: String(e?.message || e || "Unknown error") });
     } finally {
       setSaving(false);
     }
@@ -1433,6 +1443,7 @@ export default function RecentOrdersPopupPage() {
   return (
     <Frame>
       {saving && <Loading />}
+
       <Page
         title={`Configuration – ${title}`}
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
@@ -1505,7 +1516,7 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
-          {/* Display */}
+          {/* Display & Customize (your existing UI kept as-is, trimmed for brevity?) */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
@@ -1569,7 +1580,6 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
-          {/* Customize */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
