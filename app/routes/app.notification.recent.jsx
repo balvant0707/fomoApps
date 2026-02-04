@@ -20,11 +20,7 @@ import {
   ButtonGroup,
   Banner,
 } from "@shopify/polaris";
-import {
-  useLoaderData,
-  useNavigate,
-  useRouteError,
-} from "@remix-run/react";
+import { useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -120,7 +116,6 @@ function zonedStartOfDay(date, timeZone) {
   const D = Number(parts.find((p) => p.type === "day")?.value || "01");
   const utcGuess = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
 
-  // Robust timezone offset derivation (does not rely on shortOffset support).
   const fullFmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     year: "numeric",
@@ -144,33 +139,61 @@ function zonedStartOfDay(date, timeZone) {
   return new Date(utcGuess.getTime() - offsetMs);
 }
 
+/**
+ * ✅ FIX: Shopify search query માટે ISO datetime બદલે DATE window use કરીએ.
+ * - startDate = (today - (days-1)) in shop TZ
+ * - endDate = today in shop TZ
+ * - endNextDate = endDate + 1 day (exclusive upper bound)
+ * - startISO/endISO = JS filtering માટે UTC ISO window
+ */
 function daysRangeZoned(days, timeZone) {
   const tz = timeZone || "UTC";
   const now = new Date();
-  const endISO = trimIso(now.toISOString());
   const daysClamped = Math.max(1, Number(days || 1));
 
-  // Calendar-day based window in shop timezone:
-  // 1 day => today (shop TZ), N days => today + previous N-1 days.
   const ymdFmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
+
   const p = ymdFmt.formatToParts(now);
   const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
   const M = Number(p.find((x) => x.type === "month")?.value || "01");
   const D = Number(p.find((x) => x.type === "day")?.value || "01");
 
-  // Use noon anchor to avoid DST edge ambiguity, then jump calendar days.
-  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
-  localDayAnchorUtc.setUTCDate(
-    localDayAnchorUtc.getUTCDate() - (daysClamped - 1)
-  );
+  const toYMD = (dt) => {
+    const parts = ymdFmt.formatToParts(dt);
+    const y = parts.find((x) => x.type === "year")?.value;
+    const m = parts.find((x) => x.type === "month")?.value;
+    const d = parts.find((x) => x.type === "day")?.value;
+    return `${y}-${m}-${d}`;
+  };
 
-  const start = zonedStartOfDay(localDayAnchorUtc, tz);
-  return { startISO: trimIso(start.toISOString()), endISO };
+  // Anchor at noon UTC to avoid DST weirdness, then move calendar days.
+  const localDayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
+  const startAnchor = new Date(localDayAnchorUtc);
+  startAnchor.setUTCDate(startAnchor.getUTCDate() - (daysClamped - 1));
+
+  // start-of-day (shop TZ) converted to UTC ISO
+  const start = zonedStartOfDay(startAnchor, tz);
+
+  // endISO: now (UTC ISO) for JS filtering
+  const endISO = trimIso(now.toISOString());
+  const startISO = trimIso(start.toISOString());
+
+  // Date-only window for Shopify query:
+  const endDateObj = localDayAnchorUtc; // "today" in shop tz
+  const endDate = toYMD(endDateObj);
+
+  const endNextObj = new Date(endDateObj);
+  endNextObj.setUTCDate(endNextObj.getUTCDate() + 1);
+  const endNextDate = toYMD(endNextObj);
+
+  const startDate = toYMD(startAnchor);
+
+  return { startISO, endISO, startDate, endDate, endNextDate };
 }
 
 async function getShopTimezone(admin) {
@@ -184,7 +207,7 @@ async function getShopTimezone(admin) {
   }
 }
 
-/* ───────────────── Orders query + mapping (with pagination) ──────────────── */
+/* ───────────────── Orders query + mapping ──────────────── */
 const Q_ORDERS_FULL = `
   query Orders($first:Int!, $query:String, $after:String) {
     orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
@@ -258,21 +281,29 @@ function mapEdgesToOrders(edges) {
   });
 }
 
-async function fetchOrdersWithinWindow(admin, startISO, endISO) {
+/**
+ * ✅ FIX: created_at date-only search
+ * Query example:
+ * created_at:>=2026-02-04 created_at:<2026-02-05 status:any
+ */
+async function fetchOrdersWithinWindow(admin, range) {
+  const { startISO, endISO, startDate, endNextDate } = range;
+
   console.log("[Fomoify][OrdersAPI] fetchOrdersWithinWindow:start", {
     startISO,
     endISO,
+    startDate,
+    endNextDate,
     hasAdminGraphql: !!admin?.graphql,
   });
 
   const buildWindowSearchQueries = () => {
-    const startDate = String(startISO || "").slice(0, 10);
-    const endDate = String(endISO || "").slice(0, 10);
+    // most reliable first
     return [
-      `created_at:>=${startISO} created_at:<=${endISO} status:any`,
-      `created_at:>='${startISO}' created_at:<='${endISO}' status:any`,
-      `created_at:>=${startDate} created_at:<=${endDate} status:any`,
-      `created_at:>='${startDate}' created_at:<='${endDate}' status:any`,
+      `created_at:>=${startDate} created_at:<${endNextDate} status:any`,
+      `created_at:>=${startDate} created_at:<${endNextDate}`,
+      `created_at:>=${startDate} created_at:<${endNextDate} financial_status:any`,
+      `status:any`,
     ];
   };
 
@@ -297,16 +328,11 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
         resp = await admin.graphql(Q_ORDERS_FULL, {
           variables: { first: FIRST, query: search, after },
         });
-        console.log("[Fomoify][OrdersAPI] GraphQL response", {
-          mode: "FULL",
-          page: page + 1,
-          status: resp?.status,
-          ok: resp?.ok,
-        });
       } catch (e) {
         console.error("[Fomoify] admin.graphql failed (window):", e);
         break;
       }
+
       let js;
       try {
         js = await resp.json();
@@ -314,78 +340,51 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
         console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
         break;
       }
+
+      // hard log errors (so you can see exact reason in logs)
+      if (Array.isArray(js?.errors) && js.errors.length) {
+        console.error("[Fomoify][OrdersAPI] GraphQL errors:", js.errors);
+      }
+
       let block = js?.data?.orders;
-      if (
-        (!block || (Array.isArray(js?.errors) && js.errors.length)) &&
-        admin?.graphql
-      ) {
+
+      // fallback safe query
+      if (!block) {
         try {
-          console.log("[Fomoify][OrdersAPI] GraphQL call", {
-            mode: "SAFE",
+          console.log("[Fomoify][OrdersAPI] GraphQL SAFE fallback", {
             page: page + 1,
             search,
             after,
-            first: FIRST,
           });
           const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
             variables: { first: FIRST, query: search, after },
           });
-          console.log("[Fomoify][OrdersAPI] GraphQL response", {
-            mode: "SAFE",
-            page: page + 1,
-            status: safeResp?.status,
-            ok: safeResp?.ok,
-          });
           const safeJs = await safeResp.json();
-          const safeBlock = safeJs?.data?.orders;
-          if (safeBlock) {
-            if (Array.isArray(js?.errors) && js.errors.length) {
-              console.warn(
-                "[Fomoify] Full orders query failed; SAFE query used.",
-                js.errors
-              );
-            }
-            js = safeJs;
-            block = safeBlock;
-          } else if (Array.isArray(js?.errors) && js.errors.length) {
-            console.error(
-              "[Fomoify] Orders query GraphQL errors (window):",
-              js.errors
-            );
-            break;
-          }
-        } catch (safeErr) {
-          if (Array.isArray(js?.errors) && js.errors.length) {
-            console.error(
-              "[Fomoify] Orders query GraphQL errors (window):",
-              js.errors
-            );
-          }
-          console.error("[Fomoify] SAFE orders query failed (window):", safeErr);
+          block = safeJs?.data?.orders;
+        } catch (e) {
+          console.error("[Fomoify][OrdersAPI] SAFE failed:", e);
           break;
         }
       }
+
       if (!block) break;
 
       const edges = block?.edges || [];
       const mapped = mapEdgesToOrders(edges);
-      console.log("[Fomoify][OrdersAPI] page mapped", {
-        page: page + 1,
-        edges: edges.length,
-        mapped: mapped.length,
-        filterWindow,
-      });
+
       if (!filterWindow) {
         all = all.concat(mapped);
       } else {
+        // JS window filter: processedAt OR createdAt
         for (const o of mapped) {
-          const orderTime = o?.processedAt || o?.createdAt || "";
-          const ms = Date.parse(orderTime);
+          const t = o?.processedAt || o?.createdAt || "";
+          const ms = Date.parse(t);
           const createdMs = Date.parse(o?.createdAt || "");
           if (!Number.isFinite(ms)) continue;
+
           if (ms >= startMs && ms <= endMs) all.push(o);
+
           if (Number.isFinite(createdMs) && createdMs < startMs) {
-            // orders are sorted by createdAt desc, so next pages will be older
             stopPaging = true;
           }
         }
@@ -395,16 +394,20 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
       after = block?.pageInfo?.endCursor || null;
       if (stopPaging || !hasNext || !after) break;
     }
+
     console.log("[Fomoify][OrdersAPI] fetchOrdersBySearch:done", {
       search,
       filterWindow,
       total: all.length,
     });
+
     return all;
   }
 
+  // 1) Try reliable date-only search first
   let all = [];
   let selectedSearch = null;
+
   for (const search of buildWindowSearchQueries()) {
     all = await fetchOrdersBySearch(search, { filterWindow: true });
     if (all.length) {
@@ -412,33 +415,23 @@ async function fetchOrdersWithinWindow(admin, startISO, endISO) {
       break;
     }
   }
-  console.log("[Fomoify][OrdersAPI] day-wise search", {
+
+  console.log("[Fomoify][OrdersAPI] day-wise result", {
+    selectedSearch,
+    count: all.length,
     startISO,
     endISO,
-    search: selectedSearch,
-    count: all.length,
+    startDate,
+    endNextDate,
   });
 
-  // If API-level day filter returns empty on some shops, fallback to JS window filter.
-  if (!all.length) {
-    all = await fetchOrdersBySearch("status:any", { filterWindow: true });
-    console.log("[Fomoify][OrdersAPI] fallback JS day-filter", {
-      startISO,
-      endISO,
-      count: all.length,
-    });
-  }
-
+  // Sorting newest first
   all.sort((a, b) => {
     const am = Date.parse(a?.processedAt || a?.createdAt || "");
     const bm = Date.parse(b?.processedAt || b?.createdAt || "");
     return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
   });
-  console.log("[Fomoify][OrdersAPI] final orders count", all.length);
-  console.log(
-    "[Fomoify][OrdersAPI] final orders payload",
-    JSON.stringify(all, null, 2)
-  );
+
   return all;
 }
 
@@ -588,7 +581,6 @@ export async function loader({ request }) {
   let session;
   let shop;
 
-  // SUPER defensive around authenticate.admin
   try {
     ({ admin, session } = await authenticate.admin(request));
     shop = session?.shop;
@@ -659,6 +651,7 @@ export async function loader({ request }) {
         return [];
       }
     };
+
     const db_namesJson = parseArr(last?.namesJson);
     const db_locationsJson = parseArr(last?.locationsJson);
     const db_messageTitlesJson = parseArr(last?.messageTitlesJson);
@@ -666,11 +659,12 @@ export async function loader({ request }) {
     const savedOrderDays = Number.isFinite(Number(last?.orderDays))
       ? Number(last.orderDays)
       : 1;
+
     const urlDays = clampDaysParam(daysParam, null);
     const orderDays = urlDays ?? savedOrderDays;
 
     const shopTZ = await getShopTimezone(admin);
-    const { startISO, endISO } = daysRangeZoned(orderDays, shopTZ);
+    const range = daysRangeZoned(orderDays, shopTZ);
 
     let strictOrders = [];
     let preview = null;
@@ -678,10 +672,9 @@ export async function loader({ request }) {
     let newestCreatedAt = null;
 
     try {
-      strictOrders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+      strictOrders = await fetchOrdersWithinWindow(admin, range);
 
       if (strictOrders.length > 0) {
-        // newest order in selected window
         newestCreatedAt = trimIso(
           String(strictOrders[0].processedAt || strictOrders[0].createdAt || "")
         );
@@ -708,21 +701,17 @@ export async function loader({ request }) {
       console.error("[Fomoify] Orders fetch (loader) failed:", e);
     }
 
-    // usable orders = current window + at least one product handle
     const allHandlesWindow = collectAllProductHandles(strictOrders);
     const hasUsableOrders = allHandlesWindow.length > 0;
 
-    const saved_selectedProductsJson = allHandlesWindow; // duplicates kept
+    const saved_selectedProductsJson = allHandlesWindow;
     const saved_locationsJson =
       db_locationsJson.length ? db_locationsJson : buckets.locations;
     const saved_messageTitlesJson = db_messageTitlesJson.length
       ? db_messageTitlesJson
       : buckets.customerNames;
 
-    // If preview is still null, provide a dummy preview so LivePreview never breaks
-    if (!preview) {
-      preview = DEFAULT_PREVIEW;
-    }
+    if (!preview) preview = DEFAULT_PREVIEW;
 
     return json({
       key: KEY,
@@ -740,7 +729,7 @@ export async function loader({ request }) {
         msgColor: last?.msgColor ?? "#111111",
         ctaBgColor: last?.ctaBgColor ?? null,
         rounded: String(last?.rounded ?? 14),
-        durationSeconds: Number(last?.durationSeconds ?? 1),
+        durationSeconds: Number(last?.durationSeconds ?? 8),
         alternateSeconds: Number(last?.alternateSeconds ?? 10),
         fontWeight: String(last?.fontWeight ?? 600),
 
@@ -784,6 +773,7 @@ export async function action({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
   const accessToken = session?.accessToken;
+
   console.log("[Fomoify][OrdersAPI] auth check (action)", {
     shop,
     hasAccessToken: !!accessToken,
@@ -791,23 +781,20 @@ export async function action({ request }) {
       ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}`
       : null,
   });
+
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
   let body;
   try {
     body = await request.json();
   } catch (e) {
-    return json(
-      { success: false, error: "Invalid JSON body" },
-      { status: 400 }
-    );
+    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
   const { form } = body || {};
 
   const nullIfBlank = (v) =>
-    v === undefined || v === null || String(v).trim() === ""
-      ? null
-      : String(v);
+    v === undefined || v === null || String(v).trim() === "" ? null : String(v);
+
   const intOrNull = (v, min = null, max = null) => {
     if (v === undefined || v === null || String(v).trim() === "") return null;
     let n = Number(v);
@@ -824,32 +811,29 @@ export async function action({ request }) {
     (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60 ? urlDays : 1);
 
   const shopTZ = await getShopTimezone(admin);
-  const { startISO, endISO } = daysRangeZoned(fetchDays, shopTZ);
+  const range = daysRangeZoned(fetchDays, shopTZ);
 
-  // 1) Fetch window orders
   let orders = [];
   try {
-    orders = await fetchOrdersWithinWindow(admin, startISO, endISO);
+    orders = await fetchOrdersWithinWindow(admin, range);
   } catch (e) {
     console.error("[Fomoify] Orders fetch (action) failed:", e);
   }
 
-  // 2) Strong validation: require at least one product handle
   const allHandlesWindow = collectAllProductHandles(orders);
+
   if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
-    // No usable orders ⇒ 422 validation (not 500)
     return json(
       {
         success: false,
         error:
-          "No usable orders found in the selected window. Try selecting fewer days or wait until you have some orders with products.",
+          "No usable orders found in the selected window. Try selecting more days (e.g., 7/14) OR ensure orders contain products that still exist (product handle required).",
         validation: "NO_USABLE_ORDERS",
       },
       { status: 422 }
     );
   }
 
-  // 3) Persist only after validation
   try {
     const persistRes = await persistCustomerProductHandles(prisma, shop, orders);
     if (persistRes?.error)
@@ -858,7 +842,6 @@ export async function action({ request }) {
     console.error("[action] persist failed:", e);
   }
 
-  // 4) Build save payload
   const { locations, customerNames } = deriveBucketsFromOrders(orders);
   const newestOrderCreatedAtISO =
     orders.length > 0 && (orders[0]?.processedAt || orders[0]?.createdAt)
@@ -868,13 +851,9 @@ export async function action({ request }) {
   const selectedProductsJson = JSON.stringify(allHandlesWindow);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
-  const namesJson = JSON.stringify(
-    Array.isArray(form?.namesJson) ? form.namesJson : []
-  );
+  const namesJson = JSON.stringify(Array.isArray(form?.namesJson) ? form.namesJson : []);
   const mobilePositionJson = JSON.stringify(
-    Array.isArray(form?.mobilePosition)
-      ? form.mobilePosition
-      : [form?.mobilePosition || "bottom"]
+    Array.isArray(form?.mobilePosition) ? form.mobilePosition : [form?.mobilePosition || "bottom"]
   );
 
   const data = {
@@ -894,7 +873,7 @@ export async function action({ request }) {
     msgColor: nullIfBlank(form?.msgColor),
     ctaBgColor: nullIfBlank(form?.ctaBgColor),
     rounded: intOrNull(form?.rounded, 10, 72),
-    durationSeconds: intOrNull(form?.durationSeconds, 1, 60),
+    durationSeconds: intOrNull(form?.durationSeconds, 1, 120),
     alternateSeconds: intOrNull(form?.alternateSeconds, 0, 3600),
     fontWeight: intOrNull(form?.fontWeight, 100, 900),
 
@@ -942,7 +921,7 @@ export async function action({ request }) {
         locations: (locations || []).length,
         names: (customerNames || []).length,
       },
-      window: { startISO, endISO },
+      window: { startISO: range.startISO, endISO: range.endISO, startDate: range.startDate, endNextDate: range.endNextDate },
     });
   } catch (e) {
     console.error("[NotificationConfig save failed]", e?.code, e?.meta, e);
@@ -953,7 +932,7 @@ export async function action({ request }) {
         code: e?.code || null,
         cause: e?.meta?.cause || null,
         hint:
-          "If create() fails, check the DB for any legacy NOT NULL columns that are not in the Prisma model.",
+          "If create() fails, check DB legacy NOT NULL columns not in Prisma model.",
       },
       { status: 500 }
     );
@@ -1010,22 +989,19 @@ function hsvToRgb({ hue: h, saturation: s, brightness: v }) {
   };
 }
 const rgbToHex = ({ r, g, b }) =>
-  `#${[r, g, b]
-    .map((v) => v.toString(16).padStart(2, "0"))
-    .join("")}`.toUpperCase();
+  `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`.toUpperCase();
 const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
 const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   const [open, setOpen] = useState(false);
   const [hsb, setHsb] = useState(
-    hex6(value)
-      ? hexToHSB(value)
-      : { hue: 212, saturation: 0.7, brightness: 0.55 }
+    hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 }
   );
   useEffect(() => {
     if (hex6(value)) setHsb(hexToHSB(value));
   }, [value]);
+
   const swatch = (
     <div
       onClick={() => setOpen(true)}
@@ -1039,6 +1015,7 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
       }}
     />
   );
+
   return (
     <Popover
       active={open}
@@ -1077,17 +1054,11 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
 /* ───────────────── preview components ──────────────── */
 const getAnimationStyle = (a) =>
   a === "slide"
-    ? {
-        transform: "translateY(8px)",
-        animation: "notif-slide-in 240ms ease-out",
-      }
+    ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" }
     : a === "bounce"
     ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" }
     : a === "zoom"
-    ? {
-        transform: "scale(0.96)",
-        animation: "notif-zoom-in 200ms ease-out forwards",
-      }
+    ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" }
     : { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
 
 const posToFlex = (pos) => {
@@ -1108,8 +1079,7 @@ const mobilePosToFlex = (pos) => ({
   justifyContent: "center",
   alignItems: pos === "top" ? "flex-start" : "flex-end",
 });
-const mobileSizeToWidth = (size) =>
-  size === "compact" ? 300 : size === "large" ? 360 : 330;
+const mobileSizeToWidth = (size) => (size === "compact" ? 300 : size === "large" ? 360 : 330);
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : 1.06);
 
 function formatOrderAge(createdAt) {
@@ -1127,35 +1097,18 @@ function formatOrderAge(createdAt) {
     return `${shown} hour${shown === 1 ? "" : "s"} ago`;
   }
 
-  const startOrder = new Date(
-    orderDate.getFullYear(),
-    orderDate.getMonth(),
-    orderDate.getDate()
-  );
-  const startNow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  );
-  const diffDays = Math.max(
-    1,
-    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
-  );
+  const startOrder = new Date(orderDate.getFullYear(), orderDate.getMonth(), orderDate.getDate());
+  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const diffDays = Math.max(1, Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000)));
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
 function Bubble({ form, order, isMobile = false, hydrated = false }) {
-  const animStyle = useMemo(
-    () => getAnimationStyle(form.animation),
-    [form.animation]
-  );
+  const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const sizeBase = Number(form.rounded ?? 14) || 14;
   const sized = Math.max(
     10,
-    Math.min(
-      28,
-      Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1))
-    )
+    Math.min(28, Math.round(sizeBase * (isMobile ? mobileSizeScale(form.mobileSize) : 1)))
   );
   const hide = new Set(form.namesJson || []);
 
@@ -1169,12 +1122,8 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
 
   const products = Array.isArray(order?.products) ? order.products : [];
   const first = products[0] || null;
-  const productTitle = hide.has("productTitle")
-    ? ""
-    : first?.title || order?.productTitle || "";
-  const productImg = hide.has("productImage")
-    ? null
-    : first?.image || order?.productImage || null;
+  const productTitle = hide.has("productTitle") ? "" : first?.title || order?.productTitle || "";
+  const productImg = hide.has("productImage") ? null : first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
 
   const showTime = !hide.has("time");
@@ -1227,42 +1176,26 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
       <div>
         <p style={{ margin: 0, fontSize: sized }}>
           {!hide.has("name") && (
-            <span
-              style={{
-                color: form.titleColor,
-                fontWeight: Number(form.fontWeight || 600),
-              }}
-            >
+            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
               {name || "Customer Name from Location"}
             </span>
           )}
           {!hide.has("name") && loc ? " from " : ""}
           {loc && (
-            <span
-              style={{
-                color: form.titleColor,
-                fontWeight: Number(form.fontWeight || 600),
-              }}
-            >
+            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
               {loc}
             </span>
           )}
           <br />
           <span>
             {productTitle ? `bought “${productTitle}”` : "placed an order"}
-            {moreCount > 0 && !hide.has("productTitle")
-              ? ` +${moreCount} more`
-              : ""}
+            {moreCount > 0 && !hide.has("productTitle") ? ` +${moreCount} more` : ""}
           </span>
           {showTime && (
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
-                <small>
-                  {hydrated
-                    ? formatOrderAge(order?.processedAt || order?.createdAt)
-                    : "Timing"}
-                </small>
+                <small>{hydrated ? formatOrderAge(order?.processedAt || order?.createdAt) : "Timing"}</small>
               </span>
             </>
           )}
@@ -1296,10 +1229,9 @@ function DesktopPreview({ form, order, hydrated = false }) {
     </div>
   );
 }
+
 function MobilePreview({ form, order, hydrated = false }) {
-  const posArr = Array.isArray(form.mobilePosition)
-    ? form.mobilePosition
-    : [form.mobilePosition || "bottom"];
+  const posArr = Array.isArray(form.mobilePosition) ? form.mobilePosition : [form.mobilePosition || "bottom"];
   const flex = mobilePosToFlex(posArr[0]);
   return (
     <div style={{ display: "flex", justifyContent: "center" }}>
@@ -1337,6 +1269,7 @@ function MobilePreview({ form, order, hydrated = false }) {
     </div>
   );
 }
+
 function LivePreview({ form, order, hydrated = false }) {
   const [mode, setMode] = useState("desktop");
   return (
@@ -1346,32 +1279,20 @@ function LivePreview({ form, order, hydrated = false }) {
           Live Preview
         </Text>
         <ButtonGroup segmented>
-          <Button
-            pressed={mode === "desktop"}
-            onClick={() => setMode("desktop")}
-          >
+          <Button pressed={mode === "desktop"} onClick={() => setMode("desktop")}>
             Desktop
           </Button>
-          <Button
-            pressed={mode === "mobile"}
-            onClick={() => setMode("mobile")}
-          >
+          <Button pressed={mode === "mobile"} onClick={() => setMode("mobile")}>
             Mobile
           </Button>
-          <Button
-            pressed={mode === "both"}
-            onClick={() => setMode("both")}
-          >
+          <Button pressed={mode === "both"} onClick={() => setMode("both")}>
             Both
           </Button>
         </ButtonGroup>
       </InlineStack>
-      {mode === "desktop" && (
-        <DesktopPreview form={form} order={order} hydrated={hydrated} />
-      )}
-      {mode === "mobile" && (
-        <MobilePreview form={form} order={order} hydrated={hydrated} />
-      )}
+
+      {mode === "desktop" && <DesktopPreview form={form} order={order} hydrated={hydrated} />}
+      {mode === "mobile" && <MobilePreview form={form} order={order} hydrated={hydrated} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
           <Box width="58%">
@@ -1382,6 +1303,7 @@ function LivePreview({ form, order, hydrated = false }) {
           </Box>
         </InlineStack>
       )}
+
       <Text as="p" variant="bodySm" tone="subdued">
         Orders are pulled strictly by the selected window (shop timezone).
         Preview may show the latest order only for visual reference.
@@ -1392,40 +1314,21 @@ function LivePreview({ form, order, hydrated = false }) {
 
 /* ───────────────── page ──────────────── */
 export default function RecentOrdersPopupPage() {
-  const {
-    title,
-    saved,
-    preview,
-    orders,
-    usedDays,
-    hasUsableOrders,
-    newestCreatedAt,
-    loaderError,
-  } = useLoaderData();
+  const { title, saved, preview, orders, usedDays, hasUsableOrders, newestCreatedAt, loaderError } =
+    useLoaderData();
   const navigate = useNavigate();
   const [hydrated, setHydrated] = useState(false);
 
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
+  useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
-    console.log(
-      `[Fomoify] STRICT ${usedDays}-day window orders:`,
-      orders
-    );
+    console.log(`[Fomoify] STRICT ${usedDays}-day window orders:`, orders);
     console.log("[Fomoify] Preview:", preview);
-    if (loaderError) {
-      console.warn("[Fomoify] Loader reported error:", loaderError);
-    }
+    if (loaderError) console.warn("[Fomoify] Loader reported error:", loaderError);
   }, [orders, usedDays, preview, loaderError]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({
-    on: false,
-    error: false,
-    msg: "",
-  });
+  const [toast, setToast] = useState({ on: false, error: false, msg: "" });
 
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
@@ -1463,9 +1366,10 @@ export default function RecentOrdersPopupPage() {
   }));
 
   useEffect(() => {
-    const newest = orders?.[0]?.processedAt || orders?.[0]?.createdAt
-      ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
-      : null;
+    const newest =
+      orders?.[0]?.processedAt || orders?.[0]?.createdAt
+        ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
+        : null;
     setForm((f) => ({ ...f, createOrderTime: newest, orderDate: newest }));
   }, [orders]);
 
@@ -1483,19 +1387,12 @@ export default function RecentOrdersPopupPage() {
       const endpoint = `${loc.pathname}${loc.search || ""}`;
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ form }),
       });
 
-      const isJSON = res.headers
-        .get("content-type")
-        ?.includes("application/json");
-      const payload = isJSON
-        ? await res.json()
-        : { error: await res.text() };
+      const isJSON = res.headers.get("content-type")?.includes("application/json");
+      const payload = isJSON ? await res.json() : { error: await res.text() };
 
       if (!res.ok) {
         const msg =
@@ -1507,11 +1404,7 @@ export default function RecentOrdersPopupPage() {
 
       navigate("/app/dashboard?saved=1");
     } catch (e) {
-      setToast({
-        on: true,
-        error: true,
-        msg: String(e.message || "Error"),
-      });
+      setToast({ on: true, error: true, msg: String(e.message || "Error") });
     } finally {
       setSaving(false);
     }
@@ -1536,10 +1429,7 @@ export default function RecentOrdersPopupPage() {
       {saving && <Loading />}
       <Page
         title={`Configuration – ${title}`}
-        backAction={{
-          content: "Back",
-          onAction: () => navigate("/app/notification"),
-        }}
+        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
         primaryAction={{
           content: "Save",
           onAction: save,
@@ -1565,14 +1455,10 @@ export default function RecentOrdersPopupPage() {
                   </Text>
 
                   {unusable && (
-                    <Banner
-                      status="critical"
-                      title="You have no usable orders."
-                    >
+                    <Banner status="critical" title="You have no usable orders.">
                       <p>
-                        No orders with products were found in the selected
-                        window. Try selecting fewer days or wait until you have
-                        some orders.
+                        No orders with products were found in the selected window.
+                        Try selecting more days (7/14/30).
                       </p>
                     </Banner>
                   )}
@@ -1587,10 +1473,7 @@ export default function RecentOrdersPopupPage() {
                       setForm((f) => ({ ...f, orderDays: n }));
                       const sp = new URLSearchParams(window.location.search);
                       sp.set("days", String(n));
-                      navigate(
-                        `${window.location.pathname}?${sp.toString()}`,
-                        { replace: true }
-                      );
+                      navigate(`${window.location.pathname}?${sp.toString()}`, { replace: true });
                     }}
                     helpText="1 Day = Today (shop timezone), up to 60 days"
                   />
@@ -1616,7 +1499,7 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
-          {/* Display & Customize */}
+          {/* Display */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
@@ -1680,6 +1563,7 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
+          {/* Customize */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
@@ -1687,6 +1571,7 @@ export default function RecentOrdersPopupPage() {
                   <Text as="h3" variant="headingMd">
                     Customize
                   </Text>
+
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
@@ -1713,19 +1598,13 @@ export default function RecentOrdersPopupPage() {
                       />
                     </Box>
                   </InlineStack>
+
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
                         label="Desktop Popup Position"
-                        options={[
-                          "top-left",
-                          "top-right",
-                          "bottom-left",
-                          "bottom-right",
-                        ].map((v) => ({
-                          label: v
-                            .replace("-", " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase()),
+                        options={["top-left", "top-right", "bottom-left", "bottom-right"].map((v) => ({
+                          label: v.replace("-", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
                           value: v,
                         }))}
                         value={form.position}
@@ -1746,6 +1625,7 @@ export default function RecentOrdersPopupPage() {
                       />
                     </Box>
                   </InlineStack>
+
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
@@ -1766,32 +1646,19 @@ export default function RecentOrdersPopupPage() {
                           label: v[0].toUpperCase() + v.slice(1),
                           value: v,
                         }))}
-                        value={
-                          Array.isArray(form.mobilePosition)
-                            ? form.mobilePosition[0]
-                            : "bottom"
-                        }
-                        onChange={(v) =>
-                          setForm((f) => ({
-                            ...f,
-                            mobilePosition: [v],
-                          }))
-                        }
+                        value={Array.isArray(form.mobilePosition) ? form.mobilePosition[0] : "bottom"}
+                        onChange={(v) => setForm((f) => ({ ...f, mobilePosition: [v] }))}
                       />
                     </Box>
                   </InlineStack>
+
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
                         type="number"
                         label="Font Size (px)"
                         value={String(form.rounded)}
-                        onChange={(v) =>
-                          setForm((f) => ({
-                            ...f,
-                            rounded: String(v),
-                          }))
-                        }
+                        onChange={(v) => setForm((f) => ({ ...f, rounded: String(v) }))}
                         autoComplete="off"
                       />
                     </Box>
@@ -1799,29 +1666,24 @@ export default function RecentOrdersPopupPage() {
                       <ColorInput
                         label="Headline Text Color"
                         value={form.titleColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, titleColor: v }))
-                        }
+                        onChange={(v) => setForm((f) => ({ ...f, titleColor: v }))}
                       />
                     </Box>
                   </InlineStack>
+
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ColorInput
                         label="Popup Background Color"
                         value={form.bgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, bgColor: v }))
-                        }
+                        onChange={(v) => setForm((f) => ({ ...f, bgColor: v }))}
                       />
                     </Box>
                     <Box width="50%">
                       <ColorInput
                         label="Message Text Color"
                         value={form.msgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, msgColor: v }))
-                        }
+                        onChange={(v) => setForm((f) => ({ ...f, msgColor: v }))}
                       />
                     </Box>
                   </InlineStack>
@@ -1849,12 +1711,10 @@ export function ErrorBoundary() {
   const error = useRouteError();
   console.error("[Fomoify] RecentOrdersPopupPage route error:", error);
 
-  let message =
-    "Something went wrong while loading Recent Purchases.";
+  let message = "Something went wrong while loading Recent Purchases.";
   if (error && typeof error === "object" && "status" in error) {
     if (error.status === 500) {
-      message =
-        "The server returned an internal error. Please refresh the page.";
+      message = "The server returned an internal error. Please refresh the page.";
     }
   }
 
@@ -1865,9 +1725,7 @@ export function ErrorBoundary() {
           <Layout.Section>
             <Banner status="critical" title="Unable to load Recent Purchases">
               <p>{message}</p>
-              <p>
-                Try reloading the page or reopening the app from the Apps list.
-              </p>
+              <p>Try reloading the page or reopening the app from the Apps list.</p>
             </Banner>
           </Layout.Section>
         </Layout>
@@ -1875,5 +1733,3 @@ export function ErrorBoundary() {
     </Frame>
   );
 }
-
-
