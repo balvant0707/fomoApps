@@ -42,7 +42,7 @@ model shop {
 model notificationconfig {
   id                   Int      @id @default(autoincrement())
   createdAt            DateTime @default(now())
-  updatedAt            DateTime
+  updatedAt            DateTime @updatedAt
   shop                 String
   key                  String
   enabled              Boolean  @default(false)
