@@ -592,6 +592,14 @@ export async function loader({ request }) {
   try {
     ({ admin, session } = await authenticate.admin(request));
     shop = session?.shop;
+    const accessToken = session?.accessToken;
+    console.log("[Fomoify][OrdersAPI] auth check (loader)", {
+      shop,
+      hasAccessToken: !!accessToken,
+      tokenPreview: accessToken
+        ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}`
+        : null,
+    });
   } catch (e) {
     console.error("[Fomoify] authenticate.admin failed in recent loader:", e);
     return json(
@@ -775,6 +783,14 @@ export async function loader({ request }) {
 export async function action({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
+  const accessToken = session?.accessToken;
+  console.log("[Fomoify][OrdersAPI] auth check (action)", {
+    shop,
+    hasAccessToken: !!accessToken,
+    tokenPreview: accessToken
+      ? `${accessToken.slice(0, 6)}...${accessToken.slice(-4)}`
+      : null,
+  });
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
   let body;
@@ -1859,3 +1875,5 @@ export function ErrorBoundary() {
     </Frame>
   );
 }
+
+
