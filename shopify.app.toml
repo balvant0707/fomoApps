@@ -4,7 +4,7 @@ client_id = "fe498ceb049ee2edc48f609a10869a64"
 name = "Fomoify Popup Test"
 application_url = "https://fomo-apps-lyart.vercel.app/app"
 embedded = true
-handle = "fomoify-test-app"
+handle = "fomoify-popup-test"
 
 [build]
 automatically_update_urls_on_dev = true
@@ -41,7 +41,7 @@ redirect_urls = [
 
 [app_proxy]
 url = "https://fomo-apps-lyart.vercel.app/proxy/fomo"
-subpath = "fomo"
+subpath = "fomo-v2"
 prefix = "apps"
 
 [pos]

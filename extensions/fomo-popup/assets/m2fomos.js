@@ -3,10 +3,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   window.__fomoOneFile = true;
 
   const SHOP = (window.Shopify && window.Shopify.shop) || "";
-  const ENDPOINT = `/apps/fomo/popup?shop=${SHOP}`;
-  const SESSION_ENDPOINT = `/apps/fomo/session?shop=${SHOP}`;
-  const ORDERS_ENDPOINT_BASE = `/apps/fomo/orders`; // expects ?shop=&days=&limit=
-  const TRACK_ENDPOINT = `/apps/fomo/track?shop=${SHOP}`;
+  const PROXY_BASE = "/apps/fomo-v2";
+  const ENDPOINT = `${PROXY_BASE}/popup?shop=${SHOP}`;
+  const SESSION_ENDPOINT = `${PROXY_BASE}/session?shop=${SHOP}`;
+  const ORDERS_ENDPOINT_BASE = `${PROXY_BASE}/orders`; // expects ?shop=&days=&limit=
+  const TRACK_ENDPOINT = `${PROXY_BASE}/track?shop=${SHOP}`;
   const ROOT = document.getElementById("fomo-embed-root");
   if (!ROOT) return;
 
