@@ -28,27 +28,21 @@ export default function StatsPanel({ stats }) {
   const series = analytics.series || EMPTY_STATS.analytics.series || {};
   const labels = Array.isArray(series.labels) ? series.labels : [];
   const visitorsSeries = Array.isArray(series.visitors) ? series.visitors : [];
-  const trendSeries = visitorsSeries;
-  const chartMin = Math.min(...trendSeries, 0);
-  const chartMax = Math.max(1, ...trendSeries);
+  const clicksSeries = Array.isArray(series.clicks) ? series.clicks : [];
+  const ordersSeries = Array.isArray(series.orders) ? series.orders : [];
+  const chartMax = Math.max(1, ...visitorsSeries, ...clicksSeries, ...ordersSeries);
   const yTicks = 6;
-  const xTickEvery = Math.max(1, Math.floor(labels.length / 4));
+  const xTickEvery = Math.max(1, Math.floor(labels.length / 6));
   const chartHeight = 220;
-  const chartWidth = Math.max(320, labels.length * 26);
-  const valueRange = Math.max(1, chartMax - chartMin);
+  const chartWidth = Math.max(420, labels.length * 64);
+  const groupWidth = labels.length > 0 ? chartWidth / labels.length : chartWidth;
+  const clusterWidth = groupWidth * 0.82;
+  const barGap = 0;
+  const barWidth = clusterWidth / 3;
   const formatDateLabel = (value) => {
     const d = new Date(`${value}T00:00:00`);
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
   };
-  const points = labels
-    .map((day, idx) => {
-      const value = Number(trendSeries[idx] || 0);
-      const x =
-        labels.length > 1 ? (idx / (labels.length - 1)) * chartWidth : chartWidth / 2;
-      const y = chartHeight - ((value - chartMin) / valueRange) * chartHeight;
-      return `${x},${y}`;
-    })
-    .join(" ");
 
   return (
     <Card>
@@ -76,7 +70,7 @@ export default function StatsPanel({ stats }) {
         <Card padding="300">
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">
-              Visitors Trend ({analytics.days || 30} days)
+              Date-wise Analysis ({analytics.days || 30} days)
             </Text>
             <div
               style={{
@@ -92,7 +86,7 @@ export default function StatsPanel({ stats }) {
                   <svg width={chartWidth + 40} height={chartHeight + 40}>
                     {[...Array(yTicks)].map((_, i) => {
                       const y = 10 + (i / (yTicks - 1)) * chartHeight;
-                      const tickValue = Math.round(chartMax - (i / (yTicks - 1)) * valueRange);
+                      const tickValue = Math.round(chartMax - (i / (yTicks - 1)) * chartMax);
                       return (
                         <g key={`grid-${i}`}>
                           <line x1="30" y1={y} x2={chartWidth + 30} y2={y} stroke="#E6E8EB" />
@@ -102,15 +96,57 @@ export default function StatsPanel({ stats }) {
                         </g>
                       );
                     })}
-                    <polyline
-                      fill="none"
-                      stroke="#0EA5A4"
-                      strokeWidth="4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      points={points}
-                      transform="translate(30,10)"
-                    />
+                    {labels.map((day, idx) => {
+                      const groupX = idx * groupWidth;
+                      const visitors = Number(visitorsSeries[idx] || 0);
+                      const clicks = Number(clicksSeries[idx] || 0);
+                      const orders = Number(ordersSeries[idx] || 0);
+                      const vh = (visitors / chartMax) * chartHeight;
+                      const ch = (clicks / chartMax) * chartHeight;
+                      const oh = (orders / chartMax) * chartHeight;
+                      const baseY = 10 + chartHeight;
+                      const startX = 30 + groupX + (groupWidth - clusterWidth) / 2;
+                      const dateTooltip =
+                        `${formatDateLabel(day)}\n` +
+                        `Visitors: ${visitors}\n` +
+                        `Clicks: ${clicks}\n` +
+                        `Orders: ${orders}`;
+
+                      return (
+                        <g key={`bars-${day}`}>
+                          <rect
+                            x={startX}
+                            y={baseY - vh}
+                            width={barWidth}
+                            height={Math.max(1, vh)}
+                            rx="0"
+                            fill="#E8C15F"
+                          >
+                            <title>{dateTooltip}</title>
+                          </rect>
+                          <rect
+                            x={startX + barWidth + barGap}
+                            y={baseY - ch}
+                            width={barWidth}
+                            height={Math.max(1, ch)}
+                            rx="0"
+                            fill="#4A98D0"
+                          >
+                            <title>{dateTooltip}</title>
+                          </rect>
+                          <rect
+                            x={startX + (barWidth + barGap) * 2}
+                            y={baseY - oh}
+                            width={barWidth}
+                            height={Math.max(1, oh)}
+                            rx="0"
+                            fill="#7A63B8"
+                          >
+                            <title>{dateTooltip}</title>
+                          </rect>
+                        </g>
+                      );
+                    })}
                   </svg>
                 </div>
               </div>
@@ -127,8 +163,16 @@ export default function StatsPanel({ stats }) {
               </div>
               <InlineStack gap="300" align="center">
                 <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#0EA5A4", display: "inline-block" }} />
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#E8C15F", display: "inline-block" }} />
                   <Text as="span" variant="bodySm">Visitors</Text>
+                </InlineStack>
+                <InlineStack gap="100" blockAlign="center">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#4A98D0", display: "inline-block" }} />
+                  <Text as="span" variant="bodySm">Clicks</Text>
+                </InlineStack>
+                <InlineStack gap="100" blockAlign="center">
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#7A63B8", display: "inline-block" }} />
+                  <Text as="span" variant="bodySm">Orders</Text>
                 </InlineStack>
               </InlineStack>
             </div>
