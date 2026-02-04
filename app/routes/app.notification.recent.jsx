@@ -1,11 +1,4 @@
 // app/routes/app.notification.recent.jsx
-// ✅ FULL UPDATED FILE (Fixes 500 save errors + better error visibility)
-// - Forces node runtime for Prisma on Vercel
-// - Safer authenticate.admin with try/catch
-// - Prisma model fallback (notificationconfig / notificationConfig / notification_config)
-// - More detailed error response (code/meta) so frontend Toast shows exact reason
-// - Frontend save() shows server payload in Toast
-
 import React, { useMemo, useState, useEffect } from "react";
 import {
   Page,
@@ -27,12 +20,14 @@ import {
   ButtonGroup,
   Banner,
 } from "@shopify/polaris";
-import { useLoaderData, useNavigate, useRouteError } from "@remix-run/react";
+import {
+  useLoaderData,
+  useNavigate,
+  useRouteError,
+} from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-
-export const runtime = "nodejs"; // ✅ IMPORTANT: Prisma must run on Node runtime (not edge)
 
 /* ───────────────── constants ──────────────── */
 const KEY = "recent";
@@ -99,7 +94,6 @@ const DEFAULT_SAVED = {
   messageTitlesJson: [],
   orderDays: 1,
   createOrderTime: null,
-  orderDate: null,
 };
 
 /* ───────────────── date helpers ──────────────── */
@@ -112,90 +106,28 @@ const trimIso = (iso) => {
 };
 
 function zonedStartOfDay(date, timeZone) {
-  const tz = timeZone || "UTC";
-  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const parts = ymdFmt.formatToParts(date);
+  const parts = fmt.formatToParts(date);
   const Y = Number(parts.find((p) => p.type === "year")?.value || "1970");
   const M = Number(parts.find((p) => p.type === "month")?.value || "01");
   const D = Number(parts.find((p) => p.type === "day")?.value || "01");
-  const utcGuess = new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
-
-  const fullFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const g = fullFmt.formatToParts(utcGuess);
-  const gY = Number(g.find((p) => p.type === "year")?.value || "1970");
-  const gM = Number(g.find((p) => p.type === "month")?.value || "01");
-  const gD = Number(g.find((p) => p.type === "day")?.value || "01");
-  const gH = Number(g.find((p) => p.type === "hour")?.value || "00");
-  const gMin = Number(g.find((p) => p.type === "minute")?.value || "00");
-  const gS = Number(g.find((p) => p.type === "second")?.value || "00");
-
-  const asUTC = Date.UTC(gY, gM - 1, gD, gH, gMin, gS, 0);
-  const offsetMs = asUTC - utcGuess.getTime();
-  return new Date(utcGuess.getTime() - offsetMs);
+  return new Date(Date.UTC(Y, M - 1, D, 0, 0, 0, 0));
 }
 
-/**
- * ✅ Shopify search query માટે DATE-only window (most reliable):
- * created_at:>=YYYY-MM-DD created_at:<YYYY-MM-DD
- */
 function daysRangeZoned(days, timeZone) {
-  const tz = timeZone || "UTC";
   const now = new Date();
-  const daysClamped = Math.max(1, Number(days || 1));
-
-  const ymdFmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const toYMD = (dt) => {
-    const parts = ymdFmt.formatToParts(dt);
-    const y = parts.find((x) => x.type === "year")?.value;
-    const m = parts.find((x) => x.type === "month")?.value;
-    const d = parts.find((x) => x.type === "day")?.value;
-    return `${y}-${m}-${d}`;
-  };
-
-  // today in shop timezone (by reading Y/M/D)
-  const p = ymdFmt.formatToParts(now);
-  const Y = Number(p.find((x) => x.type === "year")?.value || "1970");
-  const M = Number(p.find((x) => x.type === "month")?.value || "01");
-  const D = Number(p.find((x) => x.type === "day")?.value || "01");
-
-  // anchor noon UTC to avoid DST issues
-  const todayAnchorUtc = new Date(Date.UTC(Y, M - 1, D, 12, 0, 0, 0));
-
-  const startAnchor = new Date(todayAnchorUtc);
-  startAnchor.setUTCDate(startAnchor.getUTCDate() - (daysClamped - 1));
-
-  const start = zonedStartOfDay(startAnchor, tz);
-  const startISO = trimIso(start.toISOString());
   const endISO = trimIso(now.toISOString());
-
-  const startDate = toYMD(startAnchor);
-  const endDate = toYMD(todayAnchorUtc);
-
-  const endNextObj = new Date(todayAnchorUtc);
-  endNextObj.setUTCDate(endNextObj.getUTCDate() + 1);
-  const endNextDate = toYMD(endNextObj);
-
-  return { startISO, endISO, startDate, endDate, endNextDate };
+  const daysClamped = Math.max(1, Number(days || 1));
+  const base = new Date(
+    now.getTime() - (daysClamped - 1) * 24 * 60 * 60 * 1000
+  );
+  const start = zonedStartOfDay(base, timeZone || "UTC");
+  return { startISO: trimIso(start.toISOString()), endISO };
 }
 
 async function getShopTimezone(admin) {
@@ -219,33 +151,9 @@ const Q_ORDERS_FULL = `
         node {
           id
           createdAt
-          processedAt
           customer { firstName lastName }
           shippingAddress { city province provinceCode country }
           billingAddress  { city province provinceCode country }
-          lineItems(first: 100) {
-            edges {
-              node {
-                title
-                product { handle title featuredImage { url } }
-              }
-            }
-          }
-        }
-      }
-    }
-  }`;
-
-const Q_ORDERS_SAFE = `
-  query OrdersSafe($first:Int!, $query:String, $after:String) {
-    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
-      pageInfo { hasNextPage endCursor }
-      edges {
-        cursor
-        node {
-          id
-          createdAt
-          processedAt
           lineItems(first: 100) {
             edges {
               node {
@@ -272,7 +180,6 @@ function mapEdgesToOrders(edges) {
     return {
       id: o.id,
       createdAt: o.createdAt,
-      processedAt: o.processedAt || null,
       firstName: o.customer?.firstName || "",
       lastName: o.customer?.lastName || "",
       city: addr?.city || "",
@@ -283,118 +190,36 @@ function mapEdgesToOrders(edges) {
   });
 }
 
-async function fetchOrdersWithinWindow(admin, range, options = {}) {
-  const { startISO, endISO, startDate, endNextDate } = range;
-  const maxPages = Math.max(1, Number(options?.maxPages || 20));
-
-  console.log("[Fomoify][OrdersAPI] fetchOrdersWithinWindow:start", {
-    startISO,
-    endISO,
-    startDate,
-    endNextDate,
-    hasAdminGraphql: !!admin?.graphql,
-  });
-
-  const buildWindowSearchQueries = () => [
-    `created_at:>=${startDate} created_at:<${endNextDate} status:any`,
-    `created_at:>=${startDate} created_at:<${endNextDate}`,
-    "status:any",
-  ];
-
-  async function fetchOrdersBySearch(search, { filterWindow = false } = {}) {
-    const startMs = Date.parse(startISO);
-    const endMs = Date.parse(endISO);
-    const FIRST = 100;
-    let after = null;
-    let all = [];
-    let stopPaging = false;
-
-    for (let page = 0; page < maxPages; page++) {
-      let resp;
-      try {
-        resp = await admin.graphql(Q_ORDERS_FULL, {
-          variables: { first: FIRST, query: search, after },
-        });
-      } catch (e) {
-        console.error("[Fomoify] admin.graphql failed:", e);
-        break;
-      }
-
-      let js;
-      try {
-        js = await resp.json();
-      } catch (e) {
-        console.error("[Fomoify] admin.graphql JSON parse failed:", e);
-        break;
-      }
-
-      if (Array.isArray(js?.errors) && js.errors.length) {
-        console.error("[Fomoify][OrdersAPI] GraphQL errors:", js.errors);
-      }
-
-      let block = js?.data?.orders;
-
-      if (!block) {
-        try {
-          const safeResp = await admin.graphql(Q_ORDERS_SAFE, {
-            variables: { first: FIRST, query: search, after },
-          });
-          const safeJs = await safeResp.json();
-          block = safeJs?.data?.orders;
-        } catch (e) {
-          console.error("[Fomoify] SAFE orders query failed:", e);
-          break;
-        }
-      }
-
-      if (!block) break;
-
-      const edges = block?.edges || [];
-      const mapped = mapEdgesToOrders(edges);
-
-      if (!filterWindow) {
-        all = all.concat(mapped);
-      } else {
-        for (const o of mapped) {
-          const orderTime = o?.processedAt || o?.createdAt || "";
-          const ms = Date.parse(orderTime);
-          const createdMs = Date.parse(o?.createdAt || "");
-          if (!Number.isFinite(ms)) continue;
-          if (ms >= startMs && ms <= endMs) all.push(o);
-          if (Number.isFinite(createdMs) && createdMs < startMs) stopPaging = true;
-        }
-      }
-
-      const hasNext = block?.pageInfo?.hasNextPage;
-      after = block?.pageInfo?.endCursor || null;
-      if (stopPaging || !hasNext || !after) break;
-    }
-
-    return all;
-  }
-
+async function fetchOrdersWithinWindow(admin, startISO, endISO) {
+  const search = `created_at:>=${startISO} created_at:<=${endISO} status:any`;
+  const FIRST = 100;
+  let after = null;
   let all = [];
-  let selectedSearch = null;
-
-  for (const search of buildWindowSearchQueries()) {
-    all = await fetchOrdersBySearch(search, { filterWindow: true });
-    if (all.length) {
-      selectedSearch = search;
+  for (let page = 0; page < 20; page++) {
+    let resp;
+    try {
+      resp = await admin.graphql(Q_ORDERS_FULL, {
+        variables: { first: FIRST, query: search, after },
+      });
+    } catch (e) {
+      console.error("[Fomoify] admin.graphql failed (window):", e);
       break;
     }
+    let js;
+    try {
+      js = await resp.json();
+    } catch (e) {
+      console.error("[Fomoify] admin.graphql JSON parse failed (window):", e);
+      break;
+    }
+    const block = js?.data?.orders;
+    if (!block) break;
+    const edges = block?.edges || [];
+    all = all.concat(mapEdgesToOrders(edges));
+    const hasNext = block?.pageInfo?.hasNextPage;
+    after = block?.pageInfo?.endCursor || null;
+    if (!hasNext || !after) break;
   }
-
-  console.log("[Fomoify][OrdersAPI] day-wise result", {
-    selectedSearch,
-    count: all.length,
-  });
-
-  all.sort((a, b) => {
-    const am = Date.parse(a?.processedAt || a?.createdAt || "");
-    const bm = Date.parse(b?.processedAt || b?.createdAt || "");
-    return (Number.isFinite(bm) ? bm : 0) - (Number.isFinite(am) ? am : 0);
-  });
-
   return all;
 }
 
@@ -437,7 +262,6 @@ function deriveBucketsFromOrders(orders) {
     }
     return out;
   };
-
   const uniqLocations = (arr) => {
     const seen = new Set();
     const out = [];
@@ -461,10 +285,8 @@ function deriveBucketsFromOrders(orders) {
   for (const o of orders || []) {
     const full = [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
     if (full) customerNames.push(full);
-
     const l = { city: o.city, state: o.state, country: o.country };
     if (l.city || l.state || l.country) locations.push(l);
-
     for (const p of o.products || []) if (p.handle) productHandles.push(p.handle);
   }
 
@@ -479,7 +301,6 @@ function deriveBucketsFromOrders(orders) {
 function flattenCustomerProductRows(shop, orders) {
   const seen = new Set();
   const rows = [];
-
   for (const o of orders || []) {
     const created = o?.createdAt ? new Date(o.createdAt) : null;
     const orderId = String(o?.id || "").trim();
@@ -487,14 +308,12 @@ function flattenCustomerProductRows(shop, orders) {
     const last = (o?.lastName || "").trim();
     const customerName = first || last ? `${first} ${last}`.trim() : "Anonymous";
     if (!orderId || !created) continue;
-
     for (const p of o?.products || []) {
       const handle = String(p?.handle || "").trim();
       if (!handle) continue;
       const key = `${shop}|${orderId}|${handle}`;
       if (seen.has(key)) continue;
       seen.add(key);
-
       rows.push({
         shop,
         orderId,
@@ -504,7 +323,6 @@ function flattenCustomerProductRows(shop, orders) {
       });
     }
   }
-
   return rows;
 }
 
@@ -512,18 +330,12 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
   try {
     if (!prismaClient) throw new Error("Prisma not available");
     const table =
-      prismaClient.customerproducthandle ||
-      prismaClient.customerProductHandle ||
-      prismaClient.customer_product_handle;
-
+      prismaClient.customerproducthandle || prismaClient.customerProductHandle;
     if (!table) throw new Error("Prisma model missing: customerProductHandle");
-
     const rows = flattenCustomerProductRows(shop, orders);
     if (!rows.length) return { inserted: 0, total: 0 };
-
     const CHUNK = 200;
     let done = 0;
-
     for (let i = 0; i < rows.length; i += CHUNK) {
       const slice = rows.slice(i, i + CHUNK);
       await prismaClient.$transaction(
@@ -544,7 +356,6 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
       );
       done += slice.length;
     }
-
     return { inserted: done, total: rows.length };
   } catch (e) {
     console.error("[persistCustomerProductHandles] failed:", e);
@@ -558,11 +369,12 @@ export async function loader({ request }) {
   let session;
   let shop;
 
+  // SUPER defensive around authenticate.admin
   try {
     ({ admin, session } = await authenticate.admin(request));
     shop = session?.shop;
   } catch (e) {
-    console.error("[recent.loader] authenticate.admin failed:", e);
+    console.error("[Fomoify] authenticate.admin failed in recent loader:", e);
     return json(
       {
         key: KEY,
@@ -600,22 +412,16 @@ export async function loader({ request }) {
     const url = new URL(request.url);
     const daysParam = url.searchParams.get("days");
 
-    // Prisma model fallback for read as well
-    const model =
-      prisma?.notificationconfig ||
-      prisma?.notificationConfig ||
-      prisma?.notification_config;
-
     let last = null;
     try {
-      if (model?.findFirst) {
-        last = await model.findFirst({
+      if (prisma?.notificationconfig?.findFirst) {
+        last = await prisma.notificationconfig.findFirst({
           where: { shop, key: KEY },
           orderBy: { id: "desc" },
         });
       }
     } catch (e) {
-      console.error("[recent.loader] prisma.findFirst failed:", e);
+      console.error("[Fomoify] prisma.findFirst failed (loader).", e);
     }
 
     const parseArr = (s) => {
@@ -626,7 +432,6 @@ export async function loader({ request }) {
         return [];
       }
     };
-
     const db_namesJson = parseArr(last?.namesJson);
     const db_locationsJson = parseArr(last?.locationsJson);
     const db_messageTitlesJson = parseArr(last?.messageTitlesJson);
@@ -634,12 +439,11 @@ export async function loader({ request }) {
     const savedOrderDays = Number.isFinite(Number(last?.orderDays))
       ? Number(last.orderDays)
       : 1;
-
     const urlDays = clampDaysParam(daysParam, null);
     const orderDays = urlDays ?? savedOrderDays;
 
     const shopTZ = await getShopTimezone(admin);
-    const range = daysRangeZoned(orderDays, shopTZ);
+    const { startISO, endISO } = daysRangeZoned(orderDays, shopTZ);
 
     let strictOrders = [];
     let preview = null;
@@ -647,12 +451,11 @@ export async function loader({ request }) {
     let newestCreatedAt = null;
 
     try {
-      strictOrders = await fetchOrdersWithinWindow(admin, range);
+      strictOrders = await fetchOrdersWithinWindow(admin, startISO, endISO);
 
       if (strictOrders.length > 0) {
-        newestCreatedAt = trimIso(
-          String(strictOrders[0].processedAt || strictOrders[0].createdAt || "")
-        );
+        // newest order in selected window
+        newestCreatedAt = trimIso(String(strictOrders[0].createdAt || ""));
         const p0 = strictOrders[0]?.products?.[0] || {};
         preview = {
           ...strictOrders[0],
@@ -673,20 +476,24 @@ export async function loader({ request }) {
 
       buckets = deriveBucketsFromOrders(strictOrders);
     } catch (e) {
-      console.error("[recent.loader] Orders fetch failed:", e);
+      console.error("[Fomoify] Orders fetch (loader) failed:", e);
     }
 
+    // usable orders = current window + at least one product handle
     const allHandlesWindow = collectAllProductHandles(strictOrders);
     const hasUsableOrders = allHandlesWindow.length > 0;
 
-    const saved_selectedProductsJson = allHandlesWindow;
+    const saved_selectedProductsJson = allHandlesWindow; // duplicates kept
     const saved_locationsJson =
       db_locationsJson.length ? db_locationsJson : buckets.locations;
     const saved_messageTitlesJson = db_messageTitlesJson.length
       ? db_messageTitlesJson
       : buckets.customerNames;
 
-    if (!preview) preview = DEFAULT_PREVIEW;
+    // If preview is still null, provide a dummy preview so LivePreview never breaks
+    if (!preview) {
+      preview = DEFAULT_PREVIEW;
+    }
 
     return json({
       key: KEY,
@@ -704,7 +511,7 @@ export async function loader({ request }) {
         msgColor: last?.msgColor ?? "#111111",
         ctaBgColor: last?.ctaBgColor ?? null,
         rounded: String(last?.rounded ?? 14),
-        durationSeconds: Number(last?.durationSeconds ?? 8),
+        durationSeconds: Number(last?.durationSeconds ?? 1),
         alternateSeconds: Number(last?.alternateSeconds ?? 10),
         fontWeight: String(last?.fontWeight ?? 600),
 
@@ -715,7 +522,6 @@ export async function loader({ request }) {
 
         orderDays: orderDays,
         createOrderTime: last?.createOrderTime ?? newestCreatedAt ?? null,
-        orderDate: last?.orderDate ?? newestCreatedAt ?? null,
       },
       newestCreatedAt,
       preview,
@@ -725,7 +531,7 @@ export async function loader({ request }) {
       loaderError: null,
     });
   } catch (e) {
-    console.error("[recent.loader] fatal error:", e);
+    console.error("[Fomoify] loader fatal error:", e);
     return json(
       {
         key: KEY,
@@ -745,32 +551,25 @@ export async function loader({ request }) {
 
 /* ───────────────── action ──────────────── */
 export async function action({ request }) {
-  let admin, session;
-
-  try {
-    ({ admin, session } = await authenticate.admin(request));
-  } catch (e) {
-    console.error("[recent.action] authenticate.admin failed:", e);
-    return json(
-      { success: false, error: "Unauthorized (auth failed)", details: String(e?.message || e) },
-      { status: 401 }
-    );
-  }
-
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
-  if (!shop) return json({ success: false, error: "Unauthorized (missing shop)" }, { status: 401 });
+  if (!shop) throw new Response("Unauthorized", { status: 401 });
 
   let body;
   try {
     body = await request.json();
   } catch (e) {
-    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    return json(
+      { success: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
   }
   const { form } = body || {};
 
   const nullIfBlank = (v) =>
-    v === undefined || v === null || String(v).trim() === "" ? null : String(v);
-
+    v === undefined || v === null || String(v).trim() === ""
+      ? null
+      : String(v);
   const intOrNull = (v, min = null, max = null) => {
     if (v === undefined || v === null || String(v).trim() === "") return null;
     let n = Number(v);
@@ -786,72 +585,54 @@ export async function action({ request }) {
     intOrNull(form?.orderDays, 1, 60) ??
     (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60 ? urlDays : 1);
 
-  let range;
-  try {
-    const shopTZ = await getShopTimezone(admin);
-    range = daysRangeZoned(fetchDays, shopTZ);
-  } catch (e) {
-    console.error("[recent.action] Date window build failed:", e);
-    return json(
-      {
-        success: false,
-        error: "Failed to build orders date window",
-        details: String(e?.message || e),
-      },
-      { status: 500 }
-    );
-  }
+  const shopTZ = await getShopTimezone(admin);
+  const { startISO, endISO } = daysRangeZoned(fetchDays, shopTZ);
 
   // 1) Fetch window orders
   let orders = [];
   try {
-    // Keep POST fast on serverless to avoid timeout/HTML 500 from platform.
-    orders = await fetchOrdersWithinWindow(admin, range, { maxPages: 3 });
+    orders = await fetchOrdersWithinWindow(admin, startISO, endISO);
   } catch (e) {
-    console.error("[recent.action] Orders fetch failed:", e);
+    console.error("[Fomoify] Orders fetch (action) failed:", e);
   }
 
-  // 2) Prefer fresh window data; fallback to form payload when orders API is slow/unavailable.
+  // 2) Strong validation: require at least one product handle
   const allHandlesWindow = collectAllProductHandles(orders);
-  const hasUsableWindowData = Array.isArray(orders) && orders.length > 0 && allHandlesWindow.length > 0;
-
-  const formSelectedProducts = Array.isArray(form?.selectedProductsJson)
-    ? form.selectedProductsJson.map((v) => String(v || "").trim()).filter(Boolean)
-    : [];
-  const formLocations = Array.isArray(form?.locationsJson) ? form.locationsJson : [];
-  const formCustomerNames = Array.isArray(form?.messageTitlesJson)
-    ? form.messageTitlesJson.map((v) => String(v || "").trim()).filter(Boolean)
-    : [];
-
-  if (!hasUsableWindowData) {
-    console.warn("[recent.action] Using form fallback lists (orders window empty/unavailable).", {
-      orderCount: Array.isArray(orders) ? orders.length : 0,
-      handleCount: allHandlesWindow.length,
-    });
+  if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
+    // No usable orders ⇒ 422 validation (not 500)
+    return json(
+      {
+        success: false,
+        error:
+          "No usable orders found in the selected window. Try selecting fewer days or wait until you have some orders with products.",
+        validation: "NO_USABLE_ORDERS",
+      },
+      { status: 422 }
+    );
   }
 
-  // 3) Skip heavy analytics persistence during save (prevents serverless timeout).
-  // Persist can run in a separate background/admin flow if needed.
+  // 3) Persist only after validation
+  try {
+    const persistRes = await persistCustomerProductHandles(prisma, shop, orders);
+    if (persistRes?.error)
+      console.warn("[action] persist warning:", persistRes.error);
+  } catch (e) {
+    console.error("[action] persist failed:", e);
+  }
 
   // 4) Build save payload
-  const derived = deriveBucketsFromOrders(orders);
-  const selectedProducts = hasUsableWindowData ? allHandlesWindow : formSelectedProducts;
-  const locations = hasUsableWindowData ? derived.locations : formLocations;
-  const customerNames = hasUsableWindowData ? derived.customerNames : formCustomerNames;
-
+  const { locations, customerNames } = deriveBucketsFromOrders(orders);
   const newestOrderCreatedAtISO =
-    hasUsableWindowData && (orders[0]?.processedAt || orders[0]?.createdAt)
-      ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
+    orders.length > 0 && orders[0]?.createdAt
+      ? trimIso(String(orders[0].createdAt))
       : null;
 
-  // notificationconfig.productHandle is required in current DB schema
-  const fallbackProductHandle =
-    selectedProducts.find((h) => String(h || "").trim()) || "recent-orders";
-
-  const selectedProductsJson = JSON.stringify(selectedProducts);
+  const selectedProductsJson = JSON.stringify(allHandlesWindow);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
-  const namesJson = JSON.stringify(Array.isArray(form?.namesJson) ? form.namesJson : []);
+  const namesJson = JSON.stringify(
+    Array.isArray(form?.namesJson) ? form.namesJson : []
+  );
   const mobilePositionJson = JSON.stringify(
     Array.isArray(form?.mobilePosition)
       ? form.mobilePosition
@@ -861,8 +642,6 @@ export async function action({ request }) {
   const data = {
     shop,
     key: KEY,
-    updatedAt: new Date(),
-    productHandle: fallbackProductHandle,
 
     enabled: !!(form?.enabled?.includes?.("enabled")),
     showType: nullIfBlank(form?.showType),
@@ -877,7 +656,7 @@ export async function action({ request }) {
     msgColor: nullIfBlank(form?.msgColor),
     ctaBgColor: nullIfBlank(form?.ctaBgColor),
     rounded: intOrNull(form?.rounded, 10, 72),
-    durationSeconds: intOrNull(form?.durationSeconds, 1, 120),
+    durationSeconds: intOrNull(form?.durationSeconds, 1, 60),
     alternateSeconds: intOrNull(form?.alternateSeconds, 0, 3600),
     fontWeight: intOrNull(form?.fontWeight, 100, 900),
 
@@ -894,20 +673,11 @@ export async function action({ request }) {
     if (data[k] === undefined) delete data[k];
   });
 
-  // ✅ Prisma model fallback
-  const model =
-    prisma?.notificationconfig ||
-    prisma?.notificationConfig ||
-    prisma?.notification_config;
-
   try {
-    if (!model) {
-      throw new Error(
-        "Prisma model missing. Expected prisma.notificationConfig (or notificationconfig)."
-      );
-    }
+    if (!prisma?.notificationconfig)
+      throw new Error("Prisma model missing: notificationconfig");
 
-    const existing = await model.findFirst({
+    const existing = await prisma.notificationconfig.findFirst({
       where: { shop, key: KEY },
       orderBy: { id: "desc" },
       select: { id: true },
@@ -915,12 +685,12 @@ export async function action({ request }) {
 
     let saved;
     if (existing?.id) {
-      saved = await model.update({
+      saved = await prisma.notificationconfig.update({
         where: { id: existing.id },
         data,
       });
     } else {
-      saved = await model.create({ data });
+      saved = await prisma.notificationconfig.create({ data });
     }
 
     return json({
@@ -929,22 +699,22 @@ export async function action({ request }) {
       savedDays: data.orderDays,
       savedCreateOrderTime: data.createOrderTime,
       counts: {
-        products: (selectedProducts || []).length,
+        products: allHandlesWindow.length,
         locations: (locations || []).length,
         names: (customerNames || []).length,
       },
-      window: range,
+      window: { startISO, endISO },
     });
   } catch (e) {
-    console.error("[recent.action] DB save failed:", e);
+    console.error("[NotificationConfig save failed]", e?.code, e?.meta, e);
     return json(
       {
         success: false,
         error: String(e?.message || e),
         code: e?.code || null,
-        meta: e?.meta || null,
+        cause: e?.meta?.cause || null,
         hint:
-          "DB schema mismatch OR missing required columns OR Prisma model name mismatch OR Prisma running on edge runtime.",
+          "If create() fails, check the DB for any legacy NOT NULL columns that are not in the Prisma model.",
       },
       { status: 500 }
     );
@@ -1017,7 +787,6 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   useEffect(() => {
     if (hex6(value)) setHsb(hexToHSB(value));
   }, [value]);
-
   const swatch = (
     <div
       onClick={() => setOpen(true)}
@@ -1031,7 +800,6 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
       }}
     />
   );
-
   return (
     <Popover
       active={open}
@@ -1070,11 +838,17 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
 /* ───────────────── preview components ──────────────── */
 const getAnimationStyle = (a) =>
   a === "slide"
-    ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" }
+    ? {
+        transform: "translateY(8px)",
+        animation: "notif-slide-in 240ms ease-out",
+      }
     : a === "bounce"
     ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" }
     : a === "zoom"
-    ? { transform: "scale(0.96)", animation: "notif-zoom-in 200ms ease-out forwards" }
+    ? {
+        transform: "scale(0.96)",
+        animation: "notif-zoom-in 200ms ease-out forwards",
+      }
     : { opacity: 1, animation: "notif-fade-in 220ms ease-out forwards" };
 
 const posToFlex = (pos) => {
@@ -1099,36 +873,11 @@ const mobileSizeToWidth = (size) =>
   size === "compact" ? 300 : size === "large" ? 360 : 330;
 const mobileSizeScale = (size) => (size === "compact" ? 0.92 : 1.06);
 
-function formatOrderAge(createdAt) {
-  if (!createdAt) return "Timing";
-  const orderDate = new Date(createdAt);
-  if (Number.isNaN(orderDate.getTime())) return "Timing";
-
-  const now = new Date();
-  const sameDay = orderDate.toDateString() === now.toDateString();
-
-  if (sameDay) {
-    const diffMs = Math.max(0, now - orderDate);
-    const hours = Math.floor(diffMs / (60 * 60 * 1000));
-    const shown = Math.max(1, hours);
-    return `${shown} hour${shown === 1 ? "" : "s"} ago`;
-  }
-
-  const startOrder = new Date(
-    orderDate.getFullYear(),
-    orderDate.getMonth(),
-    orderDate.getDate()
+function Bubble({ form, order, isMobile = false }) {
+  const animStyle = useMemo(
+    () => getAnimationStyle(form.animation),
+    [form.animation]
   );
-  const startNow = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const diffDays = Math.max(
-    1,
-    Math.round((startNow - startOrder) / (24 * 60 * 60 * 1000))
-  );
-  return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
-}
-
-function Bubble({ form, order, isMobile = false, hydrated = false }) {
-  const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const sizeBase = Number(form.rounded ?? 14) || 14;
   const sized = Math.max(
     10,
@@ -1149,12 +898,15 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
 
   const products = Array.isArray(order?.products) ? order.products : [];
   const first = products[0] || null;
-  const productTitle = hide.has("productTitle") ? "" : first?.title || order?.productTitle || "";
-  const productImg = hide.has("productImage") ? null : first?.image || order?.productImage || null;
+  const productTitle = hide.has("productTitle")
+    ? ""
+    : first?.title || order?.productTitle || "";
+  const productImg = hide.has("productImage")
+    ? null
+    : first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
 
   const showTime = !hide.has("time");
-
   return (
     <div
       style={{
@@ -1204,27 +956,41 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
       <div>
         <p style={{ margin: 0, fontSize: sized }}>
           {!hide.has("name") && (
-            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
+            <span
+              style={{
+                color: form.titleColor,
+                fontWeight: Number(form.fontWeight || 600),
+              }}
+            >
               {name || "Customer Name from Location"}
             </span>
           )}
           {!hide.has("name") && loc ? " from " : ""}
           {loc && (
-            <span style={{ color: form.titleColor, fontWeight: Number(form.fontWeight || 600) }}>
+            <span
+              style={{
+                color: form.titleColor,
+                fontWeight: Number(form.fontWeight || 600),
+              }}
+            >
               {loc}
             </span>
           )}
           <br />
           <span>
             {productTitle ? `bought “${productTitle}”` : "placed an order"}
-            {moreCount > 0 && !hide.has("productTitle") ? ` +${moreCount} more` : ""}
+            {moreCount > 0 && !hide.has("productTitle")
+              ? ` +${moreCount} more`
+              : ""}
           </span>
           {showTime && (
             <>
               <br />
               <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
                 <small>
-                  {hydrated ? formatOrderAge(order?.processedAt || order?.createdAt) : "Timing"}
+                  {order?.createdAt
+                    ? new Date(order.createdAt).toLocaleString()
+                    : "Timing"}
                 </small>
               </span>
             </>
@@ -1235,7 +1001,7 @@ function Bubble({ form, order, isMobile = false, hydrated = false }) {
   );
 }
 
-function DesktopPreview({ form, order, hydrated = false }) {
+function DesktopPreview({ form, order }) {
   const flex = posToFlex(form.position);
   return (
     <div
@@ -1255,13 +1021,14 @@ function DesktopPreview({ form, order, hydrated = false }) {
         ...flex,
       }}
     >
-      <Bubble form={form} order={order} hydrated={hydrated} />
+      <Bubble form={form} order={order} />
     </div>
   );
 }
-
-function MobilePreview({ form, order, hydrated = false }) {
-  const posArr = Array.isArray(form.mobilePosition) ? form.mobilePosition : [form.mobilePosition || "bottom"];
+function MobilePreview({ form, order }) {
+  const posArr = Array.isArray(form.mobilePosition)
+    ? form.mobilePosition
+    : [form.mobilePosition || "bottom"];
   const flex = mobilePosToFlex(posArr[0]);
   return (
     <div style={{ display: "flex", justifyContent: "center" }}>
@@ -1293,14 +1060,13 @@ function MobilePreview({ form, order, hydrated = false }) {
           }}
         />
         <div style={{ padding: 8 }}>
-          <Bubble form={form} order={order} isMobile hydrated={hydrated} />
+          <Bubble form={form} order={order} isMobile />
         </div>
       </div>
     </div>
   );
 }
-
-function LivePreview({ form, order, hydrated = false }) {
+function LivePreview({ form, order }) {
   const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
@@ -1309,31 +1075,38 @@ function LivePreview({ form, order, hydrated = false }) {
           Live Preview
         </Text>
         <ButtonGroup segmented>
-          <Button pressed={mode === "desktop"} onClick={() => setMode("desktop")}>
+          <Button
+            pressed={mode === "desktop"}
+            onClick={() => setMode("desktop")}
+          >
             Desktop
           </Button>
-          <Button pressed={mode === "mobile"} onClick={() => setMode("mobile")}>
+          <Button
+            pressed={mode === "mobile"}
+            onClick={() => setMode("mobile")}
+          >
             Mobile
           </Button>
-          <Button pressed={mode === "both"} onClick={() => setMode("both")}>
+          <Button
+            pressed={mode === "both"}
+            onClick={() => setMode("both")}
+          >
             Both
           </Button>
         </ButtonGroup>
       </InlineStack>
-
-      {mode === "desktop" && <DesktopPreview form={form} order={order} hydrated={hydrated} />}
-      {mode === "mobile" && <MobilePreview form={form} order={order} hydrated={hydrated} />}
+      {mode === "desktop" && <DesktopPreview form={form} order={order} />}
+      {mode === "mobile" && <MobilePreview form={form} order={order} />}
       {mode === "both" && (
         <InlineStack gap="400" align="space-between" wrap>
           <Box width="58%">
-            <DesktopPreview form={form} order={order} hydrated={hydrated} />
+            <DesktopPreview form={form} order={order} />
           </Box>
           <Box width="40%">
-            <MobilePreview form={form} order={order} hydrated={hydrated} />
+            <MobilePreview form={form} order={order} />
           </Box>
         </InlineStack>
       )}
-
       <Text as="p" variant="bodySm" tone="subdued">
         Orders are pulled strictly by the selected window (shop timezone).
         Preview may show the latest order only for visual reference.
@@ -1344,20 +1117,35 @@ function LivePreview({ form, order, hydrated = false }) {
 
 /* ───────────────── page ──────────────── */
 export default function RecentOrdersPopupPage() {
-  const { title, saved, preview, orders, usedDays, hasUsableOrders, newestCreatedAt, loaderError } = useLoaderData();
+  const {
+    title,
+    saved,
+    preview,
+    orders,
+    usedDays,
+    hasUsableOrders,
+    newestCreatedAt,
+    loaderError,
+  } = useLoaderData();
   const navigate = useNavigate();
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => setHydrated(true), []);
 
   useEffect(() => {
-    console.log(`[Fomoify] STRICT ${usedDays}-day window orders:`, orders);
+    console.log(
+      `[Fomoify] STRICT ${usedDays}-day window orders:`,
+      orders
+    );
     console.log("[Fomoify] Preview:", preview);
-    if (loaderError) console.warn("[Fomoify] Loader error:", loaderError);
+    if (loaderError) {
+      console.warn("[Fomoify] Loader reported error:", loaderError);
+    }
   }, [orders, usedDays, preview, loaderError]);
 
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState({ on: false, error: false, msg: "" });
+  const [toast, setToast] = useState({
+    on: false,
+    error: false,
+    msg: "",
+  });
 
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
@@ -1391,15 +1179,13 @@ export default function RecentOrdersPopupPage() {
 
     orderDays: Number(saved.orderDays ?? usedDays ?? 1),
     createOrderTime: saved.createOrderTime ?? newestCreatedAt ?? null,
-    orderDate: saved.orderDate ?? newestCreatedAt ?? null,
   }));
 
   useEffect(() => {
-    const newest =
-      orders?.[0]?.processedAt || orders?.[0]?.createdAt
-        ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
-        : null;
-    setForm((f) => ({ ...f, createOrderTime: newest, orderDate: newest }));
+    const newest = orders?.[0]?.createdAt
+      ? trimIso(String(orders[0].createdAt))
+      : null;
+    setForm((f) => ({ ...f, createOrderTime: newest }));
   }, [orders]);
 
   const onField = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -1409,39 +1195,42 @@ export default function RecentOrdersPopupPage() {
     setForm((f) => ({ ...f, [k]: clamped }));
   };
 
-  // ✅ UPDATED SAVE: show server error details in toast
   const save = async () => {
     try {
       setSaving(true);
       const loc = new URL(window.location.href);
       const endpoint = `${loc.pathname}${loc.search || ""}`;
-
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({ form }),
       });
 
-      const ct = res.headers.get("content-type") || "";
-      const payload = ct.includes("application/json")
+      const isJSON = res.headers
+        .get("content-type")
+        ?.includes("application/json");
+      const payload = isJSON
         ? await res.json()
         : { error: await res.text() };
 
       if (!res.ok) {
         const msg =
           payload?.error ||
-          payload?.message ||
-          payload?.hint ||
-          `Save failed (HTTP ${res.status})`;
-
-        console.error("SAVE ERROR payload:", payload);
+          "Save failed. Try selecting a different day window or try again later.";
         setToast({ on: true, error: true, msg });
         return;
       }
 
       navigate("/app/dashboard?saved=1");
     } catch (e) {
-      setToast({ on: true, error: true, msg: String(e?.message || e || "Unknown error") });
+      setToast({
+        on: true,
+        error: true,
+        msg: String(e.message || "Error"),
+      });
     } finally {
       setSaving(false);
     }
@@ -1464,10 +1253,12 @@ export default function RecentOrdersPopupPage() {
   return (
     <Frame>
       {saving && <Loading />}
-
       <Page
         title={`Configuration – ${title}`}
-        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
+        backAction={{
+          content: "Back",
+          onAction: () => navigate("/app/notification"),
+        }}
         primaryAction={{
           content: "Save",
           onAction: save,
@@ -1479,7 +1270,7 @@ export default function RecentOrdersPopupPage() {
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
-                <LivePreview form={form} order={preview} hydrated={hydrated} />
+                <LivePreview form={form} order={preview} />
               </Box>
             </Card>
           </Layout.Section>
@@ -1493,10 +1284,14 @@ export default function RecentOrdersPopupPage() {
                   </Text>
 
                   {unusable && (
-                    <Banner status="critical" title="You have no usable orders.">
+                    <Banner
+                      status="critical"
+                      title="You have no usable orders."
+                    >
                       <p>
-                        No orders with products were found in the selected window.
-                        Try selecting more days (7/14/30).
+                        No orders with products were found in the selected
+                        window. Try selecting fewer days or wait until you have
+                        some orders.
                       </p>
                     </Banner>
                   )}
@@ -1509,9 +1304,7 @@ export default function RecentOrdersPopupPage() {
                       const fallback = Number(form.orderDays ?? usedDays ?? 1);
                       const n = clampDaysParam(v, fallback);
                       setForm((f) => ({ ...f, orderDays: n }));
-                      const sp = new URLSearchParams(window.location.search);
-                      sp.set("days", String(n));
-                      navigate(`${window.location.pathname}?${sp.toString()}`, { replace: true });
+                      navigate(`?days=${n}`, { replace: true });
                     }}
                     helpText="1 Day = Today (shop timezone), up to 60 days"
                   />
@@ -1519,9 +1312,7 @@ export default function RecentOrdersPopupPage() {
                   <Text as="p" variant="bodySm" tone="subdued">
                     Last newest order time (static):{" "}
                     {form.createOrderTime
-                      ? hydrated
-                        ? new Date(form.createOrderTime).toLocaleString()
-                        : trimIso(String(form.createOrderTime))
+                      ? new Date(form.createOrderTime).toLocaleString()
                       : "—"}
                   </Text>
 
@@ -1537,7 +1328,7 @@ export default function RecentOrdersPopupPage() {
             </Card>
           </Layout.Section>
 
-          {/* Display & Customize (your existing UI kept as-is, trimmed for brevity?) */}
+          {/* Display & Customize */}
           <Layout.Section oneHalf>
             <Card>
               <Box padding="4">
@@ -1608,7 +1399,6 @@ export default function RecentOrdersPopupPage() {
                   <Text as="h3" variant="headingMd">
                     Customize
                   </Text>
-
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
@@ -1635,13 +1425,19 @@ export default function RecentOrdersPopupPage() {
                       />
                     </Box>
                   </InlineStack>
-
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
                         label="Desktop Popup Position"
-                        options={["top-left", "top-right", "bottom-left", "bottom-right"].map((v) => ({
-                          label: v.replace("-", " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+                        options={[
+                          "top-left",
+                          "top-right",
+                          "bottom-left",
+                          "bottom-right",
+                        ].map((v) => ({
+                          label: v
+                            .replace("-", " ")
+                            .replace(/\b\w/g, (c) => c.toUpperCase()),
                           value: v,
                         }))}
                         value={form.position}
@@ -1662,7 +1458,6 @@ export default function RecentOrdersPopupPage() {
                       />
                     </Box>
                   </InlineStack>
-
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
@@ -1683,19 +1478,32 @@ export default function RecentOrdersPopupPage() {
                           label: v[0].toUpperCase() + v.slice(1),
                           value: v,
                         }))}
-                        value={Array.isArray(form.mobilePosition) ? form.mobilePosition[0] : "bottom"}
-                        onChange={(v) => setForm((f) => ({ ...f, mobilePosition: [v] }))}
+                        value={
+                          Array.isArray(form.mobilePosition)
+                            ? form.mobilePosition[0]
+                            : "bottom"
+                        }
+                        onChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            mobilePosition: [v],
+                          }))
+                        }
                       />
                     </Box>
                   </InlineStack>
-
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
                         type="number"
                         label="Font Size (px)"
                         value={String(form.rounded)}
-                        onChange={(v) => setForm((f) => ({ ...f, rounded: String(v) }))}
+                        onChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            rounded: String(v),
+                          }))
+                        }
                         autoComplete="off"
                       />
                     </Box>
@@ -1703,24 +1511,29 @@ export default function RecentOrdersPopupPage() {
                       <ColorInput
                         label="Headline Text Color"
                         value={form.titleColor}
-                        onChange={(v) => setForm((f) => ({ ...f, titleColor: v }))}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, titleColor: v }))
+                        }
                       />
                     </Box>
                   </InlineStack>
-
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <ColorInput
                         label="Popup Background Color"
                         value={form.bgColor}
-                        onChange={(v) => setForm((f) => ({ ...f, bgColor: v }))}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, bgColor: v }))
+                        }
                       />
                     </Box>
                     <Box width="50%">
                       <ColorInput
                         label="Message Text Color"
                         value={form.msgColor}
-                        onChange={(v) => setForm((f) => ({ ...f, msgColor: v }))}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, msgColor: v }))
+                        }
                       />
                     </Box>
                   </InlineStack>
@@ -1748,10 +1561,12 @@ export function ErrorBoundary() {
   const error = useRouteError();
   console.error("[Fomoify] RecentOrdersPopupPage route error:", error);
 
-  let message = "Something went wrong while loading Recent Purchases.";
+  let message =
+    "Something went wrong while loading Recent Purchases.";
   if (error && typeof error === "object" && "status" in error) {
     if (error.status === 500) {
-      message = "The server returned an internal error. Please refresh the page.";
+      message =
+        "The server returned an internal error. Please refresh the page.";
     }
   }
 
@@ -1762,7 +1577,9 @@ export function ErrorBoundary() {
           <Layout.Section>
             <Banner status="critical" title="Unable to load Recent Purchases">
               <p>{message}</p>
-              <p>Try reloading the page or reopening the app from the Apps list.</p>
+              <p>
+                Try reloading the page or reopening the app from the Apps list.
+              </p>
             </Banner>
           </Layout.Section>
         </Layout>
