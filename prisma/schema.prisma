@@ -64,7 +64,7 @@ model notificationconfig {
   durationSeconds      Int?
   alternateSeconds     Int?
   fontWeight           Int?
-  productHandle        String
+  productHandle        String?
   messageTitlesJson    String?  @db.LongText
   orderDays            Int?     @default(7)
   createOrderTime      String?  @db.VarChar(32)

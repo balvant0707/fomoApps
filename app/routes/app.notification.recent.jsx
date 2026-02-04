@@ -872,7 +872,6 @@ export async function action({ request }) {
 
     orderDays: Number(fetchDays),
     createOrderTime: newestOrderCreatedAtISO ?? null,
-    orderDate: newestOrderCreatedAtISO ?? null,
   };
 
   Object.keys(data).forEach((k) => {
