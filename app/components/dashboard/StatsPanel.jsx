@@ -1,4 +1,5 @@
 import { Badge, BlockStack, Card, InlineStack, Text } from "@shopify/polaris";
+import { useEffect, useMemo, useRef } from "react";
 
 const EMPTY_STATS = {
   total: 0,
@@ -21,6 +22,7 @@ function titleCase(value) {
 }
 
 export default function StatsPanel({ stats }) {
+  const scrollRef = useRef(null);
   const safeStats = stats || EMPTY_STATS;
   const byType = safeStats.byType || {};
   const entries = Object.entries(byType);
@@ -30,12 +32,62 @@ export default function StatsPanel({ stats }) {
   const visitorsSeries = Array.isArray(series.visitors) ? series.visitors : [];
   const clicksSeries = Array.isArray(series.clicks) ? series.clicks : [];
   const ordersSeries = Array.isArray(series.orders) ? series.orders : [];
-  const chartMax = Math.max(1, ...visitorsSeries, ...clicksSeries, ...ordersSeries);
-  const yTicks = 6;
-  const xTickEvery = Math.max(1, Math.floor(labels.length / 6));
+  const todayKey = useMemo(() => {
+    const t = new Date();
+    t.setHours(0, 0, 0, 0);
+    return t.toISOString().slice(0, 10);
+  }, []);
+  const dataByDay = useMemo(() => {
+    const m = new Map();
+    for (let i = 0; i < labels.length; i++) {
+      m.set(labels[i], {
+        visitors: Number(visitorsSeries[i] || 0),
+        clicks: Number(clicksSeries[i] || 0),
+        orders: Number(ordersSeries[i] || 0),
+      });
+    }
+    return m;
+  }, [labels, visitorsSeries, clicksSeries, ordersSeries]);
+  const displayLabels = useMemo(() => {
+    const start = new Date(`${todayKey}T00:00:00`);
+    start.setDate(start.getDate() - 365);
+    if (labels.length > 0) {
+      const first = new Date(`${labels[0]}T00:00:00`);
+      if (first < start) {
+        start.setTime(first.getTime());
+      }
+    }
+    const end = new Date("2030-12-31T00:00:00");
+    const out = [];
+    const d = new Date(start);
+    while (d <= end) {
+      out.push(d.toISOString().slice(0, 10));
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  }, [labels, todayKey]);
+  const mergedVisitors = useMemo(
+    () => displayLabels.map((k) => dataByDay.get(k)?.visitors || 0),
+    [displayLabels, dataByDay]
+  );
+  const mergedClicks = useMemo(
+    () => displayLabels.map((k) => dataByDay.get(k)?.clicks || 0),
+    [displayLabels, dataByDay]
+  );
+  const mergedOrders = useMemo(
+    () => displayLabels.map((k) => dataByDay.get(k)?.orders || 0),
+    [displayLabels, dataByDay]
+  );
+  const chartMax = Math.max(1, ...mergedVisitors, ...mergedClicks, ...mergedOrders);
+  const yStep = Math.max(1, Math.ceil(chartMax / 6));
+  const yTickValues = [];
+  for (let v = chartMax; v >= 0; v -= yStep) yTickValues.push(v);
+  if (yTickValues[yTickValues.length - 1] !== 0) yTickValues.push(0);
+  const yTicks = yTickValues.length;
+  const xTickEvery = Math.max(1, Math.floor(displayLabels.length / 32));
   const chartHeight = 220;
-  const chartWidth = Math.max(420, labels.length * 64);
-  const groupWidth = labels.length > 0 ? chartWidth / labels.length : chartWidth;
+  const chartWidth = Math.max(420, displayLabels.length * 22);
+  const groupWidth = displayLabels.length > 0 ? chartWidth / displayLabels.length : chartWidth;
   const clusterWidth = groupWidth * 0.82;
   const barGap = 0;
   const barWidth = clusterWidth / 3;
@@ -43,9 +95,18 @@ export default function StatsPanel({ stats }) {
     const d = new Date(`${value}T00:00:00`);
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
   };
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const idx = displayLabels.indexOf(todayKey);
+    if (idx < 0) return;
+    const target = Math.max(0, idx * groupWidth - 20);
+    el.scrollLeft = target;
+  }, [displayLabels, groupWidth, todayKey]);
 
   return (
     <Card>
+      <style>{`.chart-scroll-hidden::-webkit-scrollbar{display:none}`}</style>
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="center" wrap>
           <Text variant="headingMd" as="h2">
@@ -81,31 +142,44 @@ export default function StatsPanel({ stats }) {
                 background: "#FFFFFF",
               }}
             >
-              <div style={{ overflowX: "auto" }}>
-                <div style={{ minWidth: chartWidth + 40 }}>
-                  <svg width={chartWidth + 40} height={chartHeight + 40}>
-                    {[...Array(yTicks)].map((_, i) => {
-                      const y = 10 + (i / (yTicks - 1)) * chartHeight;
-                      const tickValue = Math.round(chartMax - (i / (yTicks - 1)) * chartMax);
+              <div style={{ display: "flex", alignItems: "flex-start" }}>
+                <div style={{ width: 28, flex: "0 0 28px" }}>
+                  <svg width="28" height={chartHeight + 40}>
+                    {yTickValues.map((tickValue, i) => {
+                      const y = 10 + (i / (yTicks - 1 || 1)) * chartHeight;
                       return (
-                        <g key={`grid-${i}`}>
-                          <line x1="30" y1={y} x2={chartWidth + 30} y2={y} stroke="#E6E8EB" />
-                          <text x="6" y={y + 4} fontSize="11" fill="#6B7280">
-                            {tickValue}
-                          </text>
-                        </g>
+                        <text key={`axis-${tickValue}-${i}`} x="24" y={y + 4} fontSize="11" fill="#6B7280" textAnchor="end">
+                          {tickValue}
+                        </text>
                       );
                     })}
-                    {labels.map((day, idx) => {
+                  </svg>
+                </div>
+                <div
+                  ref={scrollRef}
+                  className="chart-scroll-hidden"
+                  style={{ overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", flex: 1 }}
+                >
+                  <div style={{ minWidth: chartWidth }}>
+                    <svg width={chartWidth} height={chartHeight + 40}>
+                      {yTickValues.map((tickValue, i) => {
+                        const y = 10 + (i / (yTicks - 1 || 1)) * chartHeight;
+                        return (
+                          <g key={`grid-${tickValue}-${i}`}>
+                            <line x1="0" y1={y} x2={chartWidth} y2={y} stroke="#E6E8EB" />
+                          </g>
+                        );
+                      })}
+                    {displayLabels.map((day, idx) => {
                       const groupX = idx * groupWidth;
-                      const visitors = Number(visitorsSeries[idx] || 0);
-                      const clicks = Number(clicksSeries[idx] || 0);
-                      const orders = Number(ordersSeries[idx] || 0);
+                      const visitors = Number(mergedVisitors[idx] || 0);
+                      const clicks = Number(mergedClicks[idx] || 0);
+                      const orders = Number(mergedOrders[idx] || 0);
                       const vh = (visitors / chartMax) * chartHeight;
                       const ch = (clicks / chartMax) * chartHeight;
                       const oh = (orders / chartMax) * chartHeight;
                       const baseY = 10 + chartHeight;
-                      const startX = 30 + groupX + (groupWidth - clusterWidth) / 2;
+                      const startX = groupX + (groupWidth - clusterWidth) / 2;
                       const dateTooltip =
                         `${formatDateLabel(day)}\n` +
                         `Visitors: ${visitors}\n` +
@@ -147,19 +221,27 @@ export default function StatsPanel({ stats }) {
                         </g>
                       );
                     })}
-                  </svg>
-                </div>
-              </div>
-              <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                {labels.map((day, idx) => (
-                  <div key={`x-${day}`} style={{ flex: 1, minWidth: 28, textAlign: "center" }}>
-                    {idx % xTickEvery === 0 || idx === labels.length - 1 ? (
-                      <Text as="span" variant="bodySm" tone="subdued">
-                        {formatDateLabel(day)}
-                      </Text>
-                    ) : null}
+                    </svg>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        width: chartWidth,
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${displayLabels.length}, 1fr)`,
+                      }}
+                    >
+                      {displayLabels.map((day, idx) => (
+                        <div key={`x-${day}`} style={{ minWidth: 18, textAlign: "center" }}>
+                          {idx % xTickEvery === 0 || day === todayKey ? (
+                            <Text as="span" variant="bodySm" tone={day === todayKey ? undefined : "subdued"}>
+                              {formatDateLabel(day)}
+                            </Text>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                </div>
               </div>
               <InlineStack gap="300" align="center">
                 <InlineStack gap="100" blockAlign="center">
