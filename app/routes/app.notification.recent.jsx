@@ -848,6 +848,10 @@ export async function action({ request }) {
       ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
       : null;
 
+  // DB schema keeps productHandle required for notificationconfig rows.
+  const fallbackProductHandle =
+    allHandlesWindow.find((h) => String(h || "").trim()) || "recent-orders";
+
   const selectedProductsJson = JSON.stringify(allHandlesWindow);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
@@ -859,6 +863,8 @@ export async function action({ request }) {
   const data = {
     shop,
     key: KEY,
+    updatedAt: new Date(),
+    productHandle: fallbackProductHandle,
 
     enabled: !!(form?.enabled?.includes?.("enabled")),
     showType: nullIfBlank(form?.showType),
