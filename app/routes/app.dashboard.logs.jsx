@@ -193,6 +193,11 @@ function AnalyticsChart({ analytics }) {
                       const baseY = 10 + chartHeight;
                       const startX =
                         30 + groupX + (groupWidth - (barWidth * 3 + barGap * 2)) / 2;
+                      const dateTooltip =
+                        `${formatDateLabel(day)}\n` +
+                        `Visitors: ${v}\n` +
+                        `Clicks: ${c}\n` +
+                        `Orders: ${o}`;
 
                       return (
                         <g key={`bars-${day}`}>
@@ -204,7 +209,7 @@ function AnalyticsChart({ analytics }) {
                             rx="2"
                             fill="#0EA5A4"
                           >
-                            <title>{`${formatDateLabel(day)} - CVisitors: ${v}`}</title>
+                            <title>{dateTooltip}</title>
                           </rect>
                           <rect
                             x={startX + barWidth + barGap}
@@ -214,7 +219,7 @@ function AnalyticsChart({ analytics }) {
                             rx="2"
                             fill="#2563EB"
                           >
-                            <title>{`${formatDateLabel(day)} - Popup Clicks: ${c}`}</title>
+                            <title>{dateTooltip}</title>
                           </rect>
                           <rect
                             x={startX + (barWidth + barGap) * 2}
@@ -224,7 +229,7 @@ function AnalyticsChart({ analytics }) {
                             rx="2"
                             fill="#16A34A"
                           >
-                            <title>{`${formatDateLabel(day)} - Orders: ${o}`}</title>
+                            <title>{dateTooltip}</title>
                           </rect>
                         </g>
                       );
