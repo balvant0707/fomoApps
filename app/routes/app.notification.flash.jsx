@@ -528,7 +528,7 @@ export default function FlashConfigPage() {
       });
       if (!res.ok) throw new Error((await res.text()) || "Failed to save");
       setToast({ active: true, error: false, msg: "Saved as a new Flash Bar" });
-      setTimeout(() => navigate("/app/dashboard"), 900);
+      setTimeout(() => navigate("/app"), 900);
     } catch (e) {
       setToast({ active: true, error: true, msg: e?.message || "Something went wrong" });
     } finally { setSaving(false); }

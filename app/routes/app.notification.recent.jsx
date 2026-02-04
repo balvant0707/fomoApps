@@ -1224,7 +1224,7 @@ export default function RecentOrdersPopupPage() {
         return;
       }
 
-      navigate("/app/?saved=1");
+      navigate("/app");
     } catch (e) {
       setToast({
         on: true,

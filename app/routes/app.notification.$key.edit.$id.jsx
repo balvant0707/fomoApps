@@ -646,7 +646,7 @@ export async function action({ request, params }) {
 
   const prev = new URL(request.url);
   const qs = prev.search;
-  const dest = `/app/dashboard${qs ? `${qs}&saved=1` : "?saved=1"}`;
+  const dest = "/app";
   return redirect(dest);
 }
 
