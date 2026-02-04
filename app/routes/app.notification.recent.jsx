@@ -283,8 +283,9 @@ function mapEdgesToOrders(edges) {
   });
 }
 
-async function fetchOrdersWithinWindow(admin, range) {
+async function fetchOrdersWithinWindow(admin, range, options = {}) {
   const { startISO, endISO, startDate, endNextDate } = range;
+  const maxPages = Math.max(1, Number(options?.maxPages || 20));
 
   console.log("[Fomoify][OrdersAPI] fetchOrdersWithinWindow:start", {
     startISO,
@@ -308,7 +309,7 @@ async function fetchOrdersWithinWindow(admin, range) {
     let all = [];
     let stopPaging = false;
 
-    for (let page = 0; page < 20; page++) {
+    for (let page = 0; page < maxPages; page++) {
       let resp;
       try {
         resp = await admin.graphql(Q_ORDERS_FULL, {
@@ -785,54 +786,69 @@ export async function action({ request }) {
     intOrNull(form?.orderDays, 1, 60) ??
     (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60 ? urlDays : 1);
 
-  const shopTZ = await getShopTimezone(admin);
-  const range = daysRangeZoned(fetchDays, shopTZ);
+  let range;
+  try {
+    const shopTZ = await getShopTimezone(admin);
+    range = daysRangeZoned(fetchDays, shopTZ);
+  } catch (e) {
+    console.error("[recent.action] Date window build failed:", e);
+    return json(
+      {
+        success: false,
+        error: "Failed to build orders date window",
+        details: String(e?.message || e),
+      },
+      { status: 500 }
+    );
+  }
 
   // 1) Fetch window orders
   let orders = [];
   try {
-    orders = await fetchOrdersWithinWindow(admin, range);
+    // Keep POST fast on serverless to avoid timeout/HTML 500 from platform.
+    orders = await fetchOrdersWithinWindow(admin, range, { maxPages: 3 });
   } catch (e) {
     console.error("[recent.action] Orders fetch failed:", e);
   }
 
-  // 2) Strong validation: require at least one product handle
+  // 2) Prefer fresh window data; fallback to form payload when orders API is slow/unavailable.
   const allHandlesWindow = collectAllProductHandles(orders);
-  if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
-    return json(
-      {
-        success: false,
-        error:
-          "No usable orders found in the selected window. Try selecting more days (7/14/30) or ensure orders contain products.",
-        validation: "NO_USABLE_ORDERS",
-        window: range,
-      },
-      { status: 422 }
-    );
+  const hasUsableWindowData = Array.isArray(orders) && orders.length > 0 && allHandlesWindow.length > 0;
+
+  const formSelectedProducts = Array.isArray(form?.selectedProductsJson)
+    ? form.selectedProductsJson.map((v) => String(v || "").trim()).filter(Boolean)
+    : [];
+  const formLocations = Array.isArray(form?.locationsJson) ? form.locationsJson : [];
+  const formCustomerNames = Array.isArray(form?.messageTitlesJson)
+    ? form.messageTitlesJson.map((v) => String(v || "").trim()).filter(Boolean)
+    : [];
+
+  if (!hasUsableWindowData) {
+    console.warn("[recent.action] Using form fallback lists (orders window empty/unavailable).", {
+      orderCount: Array.isArray(orders) ? orders.length : 0,
+      handleCount: allHandlesWindow.length,
+    });
   }
 
-  // 3) Persist only after validation
-  try {
-    const persistRes = await persistCustomerProductHandles(prisma, shop, orders);
-    if (persistRes?.error)
-      console.warn("[recent.action] persist warning:", persistRes.error);
-  } catch (e) {
-    console.error("[recent.action] persist failed:", e);
-  }
+  // 3) Skip heavy analytics persistence during save (prevents serverless timeout).
+  // Persist can run in a separate background/admin flow if needed.
 
   // 4) Build save payload
-  const { locations, customerNames } = deriveBucketsFromOrders(orders);
+  const derived = deriveBucketsFromOrders(orders);
+  const selectedProducts = hasUsableWindowData ? allHandlesWindow : formSelectedProducts;
+  const locations = hasUsableWindowData ? derived.locations : formLocations;
+  const customerNames = hasUsableWindowData ? derived.customerNames : formCustomerNames;
 
   const newestOrderCreatedAtISO =
-    orders.length > 0 && (orders[0]?.processedAt || orders[0]?.createdAt)
+    hasUsableWindowData && (orders[0]?.processedAt || orders[0]?.createdAt)
       ? trimIso(String(orders[0].processedAt || orders[0].createdAt))
       : null;
 
   // notificationconfig.productHandle is required in current DB schema
   const fallbackProductHandle =
-    allHandlesWindow.find((h) => String(h || "").trim()) || "recent-orders";
+    selectedProducts.find((h) => String(h || "").trim()) || "recent-orders";
 
-  const selectedProductsJson = JSON.stringify(allHandlesWindow);
+  const selectedProductsJson = JSON.stringify(selectedProducts);
   const locationsJson = JSON.stringify(locations || []);
   const messageTitlesJson = JSON.stringify(customerNames || []);
   const namesJson = JSON.stringify(Array.isArray(form?.namesJson) ? form.namesJson : []);
@@ -913,7 +929,7 @@ export async function action({ request }) {
       savedDays: data.orderDays,
       savedCreateOrderTime: data.createOrderTime,
       counts: {
-        products: allHandlesWindow.length,
+        products: (selectedProducts || []).length,
         locations: (locations || []).length,
         names: (customerNames || []).length,
       },
