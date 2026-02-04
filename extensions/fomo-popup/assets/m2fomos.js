@@ -3,7 +3,52 @@ document.addEventListener("DOMContentLoaded", async function () {
   window.__fomoOneFile = true;
 
   const SHOP = (window.Shopify && window.Shopify.shop) || "";
-  const PROXY_BASE = "/apps/fomo-v2";
+  const PROXY_BASES = ["/apps/fomo", "/apps/fomo-v2"];
+  const PROXY_STORE_KEY = "__fomo_proxy_base__";
+  const readSavedProxyBase = () => {
+    try {
+      const v = window.localStorage.getItem(PROXY_STORE_KEY);
+      return PROXY_BASES.includes(v) ? v : null;
+    } catch {
+      return null;
+    }
+  };
+  let ACTIVE_PROXY_BASE = readSavedProxyBase() || PROXY_BASES[0];
+  const setActiveProxyBase = (base) => {
+    if (!PROXY_BASES.includes(base)) return;
+    ACTIVE_PROXY_BASE = base;
+    try {
+      window.localStorage.setItem(PROXY_STORE_KEY, base);
+    } catch {}
+  };
+  const proxyCandidates = (url) => {
+    const matchedBase = PROXY_BASES.find((b) => url.startsWith(b));
+    if (!matchedBase) return [url];
+    const suffix = url.slice(matchedBase.length);
+    const orderedBases = [
+      ACTIVE_PROXY_BASE,
+      ...PROXY_BASES.filter((b) => b !== ACTIVE_PROXY_BASE),
+    ];
+    return orderedBases.map((b) => `${b}${suffix}`);
+  };
+  const fetchWithProxyFallback = async (url, options) => {
+    const candidates = proxyCandidates(url);
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      try {
+        const res = await fetch(candidate, options);
+        if (res.status === 404 && i < candidates.length - 1) continue;
+        const matchedBase = PROXY_BASES.find((b) => candidate.startsWith(b));
+        if (matchedBase && res.ok) setActiveProxyBase(matchedBase);
+        return res;
+      } catch {
+        if (i === candidates.length - 1) return null;
+      }
+    }
+    return null;
+  };
+
+  const PROXY_BASE = ACTIVE_PROXY_BASE;
   const ENDPOINT = `${PROXY_BASE}/popup?shop=${SHOP}`;
   const SESSION_ENDPOINT = `${PROXY_BASE}/session?shop=${SHOP}`;
   const ORDERS_ENDPOINT_BASE = `${PROXY_BASE}/orders`; // expects ?shop=&days=&limit=
@@ -136,14 +181,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       ts: new Date().toISOString(),
     });
 
-    try {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([body], { type: "application/json" });
-        if (navigator.sendBeacon(TRACK_ENDPOINT, blob)) return;
-      }
-    } catch { }
-
-    fetch(TRACK_ENDPOINT, {
+    fetchWithProxyFallback(TRACK_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
@@ -158,7 +196,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (cached) return cached;
     }
     try {
-      const r = await fetch(url, { headers: { "Content-Type": "application/json" } });
+      const r = await fetchWithProxyFallback(url, {
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r) return null;
       if (!r.ok) return null;
       const data = await r.json();
       if (k) cache.set(k, data, ttlMs);
