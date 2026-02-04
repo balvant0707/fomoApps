@@ -40,7 +40,7 @@ redirect_urls = [
 ]
 
 [app_proxy]
-url = "https://fomo-apps-lyart.vercel.app/proxy/fomo"
+url = "https://fomo-apps-lyart.vercel.app/proxy/fomos"
 subpath = "fomo-v2"
 prefix = "apps"
 

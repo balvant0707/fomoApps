@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   window.__fomoOneFile = true;
 
   const SHOP = (window.Shopify && window.Shopify.shop) || "";
-  const PROXY_BASES = ["/apps/fomo", "/apps/fomo-v2"];
+  const PROXY_BASES = ["/apps/fomo-v2", "/apps/fomo"];
   const PROXY_STORE_KEY = "__fomo_proxy_base__";
   const readSavedProxyBase = () => {
     try {
@@ -37,7 +37,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       const candidate = candidates[i];
       try {
         const res = await fetch(candidate, options);
-        if (res.status === 404 && i < candidates.length - 1) continue;
+        const isLast = i === candidates.length - 1;
+        const contentType = res.headers?.get("content-type") || "";
+        const isProxyApi = /\/(session|popup|orders|track)(\?|$)/.test(candidate);
+
+        if (!res.ok && !isLast) continue;
+        if (res.ok && isProxyApi && !contentType.includes("application/json") && !isLast) {
+          continue;
+        }
+
         const matchedBase = PROXY_BASES.find((b) => candidate.startsWith(b));
         if (matchedBase && res.ok) setActiveProxyBase(matchedBase);
         return res;

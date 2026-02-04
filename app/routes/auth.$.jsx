@@ -135,5 +135,11 @@ support@fomoify.app
     console.error("[FOMO][INSTALL EMAIL] outer error:", e);
   }
 
-  return redirect("/app");
+  const requestUrl = new URL(request.url);
+  const qp = new URLSearchParams();
+  if (session?.shop) qp.set("shop", session.shop);
+  const host = requestUrl.searchParams.get("host");
+  if (host) qp.set("host", host);
+
+  return redirect(qp.toString() ? `/app?${qp.toString()}` : "/app");
 };
