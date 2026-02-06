@@ -14,12 +14,12 @@ import {
   Text,
   RangeSlider,
   Frame,
-  Layout,
   Modal,
   IndexTable,
   Thumbnail,
   Badge,
   Checkbox,
+  RadioButton,
 } from "@shopify/polaris";
 import { useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -37,13 +37,6 @@ const NOTI_TYPES = [
 const LAYOUTS = [
   { label: "Landscape", value: "landscape" },
   { label: "Portrait", value: "portrait" },
-];
-const PAGES = [
-  { label: "Home page", value: "home" },
-  { label: "Product page", value: "product" },
-  { label: "Collection list", value: "collection_list" },
-  { label: "Collection page", value: "collection" },
-  { label: "Cart page", value: "cart" },
 ];
 const POSITIONS = [
   { label: "Bottom right", value: "bottom-right" },
@@ -67,6 +60,204 @@ const TOKEN_OPTIONS = [
   "price",
 ];
 const TIME_TOKENS = ["time", "unit"];
+
+const VISITOR_STYLES = `
+.visitor-shell {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.visitor-sidebar {
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.visitor-nav-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 10px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.visitor-nav-btn:hover {
+  border-color: #cbd5e1;
+}
+.visitor-nav-btn.is-active {
+  background: #2f855a;
+  color: #ffffff;
+  border-color: #2f855a;
+}
+.visitor-nav-icon {
+  width: 20px;
+  height: 20px;
+}
+.visitor-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.visitor-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.visitor-form {
+  flex: 1;
+  min-width: 360px;
+}
+.visitor-preview {
+  flex: 1;
+  min-width: 320px;
+}
+.visitor-preview-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+.token-pill {
+  border: none;
+  background: #f3f4f6;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #111827;
+  cursor: pointer;
+}
+.token-pill:hover {
+  background: #e5e7eb;
+}
+.visitor-help {
+  margin-top: 24px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+.visitor-help a {
+  color: #111827;
+  text-decoration: underline;
+}
+@media (max-width: 1100px) {
+  .visitor-shell {
+    flex-direction: column;
+  }
+  .visitor-sidebar {
+    width: 100%;
+    flex-direction: row;
+  }
+  .visitor-nav-btn {
+    flex: 1;
+    flex-direction: row;
+    justify-content: center;
+  }
+  .visitor-columns {
+    flex-direction: column;
+  }
+}
+@media (max-width: 640px) {
+  .visitor-nav-btn {
+    padding: 10px;
+    font-size: 12px;
+  }
+  .visitor-form,
+  .visitor-preview {
+    min-width: 0;
+  }
+}
+`;
+
+function LayoutIcon() {
+  return (
+    <svg
+      className="visitor-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="9" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function ContentIcon() {
+  return (
+    <svg
+      className="visitor-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <line x1="7" y1="9" x2="17" y2="9" />
+      <line x1="7" y1="13" x2="15" y2="13" />
+    </svg>
+  );
+}
+
+function DisplayIcon() {
+  return (
+    <svg
+      className="visitor-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function BehaviorIcon() {
+  return (
+    <svg
+      className="visitor-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.08-1.06l2-1.55-2-3.46-2.44 1a7 7 0 0 0-1.84-1.06L14.4 2h-4.8l-.24 2.87a7 7 0 0 0-1.84 1.06l-2.44-1-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .36.03.71.08 1.06l-2 1.55 2 3.46 2.44-1c.56.44 1.18.8 1.84 1.06L9.6 22h4.8l.24-2.87c.66-.26 1.28-.62 1.84-1.06l2.44 1 2-3.46-2-1.55c.05-.35.08-.7.08-1.06Z" />
+    </svg>
+  );
+}
+
+const NAV_ITEMS = [
+  { id: "layout", label: "Layout", Icon: LayoutIcon },
+  { id: "content", label: "Content", Icon: ContentIcon },
+  { id: "display", label: "Display", Icon: DisplayIcon },
+  { id: "behavior", label: "Behavior", Icon: BehaviorIcon },
+];
 
 const MOCK_PRODUCTS = [
   {
@@ -160,6 +351,7 @@ function PreviewCard({
   showProductImage,
   showPriceTag,
   showRating,
+  showClose,
   product,
   template,
 }) {
@@ -170,6 +362,7 @@ function PreviewCard({
       ? `linear-gradient(135deg, ${bgColor} 0%, ${bgAlt} 100%)`
       : bgColor;
 
+  const isPortrait = layout === "portrait";
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -180,18 +373,43 @@ function PreviewCard({
     border: "1px solid rgba(0,0,0,0.06)",
     padding: 14,
     display: "flex",
+    position: "relative",
+    flexDirection: isPortrait ? "column" : "row",
     gap: 12,
-    alignItems: "center",
-    maxWidth: layout === "portrait" ? 300 : 520,
+    alignItems: isPortrait ? "flex-start" : "center",
+    maxWidth: layout === "portrait" ? 320 : 440,
   };
 
   return (
     <div style={cardStyle}>
+      {showClose && (
+        <button
+          type="button"
+          aria-label="Close"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            width: 26,
+            height: 26,
+            borderRadius: "50%",
+            border: "1px solid #e5e7eb",
+            background: "#ffffff",
+            color: "#111827",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 16,
+            cursor: "pointer",
+          }}
+        >
+          x
+        </button>
+      )}
       {showProductImage && (
         <div
           style={{
-            width: layout === "portrait" ? 56 : 64,
-            height: layout === "portrait" ? 56 : 64,
+            width: isPortrait ? 56 : 64,
+            height: isPortrait ? 56 : 64,
             borderRadius: 12,
             overflow: "hidden",
             background: "#f3f4f6",
@@ -214,7 +432,7 @@ function PreviewCard({
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
+      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         {showRating && (
           <div style={{ color: starColor, fontSize: 12 }}>
             {"*****".slice(0, product?.rating || 4)}
@@ -226,7 +444,14 @@ function PreviewCard({
         <div style={{ fontSize: textSizeContent, fontWeight: 600 }}>
           {contentText}
         </div>
-        <div style={{ fontSize: textSizeContent, lineHeight: 1.4 }}>
+        <div
+          style={{
+            fontSize: textSizeContent,
+            fontWeight: 600,
+            textDecoration: "underline",
+            lineHeight: 1.4,
+          }}
+        >
           {product?.title || "Your product will show here"}
         </div>
         {showPriceTag && (
@@ -245,11 +470,8 @@ function PreviewCard({
             </span>
             <span
               style={{
-                background: priceTagAlt,
-                color: "#6b7280",
+                color: priceTagAlt,
                 fontSize: textSizeCompare,
-                padding: "2px 8px",
-                borderRadius: 6,
                 textDecoration: "line-through",
               }}
             >
@@ -257,8 +479,20 @@ function PreviewCard({
             </span>
           </InlineStack>
         )}
-        <div style={{ fontSize: 12, color: timestampColor }}>
-          {timestampText}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            fontSize: 12,
+            color: timestampColor,
+          }}
+        >
+          <span>{timestampText}</span>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            (c) WizzCommerce
+          </span>
         </div>
       </div>
     </div>
@@ -266,6 +500,7 @@ function PreviewCard({
 }
 export default function VisitorPopupPage() {
   const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState("layout");
 
   const [design, setDesign] = useState({
     notiType: "visitor_list",
@@ -290,7 +525,7 @@ export default function VisitorPopupPage() {
   });
 
   const [content, setContent] = useState({
-    message: "{full_name} from {country} just viewed this {product_name}",
+    message: "Someone from abroad just viewed this",
     timestamp: "Just now",
     avgTime: "2",
     avgUnit: "mins",
@@ -300,13 +535,19 @@ export default function VisitorPopupPage() {
     directProductPage: true,
     showProductImage: true,
     showPriceTag: true,
-    showRating: true,
+    showRating: false,
     ratingSource: "judge_me",
     customerInfo: "shopify",
   });
 
   const [visibility, setVisibility] = useState({
-    pages: ["home", "product", "collection_list", "collection", "cart"],
+    showHome: true,
+    showProduct: true,
+    productScope: "all",
+    showCollectionList: true,
+    showCollection: true,
+    collectionScope: "all",
+    showCart: true,
     position: "bottom-right",
   });
 
@@ -321,7 +562,7 @@ export default function VisitorPopupPage() {
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState(["p2", "p3", "p4"]);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [search, setSearch] = useState("");
 
   const products = useMemo(() => {
@@ -360,14 +601,32 @@ export default function VisitorPopupPage() {
   return (
     <Frame>
       <Page
-        title="Configuration - Visitor Popup"
+        title="Update Visitor notification"
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
         primaryAction={{ content: "Save", onAction: () => {} }}
       >
-        <Layout>
-          <Layout.Section oneHalf>
-            <BlockStack gap="400">
-              <Card>
+        <style>{VISITOR_STYLES}</style>
+        <div className="visitor-shell">
+          <div className="visitor-sidebar">
+            {NAV_ITEMS.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className={`visitor-nav-btn ${activeSection === id ? "is-active" : ""}`}
+                onClick={() => setActiveSection(id)}
+              >
+                <Icon />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="visitor-main">
+            <div className="visitor-columns">
+              <div className="visitor-form">
+                <BlockStack gap="400">
+                  {activeSection === "layout" && (
+                    <>
+                      <Card>
                 <Box padding="4">
                   <BlockStack gap="400">
                     <Text as="h3" variant="headingMd">
@@ -440,6 +699,16 @@ export default function VisitorPopupPage() {
                         setDesign((d) => ({ ...d, bgColor: v }))
                       }
                     />
+                    {design.template === "gradient" && (
+                      <ColorField
+                        label="Background color (alt)"
+                        value={design.bgAlt}
+                        fallback="#F3F4F6"
+                        onChange={(v) =>
+                          setDesign((d) => ({ ...d, bgAlt: v }))
+                        }
+                      />
+                    )}
 
                     <InlineStack gap="400" wrap={false}>
                       <Box width="50%">
@@ -511,9 +780,12 @@ export default function VisitorPopupPage() {
                     </InlineStack>
                   </BlockStack>
                 </Box>
-              </Card>
-
-              <Card>
+                      </Card>
+                    </>
+                  )}
+                  {activeSection === "layout" && (
+                    <>
+                      <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
                     <Text as="h3" variant="headingMd">
@@ -523,6 +795,7 @@ export default function VisitorPopupPage() {
                       <Box width="50%">
                         <TextField
                           label="Content"
+                          type="number"
                           value={textSize.content}
                           onChange={(v) =>
                             setTextSize((s) => ({ ...s, content: v }))
@@ -533,6 +806,7 @@ export default function VisitorPopupPage() {
                       <Box width="50%">
                         <TextField
                           label="Compare at price"
+                          type="number"
                           value={textSize.compareAt}
                           onChange={(v) =>
                             setTextSize((s) => ({ ...s, compareAt: v }))
@@ -544,6 +818,7 @@ export default function VisitorPopupPage() {
                     <Box width="50%">
                       <TextField
                         label="Price"
+                        type="number"
                         value={textSize.price}
                         onChange={(v) =>
                           setTextSize((s) => ({ ...s, price: v }))
@@ -553,9 +828,12 @@ export default function VisitorPopupPage() {
                     </Box>
                   </BlockStack>
                 </Box>
-              </Card>
-
-              <Card>
+                      </Card>
+                    </>
+                  )}
+                  {activeSection === "content" && (
+                    <>
+                      <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
                     <Text as="h3" variant="headingMd">
@@ -573,13 +851,14 @@ export default function VisitorPopupPage() {
                     />
                     <InlineStack gap="150" wrap>
                       {TOKEN_OPTIONS.map((token) => (
-                        <Button
+                        <button
                           key={token}
-                          size="slim"
+                          type="button"
+                          className="token-pill"
                           onClick={() => insertToken(token)}
                         >
                           {token}
-                        </Button>
+                        </button>
                       ))}
                     </InlineStack>
 
@@ -594,13 +873,14 @@ export default function VisitorPopupPage() {
                     />
                     <InlineStack gap="150" wrap>
                       {TIME_TOKENS.map((token) => (
-                        <Button
+                        <button
                           key={token}
-                          size="slim"
+                          type="button"
+                          className="token-pill"
                           onClick={() => insertTimeToken(token)}
                         >
                           {token}
-                        </Button>
+                        </button>
                       ))}
                     </InlineStack>
 
@@ -639,12 +919,14 @@ export default function VisitorPopupPage() {
                     <Text as="h3" variant="headingMd">
                       Data (maximum 250 entries)
                     </Text>
-                    <Text as="h4" variant="headingSm">
-                      Product info
-                    </Text>
-                    <Button onClick={() => setPickerOpen(true)}>
-                      Select product
-                    </Button>
+                    <InlineStack align="space-between" blockAlign="center" wrap>
+                      <Button onClick={() => setPickerOpen(true)}>
+                        Browse products
+                      </Button>
+                      <Text tone="subdued">
+                        {selectedIds.length} products selected
+                      </Text>
+                    </InlineStack>
                     <BlockStack gap="150">
                       <Checkbox
                         label="Notification direct to specific product page"
@@ -676,37 +958,54 @@ export default function VisitorPopupPage() {
                       />
                     </BlockStack>
 
-                    <Select
-                      label="Rating source"
-                      options={[
-                        { label: "Judge.me", value: "judge_me" },
-                        { label: "Loox", value: "loox" },
-                        { label: "Okendo", value: "okendo" },
-                      ]}
-                      value={data.ratingSource}
-                      onChange={(v) =>
-                        setData((d) => ({ ...d, ratingSource: v }))
-                      }
-                    />
-                    <Button variant="primary">Connect with Judge.me</Button>
+                    {data.showRating && (
+                      <BlockStack gap="200">
+                        <Select
+                          label="Rating source"
+                          options={[
+                            { label: "Judge.me", value: "judge_me" },
+                            { label: "Loox", value: "loox" },
+                            { label: "Okendo", value: "okendo" },
+                          ]}
+                          value={data.ratingSource}
+                          onChange={(v) =>
+                            setData((d) => ({ ...d, ratingSource: v }))
+                          }
+                        />
+                        <Button variant="primary">Connect with Judge.me</Button>
+                      </BlockStack>
+                    )}
 
                     <Text as="h4" variant="headingSm">
                       Customer info
                     </Text>
-                    <ChoiceList
-                      choices={[
-                        {
-                          label: "Data from Shopify",
-                          value: "shopify",
-                          helpText: "3 customer profiles are imported",
-                        },
-                        { label: "Set manually", value: "manual" },
-                      ]}
-                      selected={[data.customerInfo]}
-                      onChange={(v) =>
-                        setData((d) => ({ ...d, customerInfo: v[0] }))
-                      }
-                    />
+                    <BlockStack gap="150">
+                      <div>
+                        <RadioButton
+                          id="customer-info-shopify"
+                          name="customer_info"
+                          label="Data from Shopify"
+                          checked={data.customerInfo === "shopify"}
+                          onChange={() =>
+                            setData((d) => ({ ...d, customerInfo: "shopify" }))
+                          }
+                        />
+                        <div style={{ marginLeft: 28 }}>
+                          <Text tone="subdued">
+                            3 customer profiles are imported
+                          </Text>
+                        </div>
+                      </div>
+                      <RadioButton
+                        id="customer-info-manual"
+                        name="customer_info"
+                        label="Set manually"
+                        checked={data.customerInfo === "manual"}
+                        onChange={() =>
+                          setData((d) => ({ ...d, customerInfo: "manual" }))
+                        }
+                      />
+                    </BlockStack>
 
                     {selectedProducts.length > 0 && (
                       <BlockStack gap="200">
@@ -752,23 +1051,110 @@ export default function VisitorPopupPage() {
                     )}
                   </BlockStack>
                 </Box>
-              </Card>
-
-              <Card>
+                    </Card>
+                    </>
+                  )}
+                  {activeSection === "display" && (
+                    <>
+                      <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
                     <Text as="h3" variant="headingMd">
                       Visibility
                     </Text>
-                    <ChoiceList
-                      title="Show on"
-                      allowMultiple
-                      choices={PAGES}
-                      selected={visibility.pages}
-                      onChange={(v) =>
-                        setVisibility((s) => ({ ...s, pages: v }))
-                      }
-                    />
+                    <Text as="h4" variant="headingSm">
+                      Show on
+                    </Text>
+                    <BlockStack gap="200">
+                      <Checkbox
+                        label="Home page"
+                        checked={visibility.showHome}
+                        onChange={(v) =>
+                          setVisibility((s) => ({ ...s, showHome: v }))
+                        }
+                      />
+                      <Checkbox
+                        label="Product page"
+                        checked={visibility.showProduct}
+                        onChange={(v) =>
+                          setVisibility((s) => ({ ...s, showProduct: v }))
+                        }
+                      />
+                      <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                        <RadioButton
+                          id="product-scope-all"
+                          name="product_scope"
+                          label="All products"
+                          checked={visibility.productScope === "all"}
+                          disabled={!visibility.showProduct}
+                          onChange={() =>
+                            setVisibility((s) => ({ ...s, productScope: "all" }))
+                          }
+                        />
+                        <RadioButton
+                          id="product-scope-specific"
+                          name="product_scope"
+                          label="Specific products"
+                          checked={visibility.productScope === "specific"}
+                          disabled={!visibility.showProduct}
+                          onChange={() =>
+                            setVisibility((s) => ({
+                              ...s,
+                              productScope: "specific",
+                            }))
+                          }
+                        />
+                      </div>
+                      <Checkbox
+                        label="Collection list"
+                        checked={visibility.showCollectionList}
+                        onChange={(v) =>
+                          setVisibility((s) => ({ ...s, showCollectionList: v }))
+                        }
+                      />
+                      <Checkbox
+                        label="Collection page"
+                        checked={visibility.showCollection}
+                        onChange={(v) =>
+                          setVisibility((s) => ({ ...s, showCollection: v }))
+                        }
+                      />
+                      <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                        <RadioButton
+                          id="collection-scope-all"
+                          name="collection_scope"
+                          label="All collections"
+                          checked={visibility.collectionScope === "all"}
+                          disabled={!visibility.showCollection}
+                          onChange={() =>
+                            setVisibility((s) => ({
+                              ...s,
+                              collectionScope: "all",
+                            }))
+                          }
+                        />
+                        <RadioButton
+                          id="collection-scope-specific"
+                          name="collection_scope"
+                          label="Specific collections"
+                          checked={visibility.collectionScope === "specific"}
+                          disabled={!visibility.showCollection}
+                          onChange={() =>
+                            setVisibility((s) => ({
+                              ...s,
+                              collectionScope: "specific",
+                            }))
+                          }
+                        />
+                      </div>
+                      <Checkbox
+                        label="Cart page"
+                        checked={visibility.showCart}
+                        onChange={(v) =>
+                          setVisibility((s) => ({ ...s, showCart: v }))
+                        }
+                      />
+                    </BlockStack>
                     <Select
                       label="Position"
                       options={POSITIONS}
@@ -780,8 +1166,11 @@ export default function VisitorPopupPage() {
                   </BlockStack>
                 </Box>
               </Card>
-
-              <Card>
+                    </>
+                  )}
+                  {activeSection === "behavior" && (
+                    <>
+                      <Card>
                 <Box padding="4">
                   <BlockStack gap="300">
                     <Text as="h3" variant="headingMd">
@@ -864,29 +1253,19 @@ export default function VisitorPopupPage() {
                     </Text>
                   </BlockStack>
                 </Box>
-              </Card>
-            </BlockStack>
-          </Layout.Section>
-
-          <Layout.Section oneHalf>
+                      </Card>
+                    </>
+                  )}
+                </BlockStack>
+              </div>
+              <div className="visitor-preview">
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
                   <Text as="h3" variant="headingMd">
                     Preview
                   </Text>
-                  <div
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 16,
-                      padding: 24,
-                      minHeight: 320,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "#fafafa",
-                    }}
-                  >
+                  <div className="visitor-preview-box">
                     <PreviewCard
                       layout={design.layout}
                       size={design.size}
@@ -910,6 +1289,7 @@ export default function VisitorPopupPage() {
                       showProductImage={data.showProductImage}
                       showPriceTag={data.showPriceTag}
                       showRating={data.showRating}
+                      showClose={behavior.showClose}
                       product={previewProduct}
                       template={design.template}
                     />
@@ -917,8 +1297,14 @@ export default function VisitorPopupPage() {
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
-        </Layout>
+              </div>
+            </div>
+            <div className="visitor-help">
+              We're here to help! Contact support or refer to the{" "}
+              <a href="#">User guide</a>
+            </div>
+          </div>
+        </div>
       </Page>
       <Modal
         open={pickerOpen}

@@ -79,9 +79,8 @@ export default function StatsPanel({ stats }) {
   for (let v = chartMax; v >= 0; v -= yStep) yTickValues.push(v);
   if (yTickValues[yTickValues.length - 1] !== 0) yTickValues.push(0);
   const yTicks = yTickValues.length;
-  const xTickEvery = 1;
   const chartHeight = 220;
-  const chartWidth = Math.max(420, displayLabels.length * 36);
+  const chartWidth = Math.max(420, displayLabels.length * 48);
   const groupWidth = displayLabels.length > 0 ? chartWidth / displayLabels.length : chartWidth;
   const clusterWidth = groupWidth * 0.82;
   const barGap = 0;
@@ -90,6 +89,10 @@ export default function StatsPanel({ stats }) {
     const d = new Date(`${value}T00:00:00`);
     return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
   };
+  const getMonthShort = (value) =>
+    new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short" });
+  const getDayTwoDigit = (value) =>
+    new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { day: "2-digit" });
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -227,11 +230,16 @@ export default function StatsPanel({ stats }) {
                     >
                       {displayLabels.map((day, idx) => (
                         <div key={`x-${day}`} style={{ minWidth: 18, textAlign: "center" }}>
-                          {idx % xTickEvery === 0 || day === todayKey ? (
+                          <Text as="span" variant="bodySm" tone={day === todayKey ? undefined : "subdued"}>
+                            {idx === 0 || getMonthShort(displayLabels[idx - 1]) !== getMonthShort(day)
+                              ? getMonthShort(day)
+                              : ""}
+                          </Text>
+                          <div>
                             <Text as="span" variant="bodySm" tone={day === todayKey ? undefined : "subdued"}>
-                              {formatDateLabel(day)}
+                              {getDayTwoDigit(day)}
                             </Text>
-                          ) : null}
+                          </div>
                         </div>
                       ))}
                     </div>
