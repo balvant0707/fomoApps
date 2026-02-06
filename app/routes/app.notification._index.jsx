@@ -248,6 +248,17 @@ export default function NotificationDashboardIndex() {
             onConfigure={() => go('/app/notification/visitor', 'visitor')}
             loading={loadingKey === 'visitor'}
           />
+
+          <DashboardCard
+            title="Low Stock Popup"
+            desc="Create urgency when inventory is running low."
+            tag="Urgency"
+            emoji="L"
+            thumbBg="linear-gradient(135deg, #FDE68A 0%, #FCA5A5 100%)"
+            previewText="Free Polo T-Shirt has only 5 items left"
+            onConfigure={() => go('/app/notification/lowstock', 'lowstock')}
+            loading={loadingKey === 'lowstock'}
+          />
         </div>
       </Page>
     </>
