@@ -238,7 +238,7 @@ export default function NotificationDashboardIndex() {
             loading={loadingKey === 'flash'}
           />
 
-          {/* <DashboardCard
+          <DashboardCard
             title="Visitor Popup"
             desc="Show live visitor activity and product interest notifications."
             tag="Social proof"
@@ -247,7 +247,7 @@ export default function NotificationDashboardIndex() {
             previewText="Someone from abroad just viewed this T-shirt"
             onConfigure={() => go('/app/notification/visitor', 'visitor')}
             loading={loadingKey === 'visitor'}
-          /> */}
+          />
         </div>
       </Page>
     </>
