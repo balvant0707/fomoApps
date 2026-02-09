@@ -29,7 +29,7 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
-/* ───────────────── constants ──────────────── */
+/* ---------------- constants ---------------- */
 const KEY = "recent";
 const PAGES = [
   { label: "All Pages", value: "allpage" },
@@ -47,6 +47,182 @@ const HIDE_CHOICES = [
   { label: "Product Name", value: "productTitle" },
   { label: "Product Image", value: "productImage" },
   { label: "Order Time", value: "time" },
+];
+
+const RECENT_STYLES = `
+.recent-shell {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.recent-sidebar {
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.recent-nav-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 10px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.recent-nav-btn:hover {
+  border-color: #cbd5e1;
+}
+.recent-nav-btn.is-active {
+  background: #2f855a;
+  color: #ffffff;
+  border-color: #2f855a;
+}
+.recent-nav-icon {
+  width: 20px;
+  height: 20px;
+}
+.recent-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.recent-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.recent-form {
+  flex: 1;
+  min-width: 360px;
+}
+.recent-preview {
+  flex: 1;
+  min-width: 320px;
+}
+.recent-preview-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+@media (max-width: 1100px) {
+  .recent-shell {
+    flex-direction: column;
+  }
+  .recent-sidebar {
+    width: 100%;
+    flex-direction: row;
+  }
+  .recent-nav-btn {
+    flex: 1;
+    flex-direction: row;
+    justify-content: center;
+  }
+  .recent-columns {
+    flex-direction: column;
+  }
+}
+@media (max-width: 640px) {
+  .recent-nav-btn {
+    padding: 10px;
+    font-size: 12px;
+  }
+  .recent-form,
+  .recent-preview {
+    min-width: 0;
+  }
+}
+`;
+
+function LayoutIcon() {
+  return (
+    <svg
+      className="recent-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="9" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function ContentIcon() {
+  return (
+    <svg
+      className="recent-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <line x1="7" y1="9" x2="17" y2="9" />
+      <line x1="7" y1="13" x2="15" y2="13" />
+    </svg>
+  );
+}
+
+function DisplayIcon() {
+  return (
+    <svg
+      className="recent-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function BehaviorIcon() {
+  return (
+    <svg
+      className="recent-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.08-1.06l2-1.55-2-3.46-2.44 1a7 7 0 0 0-1.84-1.06L14.4 2h-4.8l-.24 2.87a7 7 0 0 0-1.84 1.06l-2.44-1-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .36.03.71.08 1.06l-2 1.55 2 3.46 2.44-1c.56.44 1.18.8 1.84 1.06L9.6 22h4.8l.24-2.87c.66-.26 1.28-.62 1.84-1.06l2.44 1 2-3.46-2-1.55c.05-.35.08-.7.08-1.06Z" />
+    </svg>
+  );
+}
+
+const NAV_ITEMS = [
+  { id: "layout", label: "Layout", Icon: LayoutIcon },
+  { id: "content", label: "Content", Icon: ContentIcon },
+  { id: "display", label: "Display", Icon: DisplayIcon },
+  { id: "behavior", label: "Behavior", Icon: BehaviorIcon },
 ];
 
 const clampDaysParam = (value, fallback = 1) => {
@@ -96,7 +272,7 @@ const DEFAULT_SAVED = {
   createOrderTime: null,
 };
 
-/* ───────────────── date helpers ──────────────── */
+/* ---------------- date helpers ---------------- */
 const trimIso = (iso) => {
   const i = String(iso || "");
   const [date, time] = i.split("T");
@@ -141,7 +317,7 @@ async function getShopTimezone(admin) {
   }
 }
 
-/* ───────────────── Orders query + mapping (with pagination) ──────────────── */
+/* ---------------- Orders query + mapping (with pagination) ---------------- */
 const Q_ORDERS_FULL = `
   query Orders($first:Int!, $query:String, $after:String) {
     orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true, after: $after) {
@@ -238,7 +414,7 @@ async function fetchLatestOrderAnyTime(admin) {
   }
 }
 
-/* ───────────────── helpers ──────────────── */
+/* ---------------- helpers ---------------- */
 function collectAllProductHandles(orders) {
   const out = [];
   for (const o of orders || []) {
@@ -297,7 +473,7 @@ function deriveBucketsFromOrders(orders) {
   };
 }
 
-/* ───────────────── persist (analytics) ──────────────── */
+/* ---------------- persist (analytics) ---------------- */
 function flattenCustomerProductRows(shop, orders) {
   const seen = new Set();
   const rows = [];
@@ -363,7 +539,7 @@ async function persistCustomerProductHandles(prismaClient, shop, orders) {
   }
 }
 
-/* ───────────────── loader ──────────────── */
+/* ---------------- loader ---------------- */
 export async function loader({ request }) {
   let admin;
   let session;
@@ -402,7 +578,7 @@ export async function loader({ request }) {
         orders: [],
         usedDays: 1,
         hasUsableOrders: false,
-        loaderError: "Unauthorized – missing shop in session",
+        loaderError: "Unauthorized - missing shop in session",
       },
       { status: 200 }
     );
@@ -549,7 +725,7 @@ export async function loader({ request }) {
   }
 }
 
-/* ───────────────── action ──────────────── */
+/* ---------------- action ---------------- */
 export async function action({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -599,7 +775,7 @@ export async function action({ request }) {
   // 2) Strong validation: require at least one product handle
   const allHandlesWindow = collectAllProductHandles(orders);
   if (!orders || orders.length === 0 || allHandlesWindow.length === 0) {
-    // No usable orders ⇒ 422 validation (not 500)
+    // No usable orders => 422 validation (not 500)
     return json(
       {
         success: false,
@@ -721,7 +897,7 @@ export async function action({ request }) {
   }
 }
 
-/* ───────────────── color helpers ──────────────── */
+/* ---------------- color helpers ---------------- */
 const hex6 = (v) => /^#[0-9A-F]{6}$/i.test(String(v || ""));
 function hexToRgb(hex) {
   const c = hex.replace("#", "");
@@ -835,7 +1011,7 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   );
 }
 
-/* ───────────────── preview components ──────────────── */
+/* ---------------- preview components ---------------- */
 const getAnimationStyle = (a) =>
   a === "slide"
     ? {
@@ -978,7 +1154,7 @@ function Bubble({ form, order, isMobile = false }) {
           )}
           <br />
           <span>
-            {productTitle ? `bought “${productTitle}”` : "placed an order"}
+            {productTitle ? `bought "${productTitle}"` : "placed an order"}
             {moreCount > 0 && !hide.has("productTitle")
               ? ` +${moreCount} more`
               : ""}
@@ -1115,7 +1291,7 @@ function LivePreview({ form, order }) {
   );
 }
 
-/* ───────────────── page ──────────────── */
+/* ---------------- page ---------------- */
 export default function RecentOrdersPopupPage() {
   const {
     title,
@@ -1141,6 +1317,7 @@ export default function RecentOrdersPopupPage() {
   }, [orders, usedDays, preview, loaderError]);
 
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState("layout");
   const [toast, setToast] = useState({
     on: false,
     error: false,
@@ -1254,7 +1431,7 @@ export default function RecentOrdersPopupPage() {
     <Frame>
       {saving && <Loading />}
       <Page
-        title={`Configuration – ${title}`}
+        title={`Configuration - ${title}`}
         backAction={{
           content: "Back",
           onAction: () => navigate("/app/notification"),
@@ -1266,16 +1443,27 @@ export default function RecentOrdersPopupPage() {
           disabled: saving || unusable,
         }}
       >
-        <Layout>
-          <Layout.Section oneHalf>
-            <Card>
-              <Box padding="4">
-                <LivePreview form={form} order={preview} />
-              </Box>
-            </Card>
-          </Layout.Section>
+        <style>{RECENT_STYLES}</style>
+<div className="recent-shell">
+  <div className="recent-sidebar">
+    {NAV_ITEMS.map(({ id, label, Icon }) => (
+      <button
+        key={id}
+        type="button"
+        className={`recent-nav-btn ${activeSection === id ? "is-active" : ""}`}
+        onClick={() => setActiveSection(id)}
+      >
+        <Icon />
+        <span>{label}</span>
+      </button>
+    ))}
+  </div>
 
-          <Layout.Section oneHalf>
+  <div className="recent-main">
+    <div className="recent-columns">
+      <div className="recent-form">
+        <BlockStack gap="400">
+          {activeSection === "content" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
@@ -1284,10 +1472,7 @@ export default function RecentOrdersPopupPage() {
                   </Text>
 
                   {unusable && (
-                    <Banner
-                      status="critical"
-                      title="You have no usable orders."
-                    >
+                    <Banner status="critical" title="You have no usable orders.">
                       <p>
                         No orders with products were found in the selected
                         window. Try selecting fewer days or wait until you have
@@ -1313,7 +1498,7 @@ export default function RecentOrdersPopupPage() {
                     Last newest order time (static):{" "}
                     {form.createOrderTime
                       ? new Date(form.createOrderTime).toLocaleString()
-                      : "—"}
+                      : "-"}
                   </Text>
 
                   <ChoiceList
@@ -1323,13 +1508,20 @@ export default function RecentOrdersPopupPage() {
                     selected={form.namesJson}
                     onChange={onField("namesJson")}
                   />
+
+                  <TextField
+                    label="Message Text"
+                    value={form.messageText}
+                    onChange={onField("messageText")}
+                    helpText="Short line shown after the product name."
+                    autoComplete="off"
+                  />
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
+          )}
 
-          {/* Display & Customize */}
-          <Layout.Section oneHalf>
+          {activeSection === "display" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
@@ -1390,9 +1582,9 @@ export default function RecentOrdersPopupPage() {
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
+          )}
 
-          <Layout.Section oneHalf>
+          {activeSection === "layout" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="300">
@@ -1427,6 +1619,63 @@ export default function RecentOrdersPopupPage() {
                   </InlineStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
+                      <TextField
+                        type="number"
+                        label="Font Size (px)"
+                        value={String(form.rounded)}
+                        onChange={(v) =>
+                          setForm((f) => ({
+                            ...f,
+                            rounded: String(v),
+                          }))
+                        }
+                        autoComplete="off"
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Headline Text Color"
+                        value={form.titleColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, titleColor: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Popup Background Color"
+                        value={form.bgColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, bgColor: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Message Text Color"
+                        value={form.msgColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, msgColor: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          )}
+
+          {activeSection === "behavior" && (
+            <Card>
+              <Box padding="4">
+                <BlockStack gap="300">
+                  <Text as="h3" variant="headingMd">
+                    Placement & Motion
+                  </Text>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
                       <Select
                         label="Desktop Popup Position"
                         options={[
@@ -1436,7 +1685,7 @@ export default function RecentOrdersPopupPage() {
                           "bottom-right",
                         ].map((v) => ({
                           label: v
-                            .replace("-", " ")
+                            .replace("-", " " )
                             .replace(/\b\w/g, (c) => c.toUpperCase()),
                           value: v,
                         }))}
@@ -1492,56 +1741,26 @@ export default function RecentOrdersPopupPage() {
                       />
                     </Box>
                   </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="50%">
-                      <TextField
-                        type="number"
-                        label="Font Size (px)"
-                        value={String(form.rounded)}
-                        onChange={(v) =>
-                          setForm((f) => ({
-                            ...f,
-                            rounded: String(v),
-                          }))
-                        }
-                        autoComplete="off"
-                      />
-                    </Box>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Headline Text Color"
-                        value={form.titleColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, titleColor: v }))
-                        }
-                      />
-                    </Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Popup Background Color"
-                        value={form.bgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, bgColor: v }))
-                        }
-                      />
-                    </Box>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Message Text Color"
-                        value={form.msgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, msgColor: v }))
-                        }
-                      />
-                    </Box>
-                  </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
-        </Layout>
+          )}
+        </BlockStack>
+      </div>
+
+      <div className="recent-preview">
+        <Card>
+          <Box padding="4">
+            <div className="recent-preview-box">
+              <LivePreview form={form} order={preview} />
+            </div>
+          </Box>
+        </Card>
+      </div>
+    </div>
+  </div>
+</div>
+
       </Page>
 
       {toast.on && (
@@ -1556,7 +1775,7 @@ export default function RecentOrdersPopupPage() {
   );
 }
 
-/* ───────────────── ErrorBoundary ──────────────── */
+/* ---------------- ErrorBoundary ---------------- */
 export function ErrorBoundary() {
   const error = useRouteError();
   console.error("[Fomoify] RecentOrdersPopupPage route error:", error);

@@ -3,23 +3,199 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Page, Card, Button, TextField, Select, ChoiceList, Box,
   BlockStack, InlineStack, Text, ColorPicker, Frame,
-  Toast, Loading, Layout, Popover, Tag, ButtonGroup, DropZone
+  Toast, Loading, Popover, Tag, ButtonGroup, DropZone
 } from "@shopify/polaris";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
-/* ───────── Constants ───────── */
+/* ---------------- Constants ---------------- */
 const KEY = "flash";
 
-/* ───────── Loader (no DB prefill) ───────── */
+const FLASH_STYLES = `
+.flash-shell {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.flash-sidebar {
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.flash-nav-btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 14px 10px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+.flash-nav-btn:hover {
+  border-color: #cbd5e1;
+}
+.flash-nav-btn.is-active {
+  background: #2f855a;
+  color: #ffffff;
+  border-color: #2f855a;
+}
+.flash-nav-icon {
+  width: 20px;
+  height: 20px;
+}
+.flash-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.flash-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.flash-form {
+  flex: 1;
+  min-width: 360px;
+}
+.flash-preview {
+  flex: 1;
+  min-width: 320px;
+}
+.flash-preview-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 24px;
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+@media (max-width: 1100px) {
+  .flash-shell {
+    flex-direction: column;
+  }
+  .flash-sidebar {
+    width: 100%;
+    flex-direction: row;
+  }
+  .flash-nav-btn {
+    flex: 1;
+    flex-direction: row;
+    justify-content: center;
+  }
+  .flash-columns {
+    flex-direction: column;
+  }
+}
+@media (max-width: 640px) {
+  .flash-nav-btn {
+    padding: 10px;
+    font-size: 12px;
+  }
+  .flash-form,
+  .flash-preview {
+    min-width: 0;
+  }
+}
+`;
+
+function LayoutIcon() {
+  return (
+    <svg
+      className="flash-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="9" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+
+function ContentIcon() {
+  return (
+    <svg
+      className="flash-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="4" y="5" width="16" height="14" rx="2" />
+      <line x1="7" y1="9" x2="17" y2="9" />
+      <line x1="7" y1="13" x2="15" y2="13" />
+    </svg>
+  );
+}
+
+function DisplayIcon() {
+  return (
+    <svg
+      className="flash-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="5" width="18" height="12" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function BehaviorIcon() {
+  return (
+    <svg
+      className="flash-nav-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.08-1.06l2-1.55-2-3.46-2.44 1a7 7 0 0 0-1.84-1.06L14.4 2h-4.8l-.24 2.87a7 7 0 0 0-1.84 1.06l-2.44-1-2 3.46 2 1.55A7 7 0 0 0 5 12c0 .36.03.71.08 1.06l-2 1.55 2 3.46 2.44-1c.56.44 1.18.8 1.84 1.06L9.6 22h4.8l.24-2.87c.66-.26 1.28-.62 1.84-1.06l2.44 1 2-3.46-2-1.55c.05-.35.08-.7.08-1.06Z" />
+    </svg>
+  );
+}
+
+const NAV_ITEMS = [
+  { id: "layout", label: "Layout", Icon: LayoutIcon },
+  { id: "content", label: "Content", Icon: ContentIcon },
+  { id: "display", label: "Display", Icon: DisplayIcon },
+  { id: "behavior", label: "Behavior", Icon: BehaviorIcon },
+];
+
+/* ---------------- Loader (no DB prefill) ---------------- */
 export async function loader({ request }) {
   await authenticate.admin(request);
   return json({ existing: null, key: KEY, title: "Flash Sale Bars" });
 }
 
-/* ───────── Action: ALWAYS CREATE NEW ROW ───────── */
+/* ---------------- Action: ALWAYS CREATE NEW ROW ---------------- */
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -121,7 +297,7 @@ export async function action({ request }) {
   }
 }
 
-/* ───────── Built-in SVGs (all valid) ───────── */
+/* ---------------- Built-in SVGs (all valid) ---------------- */
 const SVGS = {
   reshot: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 64 64" aria-hidden="true">
@@ -148,7 +324,7 @@ const SVGS = {
   </g>
 </svg>
 `,
-  // ✅ Fixed, valid SVG (no "..." placeholders)
+  // Fixed, valid SVG (no "..." placeholders)
   reshotflashon: `
 <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" aria-hidden="true">
   <g fill="none">
@@ -166,7 +342,7 @@ const baseSvgOptions = [
   { label: "Deadline", value: "deadline" },
 ];
 
-/* ───────── Color helpers ───────── */
+/* ---------------- Color helpers ---------------- */
 const hex6 = (v) => /^#[0-9A-F]{6}$/i.test(String(v || ""));
 function hexToRgb(hex) { const c = hex.replace("#", ""); const n = parseInt(c, 16); return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: (n & 255) }; }
 function rgbToHsv({ r, g, b }) { r /= 255; g /= 255; b /= 255; const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min; let h = 0; if (d) { switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break }h *= 60; } const s = max ? d / max : 0; return { hue: h, saturation: s, brightness: max }; }
@@ -175,7 +351,7 @@ const rgbToHex = ({ r, g, b }) => `#${[r, g, b].map(v => v.toString(16).padStart
 const hexToHSB = (hex) => rgbToHsv(hexToRgb(hex));
 const hsbToHEX = (hsb) => rgbToHex(hsvToRgb(hsb));
 
-/* ───────── SVG utils ───────── */
+/* ---------------- SVG utils ---------------- */
 function sanitizeSvg(svg) {
   return String(svg)
     .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
@@ -206,7 +382,7 @@ function isSvgRenderable(svg) {
   return true;
 }
 
-/* ───────── ColorInput ───────── */
+/* ---------------- ColorInput ---------------- */
 function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   const [open, setOpen] = useState(false);
   const [hsb, setHsb] = useState(hex6(value) ? hexToHSB(value) : { hue: 212, saturation: 0.7, brightness: 0.55 });
@@ -239,7 +415,7 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   );
 }
 
-/* ───────── Multi-value helpers ───────── */
+/* ---------------- Multi-value helpers ---------------- */
 function useTokenDraft(list, setList) {
   const [draft, setDraft] = useState("");
   const splitOnComma = (raw) => String(raw || "").split(",").map((p) => p.trim()).filter(Boolean);
@@ -261,7 +437,7 @@ function useTokenDraft(list, setList) {
   return { draft, setDraft, addMany, removeAt, commitDraft, onInputChange, onKeyDown };
 }
 
-/* ───────── Anim & Preview helpers ───────── */
+/* ---------------- Anim & Preview helpers ---------------- */
 const getAnimationStyle = (a) =>
   a === "slide" ? { transform: "translateY(8px)", animation: "notif-slide-in 240ms ease-out" } :
     a === "bounce" ? { animation: "notif-bounce-in 420ms cubic-bezier(.34,1.56,.64,1)" } :
@@ -280,7 +456,7 @@ const posToFlex = (pos) => {
   }
 };
 
-/* ───────── Notification bubble ───────── */
+/* ---------------- Notification bubble ---------------- */
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
 
@@ -324,7 +500,7 @@ function NotificationPreview({ form, isMobile = false }) {
             {form.messageTitle || "Flash Sale"}
           </p>
           <p style={{ margin: 0, fontSize: sized, lineHeight: 1.5 }}>
-            <small>{form.name || "Flash Sale: 20% OFF"} — {form.messageText || "ends in 02:15 hours"}</small>
+            <small>{form.name || "Flash Sale: 20% OFF"} - {form.messageText || "ends in 02:15 hours"}</small>
           </p>
         </div>
       </div>
@@ -400,12 +576,13 @@ function LivePreview({ form }) {
   );
 }
 
-/* ───────── Page ───────── */
+/* ---------------- Page ---------------- */
 export default function FlashConfigPage() {
   const navigate = useNavigate();
   const { title } = useLoaderData();
 
   const [saving, setSaving] = useState(false);
+  const [activeSection, setActiveSection] = useState("layout");
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
 
   // defaults ONLY (no DB prefill)
@@ -568,22 +745,31 @@ export default function FlashConfigPage() {
     <Frame>
       {saving && <Loading />}
       <Page
-        title="Configuration – Flash Sale Bars"
+        title="Configuration - Flash Sale Bars"
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
         primaryAction={{ content: "Save as New", onAction: save, loading: saving, disabled: saving }}
       >
-        <Layout>
-          {/* Live Preview */}
-          <Layout.Section>
-            <Card>
-              <Box padding="4">
-                <LivePreview form={form} />
-              </Box>
-            </Card>
-          </Layout.Section>
+        <style>{FLASH_STYLES}</style>
+<div className="flash-shell">
+  <div className="flash-sidebar">
+    {NAV_ITEMS.map(({ id, label, Icon }) => (
+      <button
+        key={id}
+        type="button"
+        className={`flash-nav-btn ${activeSection === id ? "is-active" : ""}`}
+        onClick={() => setActiveSection(id)}
+      >
+        <Icon />
+        <span>{label}</span>
+      </button>
+    ))}
+  </div>
 
-          {/* Display */}
-          <Layout.Section oneHalf>
+  <div className="flash-main">
+    <div className="flash-columns">
+      <div className="flash-form">
+        <BlockStack gap="400">
+          {activeSection === "display" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="400">
@@ -598,19 +784,49 @@ export default function FlashConfigPage() {
                         alignment="horizontal"
                       />
                     </Box>
-                    <Box width="50%"><Select label="Display On Pages" options={pageOptions} value={form.showType} onChange={onField("showType")} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label="Display On Pages"
+                        options={pageOptions}
+                        value={form.showType}
+                        onChange={onField("showType")}
+                      />
+                    </Box>
                   </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><TextField label="Popup Display Duration (seconds)" type="number" value={String(form.durationSeconds)} onChange={onDurationChange} suffix="S" min={1} max={60} step={1} autoComplete="off" /></Box>
-                    <Box width="50%"><TextField label="Interval Between Sale Bars (seconds)" type="number" value={String(form.alternateSeconds)} onChange={onAlternateChange} suffix="S" min={0} max={3600} step={1} autoComplete="off" /></Box>
+                    <Box width="50%">
+                      <TextField
+                        label="Popup Display Duration (seconds)"
+                        type="number"
+                        value={String(form.durationSeconds)}
+                        onChange={onDurationChange}
+                        suffix="S"
+                        min={1}
+                        max={60}
+                        step={1}
+                        autoComplete="off"
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <TextField
+                        label="Interval Between Sale Bars (seconds)"
+                        type="number"
+                        value={String(form.alternateSeconds)}
+                        onChange={onAlternateChange}
+                        suffix="S"
+                        min={0}
+                        max={3600}
+                        step={1}
+                        autoComplete="off"
+                      />
+                    </Box>
                   </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
+          )}
 
-          {/* Message */}
-          <Layout.Section oneHalf>
+          {activeSection === "content" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="350">
@@ -618,7 +834,6 @@ export default function FlashConfigPage() {
                     <Text as="h3" variant="headingMd">Message</Text>
                   </InlineStack>
 
-                  {/* Banner Title */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={titlesDraft.onKeyDown}>
                       <TextField
@@ -627,15 +842,16 @@ export default function FlashConfigPage() {
                         onChange={titlesDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="Flash Sale, Flash Sale 2 … (press Enter to add)"
+                        placeholder="Flash Sale, Flash Sale 2 ... (press Enter to add)"
                       />
                     </div>
                     <InlineStack gap="150" wrap>
-                      {titlesList.map((t, i) => (<Tag key={`title-${i}`} onRemove={() => titlesDraft.removeAt(i)}>{t}</Tag>))}
+                      {titlesList.map((t, i) => (
+                        <Tag key={`title-${i}`} onRemove={() => titlesDraft.removeAt(i)}>{t}</Tag>
+                      ))}
                     </InlineStack>
                   </BlockStack>
 
-                  {/* Offer Title */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={locationsDraft.onKeyDown}>
                       <TextField
@@ -644,15 +860,16 @@ export default function FlashConfigPage() {
                         onChange={locationsDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF …"
+                        placeholder="Flash Sale 10% OFF, Flash Sale 20% OFF ..."
                       />
                     </div>
                     <InlineStack gap="150" wrap>
-                      {locationsList.map((t, i) => (<Tag key={`loc-${i}`} onRemove={() => locationsDraft.removeAt(i)}>{t}</Tag>))}
+                      {locationsList.map((t, i) => (
+                        <Tag key={`loc-${i}`} onRemove={() => locationsDraft.removeAt(i)}>{t}</Tag>
+                      ))}
                     </InlineStack>
                   </BlockStack>
 
-                  {/* Urgency Text */}
                   <BlockStack gap="150">
                     <div onKeyDownCapture={namesDraft.onKeyDown}>
                       <TextField
@@ -661,20 +878,21 @@ export default function FlashConfigPage() {
                         onChange={namesDraft.onInputChange}
                         autoComplete="off"
                         multiline={1}
-                        placeholder="ends in 01:15 hours, ends in 02:15 hours …"
+                        placeholder="ends in 01:15 hours, ends in 02:15 hours ..."
                       />
                     </div>
                     <InlineStack gap="150" wrap>
-                      {namesList.map((t, i) => (<Tag key={`name-${i}`} onRemove={() => namesDraft.removeAt(i)}>{t}</Tag>))}
+                      {namesList.map((t, i) => (
+                        <Tag key={`name-${i}`} onRemove={() => namesDraft.removeAt(i)}>{t}</Tag>
+                      ))}
                     </InlineStack>
                   </BlockStack>
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
+          )}
 
-          {/* Customize */}
-          <Layout.Section oneHalf>
+          {activeSection === "layout" && (
             <Card>
               <Box padding="4">
                 <BlockStack gap="400">
@@ -683,23 +901,7 @@ export default function FlashConfigPage() {
                     <Box width="50%"><Select label="Flash Bar Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
                     <Box width="50%"><Select label="Text Weight / Style" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
                   </InlineStack>
-                  <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><Select label="Bar Position on Desktop" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
-                    <Box width="50%"><Select label="Popup Animation Style" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false} width="100%">
-                    <Box width="50%"><Select label="Mobile Bar Size" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
-                    <Box width="50%">
-                      <Select
-                        label="Bar Position on Mobile"
-                        options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
-                        value={(form.mobilePosition && form.mobilePosition[0]) || "top"}
-                        onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
-                      />
-                    </Box>
-                  </InlineStack>
 
-                  {/* Icon + Font size */}
                   <InlineStack gap="400" wrap={false} width="100%" alignItems="center">
                     <Box width="50%">
                       <Select
@@ -732,7 +934,6 @@ export default function FlashConfigPage() {
                     </Box>
                   </InlineStack>
 
-                  {/* Custom SVG Upload */}
                   <BlockStack gap="150">
                     <Text as="h4" variant="headingSm">Custom SVG Icon (optional)</Text>
                     <DropZone accept="image/svg+xml" allowMultiple={false} onDrop={handleSvgDrop}>
@@ -750,7 +951,6 @@ export default function FlashConfigPage() {
                     </Text>
                   </BlockStack>
 
-                  {/* Colors */}
                   <InlineStack gap="400" wrap="wrap" width="100%">
                     <Box width="30%"><ColorInput label="Banner Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
                     <Box width="30%"><ColorInput label="Bar Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
@@ -759,11 +959,48 @@ export default function FlashConfigPage() {
                 </BlockStack>
               </Box>
             </Card>
-          </Layout.Section>
+          )}
 
-          {/* Footer spacer */}
-          <Layout.Section oneHalf>{/* ... */}</Layout.Section>
-        </Layout>
+          {activeSection === "behavior" && (
+            <Card>
+              <Box padding="4">
+                <BlockStack gap="400">
+                  <Text as="h3" variant="headingMd">Placement & Motion</Text>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%"><Select label="Bar Position on Desktop" options={positionOptions} value={form.position} onChange={onField("position")} /></Box>
+                    <Box width="50%"><Select label="Popup Animation Style" options={animationOptions} value={form.animation} onChange={onField("animation")} /></Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%"><Select label="Mobile Bar Size" options={mobileSizeOptions} value={form.mobileSize} onChange={onField("mobileSize")} /></Box>
+                    <Box width="50%">
+                      <Select
+                        label="Bar Position on Mobile"
+                        options={[{ label: "Top", value: "top" }, { label: "Bottom", value: "bottom" }]}
+                        value={(form.mobilePosition && form.mobilePosition[0]) || "top"}
+                        onChange={(v) => setForm(f => ({ ...f, mobilePosition: [v] }))}
+                      />
+                    </Box>
+                  </InlineStack>
+                </BlockStack>
+              </Box>
+            </Card>
+          )}
+        </BlockStack>
+      </div>
+
+      <div className="flash-preview">
+        <Card>
+          <Box padding="4">
+            <div className="flash-preview-box">
+              <LivePreview form={form} />
+            </div>
+          </Box>
+        </Card>
+      </div>
+    </div>
+  </div>
+</div>
+
       </Page>
 
       {toast.active && <Toast content={toast.msg} error={toast.error} onDismiss={() => setToast(t => ({ ...t, active: false }))} duration={2000} />}
