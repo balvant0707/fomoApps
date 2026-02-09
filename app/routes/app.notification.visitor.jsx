@@ -68,7 +68,7 @@ const VISITOR_STYLES = `
   align-items: flex-start;
 }
 .visitor-sidebar {
-  width: 130px;
+  width: 80px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -76,8 +76,8 @@ const VISITOR_STYLES = `
 .visitor-nav-btn {
   border: 1px solid #e5e7eb;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 14px 10px;
+  border-radius: 4px;
+  padding: 5px 10px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
@@ -121,12 +121,11 @@ const VISITOR_STYLES = `
   min-width: 320px;
 }
 .visitor-preview-box {
-  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 24px;
+  padding: 0px;
   min-height: 320px;
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: center;
   background: #fafafa;
 }

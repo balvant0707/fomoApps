@@ -118,10 +118,10 @@ const LOW_STOCK_STYLES = `
 .lowstock-preview-box {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 24px;
+  padding: 0px;
   min-height: 320px;
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: center;
   background: #fafafa;
 }
