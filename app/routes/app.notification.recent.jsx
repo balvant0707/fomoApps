@@ -105,7 +105,7 @@ const RECENT_STYLES = `
   align-items: flex-start;
 }
 .recent-sidebar {
-  width: 130px;
+  width: 80px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -114,7 +114,7 @@ const RECENT_STYLES = `
   border: 1px solid #e5e7eb;
   background: #ffffff;
   border-radius: 12px;
-  padding: 14px 10px;
+  padding: 5px 10px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
@@ -158,9 +158,7 @@ const RECENT_STYLES = `
   min-width: 320px;
 }
 .recent-preview-box {
-  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 24px;
   min-height: 320px;
   display: flex;
   align-items: center;
