@@ -42,10 +42,8 @@ const initVisibility = (showType) => {
   const base = {
     showHome: false,
     showProduct: false,
-    productScope: "all",
     showCollectionList: false,
     showCollection: false,
-    collectionScope: "all",
     showCart: false,
   };
   switch (showType) {
@@ -1659,31 +1657,6 @@ export default function RecentOrdersPopupPage() {
                         setVisibility((s) => ({ ...s, showProduct: v }))
                       }
                     />
-                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
-                      <RadioButton
-                        id="recent-product-scope-all"
-                        name="recent_product_scope"
-                        label="All products"
-                        checked={visibility.productScope === "all"}
-                        disabled={!visibility.showProduct}
-                        onChange={() =>
-                          setVisibility((s) => ({ ...s, productScope: "all" }))
-                        }
-                      />
-                      <RadioButton
-                        id="recent-product-scope-specific"
-                        name="recent_product_scope"
-                        label="Specific products"
-                        checked={visibility.productScope === "specific"}
-                        disabled={!visibility.showProduct}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            productScope: "specific",
-                          }))
-                        }
-                      />
-                    </div>
                     <Checkbox
                       label="Collection list"
                       checked={visibility.showCollectionList}
@@ -1701,34 +1674,6 @@ export default function RecentOrdersPopupPage() {
                         setVisibility((s) => ({ ...s, showCollection: v }))
                       }
                     />
-                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
-                      <RadioButton
-                        id="recent-collection-scope-all"
-                        name="recent_collection_scope"
-                        label="All collections"
-                        checked={visibility.collectionScope === "all"}
-                        disabled={!visibility.showCollection}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            collectionScope: "all",
-                          }))
-                        }
-                      />
-                      <RadioButton
-                        id="recent-collection-scope-specific"
-                        name="recent_collection_scope"
-                        label="Specific collections"
-                        checked={visibility.collectionScope === "specific"}
-                        disabled={!visibility.showCollection}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            collectionScope: "specific",
-                          }))
-                        }
-                      />
-                    </div>
                     <Checkbox
                       label="Cart page"
                       checked={visibility.showCart}

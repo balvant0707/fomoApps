@@ -113,14 +113,11 @@ const REVIEW_STYLES = `
   min-width: 320px;
 }
 .review-preview-box {
-  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 24px;
   min-height: 320px;
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: center;
-  background: #fafafa;
 }
 .token-pill {
   border: none;
@@ -371,7 +368,6 @@ function PreviewCard({
         color: textColor,
         borderRadius: 16,
         boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
-        border: "1px solid rgba(0,0,0,0.06)",
         padding: 16,
         display: "flex",
         gap: 14,
@@ -431,10 +427,10 @@ function PreviewCard({
       )}
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         {showRating && (
-          <div style={{ color: starColor, fontSize: 12, letterSpacing: 1 }}>
-            {"*****".slice(0, product?.rating || 4)}
+          <div style={{ color: starColor, fontSize: 20, letterSpacing: 1 }}>
+            {"★★★★★".slice(0, product?.rating || 4)}
             <span style={{ color: "#d1d5db" }}>
-              {"*****".slice(0, 5 - (product?.rating || 4))}
+              {"☆☆☆☆☆".slice(0, 5 - (product?.rating || 4))}
             </span>
           </div>
         )}
