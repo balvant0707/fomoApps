@@ -54,6 +54,7 @@ const CONTENT_TOKENS = [
   "product_price",
 ];
 const TIME_TOKENS = ["time", "unit"];
+const TOKEN_OPTIONS = [...CONTENT_TOKENS, "stock_count"];
 
 const LOW_STOCK_STYLES = `
 .lowstock-shell {
