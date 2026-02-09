@@ -19,7 +19,8 @@ import {
   Popover,
   ButtonGroup,
   Banner,
-  DropZone,
+  RadioButton,
+  Checkbox,
 } from "@shopify/polaris";
 import {
   useLoaderData,
@@ -32,18 +33,61 @@ import prisma from "../db.server";
 
 /* ---------------- constants ---------------- */
 const KEY = "recent";
-const PAGES = [
-  { label: "All Pages", value: "allpage" },
-  { label: "Home Page", value: "home" },
-  { label: "Product Page", value: "product" },
-  { label: "Collection Page", value: "collection" },
-  { label: "Pages", value: "pages" },
-  { label: "Cart Page", value: "cart" },
-];
 const LAYOUTS = [
   { label: "Landscape", value: "landscape" },
   { label: "Portrait", value: "portrait" },
 ];
+
+const initVisibility = (showType) => {
+  const base = {
+    showHome: false,
+    showProduct: false,
+    productScope: "all",
+    showCollectionList: false,
+    showCollection: false,
+    collectionScope: "all",
+    showCart: false,
+  };
+  switch (showType) {
+    case "home":
+      return { ...base, showHome: true };
+    case "product":
+      return { ...base, showProduct: true };
+    case "collection":
+      return { ...base, showCollection: true, showCollectionList: true };
+    case "cart":
+      return { ...base, showCart: true };
+    case "allpage":
+    default:
+      return {
+        ...base,
+        showHome: true,
+        showProduct: true,
+        showCollection: true,
+        showCollectionList: true,
+        showCart: true,
+      };
+  }
+};
+
+const visibilityToShowType = (visibility) => {
+  const flags = [
+    visibility.showHome,
+    visibility.showProduct,
+    visibility.showCollection,
+    visibility.showCollectionList,
+    visibility.showCart,
+  ];
+  const enabledCount = flags.filter(Boolean).length;
+  if (enabledCount === 0) return "allpage";
+  if (enabledCount > 1) return "allpage";
+  if (visibility.showHome) return "home";
+  if (visibility.showProduct) return "product";
+  if (visibility.showCollection || visibility.showCollectionList)
+    return "collection";
+  if (visibility.showCart) return "cart";
+  return "allpage";
+};
 const HIDE_CHOICES = [
   { label: "Customer Name", value: "name" },
   { label: "City", value: "city" },
@@ -261,10 +305,15 @@ const DEFAULT_SAVED = {
   animation: "fade",
   mobileSize: "compact",
   mobilePositionJson: '["bottom"]',
-  titleColor: "#000000",
+  template: "solid",
   bgColor: "#FFFBD2",
-  msgColor: "#000000",
-  ctaBgColor: null,
+  bgAlt: "#FBCFCF",
+  textColor: "#000000",
+  numberColor: "#000000",
+  priceTagBg: "#593E3F",
+  priceTagAlt: "#E66465",
+  priceColor: "#FFFFFF",
+  starColor: "#F06663",
   rounded: "14",
   durationSeconds: 8,
   alternateSeconds: 10,
@@ -689,10 +738,15 @@ export async function loader({ request }) {
         animation: last?.animation ?? "fade",
         mobileSize: last?.mobileSize ?? "compact",
         mobilePositionJson: last?.mobilePositionJson ?? '["bottom"]',
-        titleColor: last?.titleColor ?? "#000000",
+        template: "solid",
         bgColor: last?.bgColor ?? "#FFFBD2",
-        msgColor: last?.msgColor ?? "#000000",
-        ctaBgColor: last?.ctaBgColor ?? null,
+        bgAlt: last?.ctaBgColor ?? "#FBCFCF",
+        textColor: last?.msgColor ?? "#000000",
+        numberColor: last?.titleColor ?? "#000000",
+        priceTagBg: "#593E3F",
+        priceTagAlt: "#E66465",
+        priceColor: "#FFFFFF",
+        starColor: "#F06663",
         rounded: String(last?.rounded ?? 14),
         durationSeconds: Number(last?.durationSeconds ?? 1),
         alternateSeconds: Number(last?.alternateSeconds ?? 10),
@@ -834,10 +888,10 @@ export async function action({ request }) {
     animation: nullIfBlank(form?.animation),
     mobileSize: nullIfBlank(form?.mobileSize),
     mobilePositionJson,
-    titleColor: nullIfBlank(form?.titleColor),
+    titleColor: nullIfBlank(form?.numberColor),
     bgColor: nullIfBlank(form?.bgColor),
-    msgColor: nullIfBlank(form?.msgColor),
-    ctaBgColor: nullIfBlank(form?.ctaBgColor),
+    msgColor: nullIfBlank(form?.textColor),
+    ctaBgColor: nullIfBlank(form?.bgAlt),
     rounded: intOrNull(form?.rounded, 10, 72),
     durationSeconds: intOrNull(form?.durationSeconds, 1, 60),
     alternateSeconds: intOrNull(form?.alternateSeconds, 0, 3600),
@@ -1088,10 +1142,18 @@ function Bubble({ form, order, isMobile = false }) {
     : first?.title || order?.productTitle || "";
   const productImg = hide.has("productImage")
     ? null
-    : form.customImage || first?.image || order?.productImage || null;
+    : first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
+  const showImage = !!productImg;
+  const imageOverflow = showImage && form.imageAppearance === "cover";
+  const avatarSize = isPortrait ? 56 : 60;
+  const avatarOffset = Math.round(avatarSize * 0.45);
 
   const showTime = !hide.has("time");
+  const background =
+    form.template === "gradient"
+      ? `linear-gradient(135deg, ${form.bgColor} 0%, ${form.bgAlt} 100%)`
+      : form.bgColor;
   return (
     <div
       style={{
@@ -1103,52 +1165,89 @@ function Bubble({ form, order, isMobile = false }) {
           form.fontFamily === "System"
             ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto"
             : form.fontFamily,
-        background: form.bgColor,
-        color: form.msgColor,
+        background,
+        color: form.textColor,
         borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         padding: 12,
+        paddingLeft: imageOverflow ? 12 + avatarOffset : 12,
         border: "1px solid rgba(17,24,39,0.06)",
         maxWidth: isMobile
           ? mobileSizeToWidth(form.mobileSize)
           : isPortrait
             ? 340
             : 560,
+        position: "relative",
         ...animStyle,
       }}
     >
-      <div>
-        {productImg ? (
+      {imageOverflow ? (
+        <div
+          style={{
+            position: "absolute",
+            left: 16,
+            top: isPortrait ? 24 : "50%",
+            transform: isPortrait
+              ? "translate(-50%, 0)"
+              : "translate(-50%, -50%)",
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: 12,
+            overflow: "hidden",
+            background: "#f3f4f6",
+            flexShrink: 0,
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+            border: "2px solid rgba(255,255,255,0.75)",
+          }}
+        >
           <img
             src={productImg}
             alt={productTitle || "Product"}
             style={{
-              width: isPortrait ? 56 : 60,
-              height: isPortrait ? 56 : 60,
-              objectFit: imageFit,
-              borderRadius: 6,
-              background: "#f4f4f5",
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
             }}
             loading="lazy"
             decoding="async"
           />
-        ) : (
-          <div
-            style={{
-              width: isPortrait ? 56 : 60,
-              height: isPortrait ? 56 : 60,
-              borderRadius: 6,
-              background: "#f4f4f5",
-            }}
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div>
+          {showImage ? (
+            <img
+              src={productImg}
+              alt={productTitle || "Product"}
+              style={{
+                width: avatarSize,
+                height: avatarSize,
+                objectFit: imageFit,
+                borderRadius: 6,
+                background: "#f4f4f5",
+              }}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <div
+              style={{
+                width: avatarSize,
+                height: avatarSize,
+                borderRadius: 6,
+                background: "#f4f4f5",
+              }}
+            />
+          )}
+        </div>
+      )}
       <div style={{ minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: sized }}>
           {!hide.has("name") && (
             <span
               style={{
-                color: form.titleColor,
+                color: form.numberColor,
                 fontWeight: Number(form.fontWeight || 600),
               }}
             >
@@ -1159,7 +1258,7 @@ function Bubble({ form, order, isMobile = false }) {
           {loc && (
             <span
               style={{
-                color: form.titleColor,
+                color: form.numberColor,
                 fontWeight: Number(form.fontWeight || 600),
               }}
             >
@@ -1176,7 +1275,13 @@ function Bubble({ form, order, isMobile = false }) {
           {showTime && (
             <>
               <br />
-              <span style={{ opacity: 0.85, fontSize: sized * 0.9 }}>
+              <span
+                style={{
+                  opacity: 0.85,
+                  fontSize: sized * 0.9,
+                  color: form.numberColor,
+                }}
+              >
                 <small>
                   {order?.createdAt
                     ? new Date(order.createdAt).toLocaleString()
@@ -1303,8 +1408,9 @@ export default function RecentOrdersPopupPage() {
     error: false,
     msg: "",
   });
-  const [uploadError, setUploadError] = useState("");
-  const [uploadName, setUploadName] = useState("");
+  const [visibility, setVisibility] = useState(() =>
+    initVisibility(saved.showType || "allpage")
+  );
 
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
@@ -1322,17 +1428,21 @@ export default function RecentOrdersPopupPage() {
         return ["bottom"];
       }
     })(),
-    titleColor: saved.titleColor,
+    template: saved.template ?? "solid",
     bgColor: saved.bgColor,
-    msgColor: saved.msgColor,
-    ctaBgColor: saved.ctaBgColor,
+    bgAlt: saved.bgAlt ?? "#FBCFCF",
+    textColor: saved.textColor ?? saved.msgColor ?? "#000000",
+    numberColor: saved.numberColor ?? saved.titleColor ?? "#000000",
+    priceTagBg: saved.priceTagBg ?? "#593E3F",
+    priceTagAlt: saved.priceTagAlt ?? "#E66465",
+    priceColor: saved.priceColor ?? "#FFFFFF",
+    starColor: saved.starColor ?? "#F06663",
     rounded: saved.rounded,
     durationSeconds: saved.durationSeconds,
     alternateSeconds: saved.alternateSeconds,
     fontWeight: saved.fontWeight,
     layout: saved.layout ?? "landscape",
     imageAppearance: saved.imageAppearance ?? "cover",
-    customImage: "",
 
     namesJson: saved.namesJson || [],
     selectedProductsJson: saved.selectedProductsJson || [],
@@ -1350,40 +1460,16 @@ export default function RecentOrdersPopupPage() {
     setForm((f) => ({ ...f, createOrderTime: newest }));
   }, [orders]);
 
+  useEffect(() => {
+    const nextShowType = visibilityToShowType(visibility);
+    setForm((f) => (f.showType === nextShowType ? f : { ...f, showType: nextShowType }));
+  }, [visibility]);
+
   const onField = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
   const onNumClamp = (k, lo, hi) => (val) => {
     const n = parseInt(String(val ?? ""), 10);
     const clamped = isNaN(n) ? lo : Math.max(lo, Math.min(hi, n));
     setForm((f) => ({ ...f, [k]: clamped }));
-  };
-  const handleImageDrop = (_drop, accepted, rejected) => {
-    setUploadError("");
-    if (rejected?.length) {
-      setUploadError("Only image files are allowed.");
-      return;
-    }
-    const file = accepted?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      setUploadError("File must be an image.");
-      return;
-    }
-    if (file.size > 600 * 1024) {
-      setUploadError("Image is too large. Keep it under 600KB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      setForm((f) => ({ ...f, customImage: result }));
-      setUploadName(file.name);
-    };
-    reader.readAsDataURL(file);
-  };
-  const clearUploadedImage = () => {
-    setForm((f) => ({ ...f, customImage: "" }));
-    setUploadName("");
-    setUploadError("");
   };
 
   const save = async () => {
@@ -1555,15 +1641,104 @@ export default function RecentOrdersPopupPage() {
                         alignment="horizontal"
                       />
                     </Box>
-                    <Box width="50%">
-                      <Select
-                        label="Display On Pages"
-                        options={PAGES}
-                        value={form.showType}
-                        onChange={onField("showType")}
-                      />
-                    </Box>
                   </InlineStack>
+
+                  <Text as="h4" variant="headingSm">
+                    Show on
+                  </Text>
+                  <BlockStack gap="200">
+                    <Checkbox
+                      label="Home page"
+                      checked={visibility.showHome}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showHome: v }))
+                      }
+                    />
+                    <Checkbox
+                      label="Product page"
+                      checked={visibility.showProduct}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showProduct: v }))
+                      }
+                    />
+                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                      <RadioButton
+                        id="recent-product-scope-all"
+                        name="recent_product_scope"
+                        label="All products"
+                        checked={visibility.productScope === "all"}
+                        disabled={!visibility.showProduct}
+                        onChange={() =>
+                          setVisibility((s) => ({ ...s, productScope: "all" }))
+                        }
+                      />
+                      <RadioButton
+                        id="recent-product-scope-specific"
+                        name="recent_product_scope"
+                        label="Specific products"
+                        checked={visibility.productScope === "specific"}
+                        disabled={!visibility.showProduct}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            productScope: "specific",
+                          }))
+                        }
+                      />
+                    </div>
+                    <Checkbox
+                      label="Collection list"
+                      checked={visibility.showCollectionList}
+                      onChange={(v) =>
+                        setVisibility((s) => ({
+                          ...s,
+                          showCollectionList: v,
+                        }))
+                      }
+                    />
+                    <Checkbox
+                      label="Collection page"
+                      checked={visibility.showCollection}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showCollection: v }))
+                      }
+                    />
+                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                      <RadioButton
+                        id="recent-collection-scope-all"
+                        name="recent_collection_scope"
+                        label="All collections"
+                        checked={visibility.collectionScope === "all"}
+                        disabled={!visibility.showCollection}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            collectionScope: "all",
+                          }))
+                        }
+                      />
+                      <RadioButton
+                        id="recent-collection-scope-specific"
+                        name="recent_collection_scope"
+                        label="Specific collections"
+                        checked={visibility.collectionScope === "specific"}
+                        disabled={!visibility.showCollection}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            collectionScope: "specific",
+                          }))
+                        }
+                      />
+                    </div>
+                    <Checkbox
+                      label="Cart page"
+                      checked={visibility.showCart}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showCart: v }))
+                      }
+                    />
+                  </BlockStack>
 
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
@@ -1611,6 +1786,109 @@ export default function RecentOrdersPopupPage() {
                     value={form.layout}
                     onChange={onField("layout")}
                   />
+                  <BlockStack gap="200">
+                    <Text as="p">Color template</Text>
+                    <InlineStack gap="300">
+                      <RadioButton
+                        id="template-solid"
+                        name="template"
+                        label="Solid"
+                        checked={form.template === "solid"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, template: "solid" }))
+                        }
+                      />
+                      <RadioButton
+                        id="template-gradient"
+                        name="template"
+                        label="Gradient"
+                        checked={form.template === "gradient"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, template: "gradient" }))
+                        }
+                      />
+                    </InlineStack>
+                  </BlockStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Background color"
+                        value={form.bgColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, bgColor: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Background color (alt)"
+                        value={form.bgAlt}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, bgAlt: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Text color"
+                        value={form.textColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, textColor: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Number color"
+                        value={form.numberColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, numberColor: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Price tag background"
+                        value={form.priceTagBg}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, priceTagBg: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Compare at price color"
+                        value={form.priceTagAlt}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, priceTagAlt: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false}>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Price color"
+                        value={form.priceColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, priceColor: v }))
+                        }
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Star color"
+                        value={form.starColor}
+                        onChange={(v) =>
+                          setForm((f) => ({ ...f, starColor: v }))
+                        }
+                      />
+                    </Box>
+                  </InlineStack>
                   <ChoiceList
                     title="Image appearance"
                     choices={[
@@ -1631,39 +1909,6 @@ export default function RecentOrdersPopupPage() {
                       }))
                     }
                   />
-                  <BlockStack gap="200">
-                    <Text as="h4" variant="headingSm">
-                      Upload preview image (optional)
-                    </Text>
-                    <DropZone
-                      accept="image/*"
-                      allowMultiple={false}
-                      onDrop={handleImageDrop}
-                    >
-                      <DropZone.FileUpload actionHint="Upload a JPG/PNG/WebP (max 600KB)" />
-                    </DropZone>
-                    {uploadName && (
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text variant="bodySm">Uploaded: {uploadName}</Text>
-                        <Button
-                          onClick={clearUploadedImage}
-                          tone="critical"
-                          variant="plain"
-                        >
-                          Remove
-                        </Button>
-                      </InlineStack>
-                    )}
-                    {uploadError && (
-                      <Text tone="critical" variant="bodySm">
-                        {uploadError}
-                      </Text>
-                    )}
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      This image is for preview only. On the store, the actual
-                      product image is shown.
-                    </Text>
-                  </BlockStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
@@ -1703,35 +1948,6 @@ export default function RecentOrdersPopupPage() {
                           }))
                         }
                         autoComplete="off"
-                      />
-                    </Box>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Headline Text Color"
-                        value={form.titleColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, titleColor: v }))
-                        }
-                      />
-                    </Box>
-                  </InlineStack>
-                  <InlineStack gap="400" wrap={false}>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Popup Background Color"
-                        value={form.bgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, bgColor: v }))
-                        }
-                      />
-                    </Box>
-                    <Box width="50%">
-                      <ColorInput
-                        label="Message Text Color"
-                        value={form.msgColor}
-                        onChange={(v) =>
-                          setForm((f) => ({ ...f, msgColor: v }))
-                        }
                       />
                     </Box>
                   </InlineStack>

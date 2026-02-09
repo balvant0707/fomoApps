@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Page, Card, Button, TextField, Select, ChoiceList, Box,
   BlockStack, InlineStack, Text, ColorPicker, Frame,
-  Toast, Loading, Popover, Tag, ButtonGroup, DropZone
+  Toast, Loading, Popover, Tag, ButtonGroup, DropZone, RadioButton, Checkbox
 } from "@shopify/polaris";
 import { useLoaderData, useNavigate } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -17,6 +17,57 @@ const LAYOUTS = [
   { label: "Portrait", value: "portrait" },
 ];
 
+const initVisibility = (showType) => {
+  const base = {
+    showHome: false,
+    showProduct: false,
+    productScope: "all",
+    showCollectionList: false,
+    showCollection: false,
+    collectionScope: "all",
+    showCart: false,
+  };
+  switch (showType) {
+    case "home":
+      return { ...base, showHome: true };
+    case "product":
+      return { ...base, showProduct: true };
+    case "collection":
+      return { ...base, showCollection: true, showCollectionList: true };
+    case "cart":
+      return { ...base, showCart: true };
+    case "allpage":
+    default:
+      return {
+        ...base,
+        showHome: true,
+        showProduct: true,
+        showCollection: true,
+        showCollectionList: true,
+        showCart: true,
+      };
+  }
+};
+
+const visibilityToShowType = (visibility) => {
+  const flags = [
+    visibility.showHome,
+    visibility.showProduct,
+    visibility.showCollection,
+    visibility.showCollectionList,
+    visibility.showCart,
+  ];
+  const enabledCount = flags.filter(Boolean).length;
+  if (enabledCount === 0) return "allpage";
+  if (enabledCount > 1) return "allpage";
+  if (visibility.showHome) return "home";
+  if (visibility.showProduct) return "product";
+  if (visibility.showCollection || visibility.showCollectionList)
+    return "collection";
+  if (visibility.showCart) return "cart";
+  return "allpage";
+};
+
 const FLASH_STYLES = `
 .flash-shell {
   display: flex;
@@ -24,7 +75,7 @@ const FLASH_STYLES = `
   align-items: flex-start;
 }
 .flash-sidebar {
-  width: 130px;
+  width: 80px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -32,8 +83,8 @@ const FLASH_STYLES = `
 .flash-nav-btn {
   border: 1px solid #e5e7eb;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 14px 10px;
+  border-radius: 4px;
+  padding: 5px 10px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
@@ -267,10 +318,10 @@ export async function action({ request }) {
     position: form?.position ?? null,
     animation: form?.animation ?? null,
     mobileSize: form?.mobileSize ?? null,
-    titleColor: form?.titleColor ?? null,
+    titleColor: form?.numberColor ?? null,
     bgColor: form?.bgColor ?? null,
-    msgColor: form?.msgColor ?? null,
-    ctaBgColor: form?.ctaBgColor ?? null,
+    msgColor: form?.textColor ?? null,
+    ctaBgColor: form?.bgAlt ?? null,
 
     rounded: form?.rounded != null ? Number(form.rounded) : null,
     durationSeconds: form?.durationSeconds != null ? Number(form.durationSeconds) : null,
@@ -465,20 +516,25 @@ function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const isPortrait = form.layout === "portrait";
   const iconSize = form.imageAppearance === "contain" ? 48 : 60;
-  const imageFit = form.imageAppearance === "contain" ? "contain" : "cover";
   const iconDim = isPortrait ? 56 : 60;
 
   const svgMarkup = useMemo(() => {
-    if (form.iconImage) return "";
     const uploaded = extractFirstSvg(form.iconSvg || "");
     const candidate = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
     const base = isSvgRenderable(candidate) ? candidate : SVGS["reshot"];
     return base ? normalizeSvgSize(base, iconSize) : "";
-  }, [form.iconImage, form.iconSvg, form.iconKey, iconSize]);
+  }, [form.iconSvg, form.iconKey, iconSize]);
 
   const base = Number(form.rounded ?? 14) || 14;
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
   const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
+  const showIcon = !!svgMarkup;
+  const imageOverflow = showIcon && form.imageAppearance === "cover";
+  const avatarOffset = Math.round(iconDim * 0.45);
+  const background =
+    form.template === "gradient"
+      ? `linear-gradient(135deg, ${form.bgColor} 0%, ${form.bgAlt} 100%)`
+      : form.bgColor;
 
   return (
     <div>
@@ -491,7 +547,7 @@ function NotificationPreview({ form, isMobile = false }) {
 
       <div style={{
         fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
-        background: form.bgColor, color: form.msgColor, borderRadius: 14,
+        background, color: form.textColor, borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
         display: "flex",
         alignItems: isPortrait ? "flex-start" : "center",
@@ -502,21 +558,42 @@ function NotificationPreview({ form, isMobile = false }) {
           : isPortrait
             ? 340
             : 560,
+        paddingLeft: imageOverflow ? 12 + avatarOffset : 12,
+        position: "relative",
         ...animStyle
       }}>
-        {form.iconImage ? (
-          <img
-            src={form.iconImage}
-            alt="Icon"
+        {imageOverflow ? (
+          <div
             style={{
+              position: "absolute",
+              left: 16,
+              top: isPortrait ? 24 : "50%",
+              transform: isPortrait
+                ? "translate(-50%, 0)"
+                : "translate(-50%, -50%)",
               width: iconDim,
               height: iconDim,
-              objectFit: imageFit,
-              borderRadius: 10,
+              borderRadius: 12,
+              overflow: "hidden",
               background: "#f3f4f6",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+              border: "2px solid rgba(255,255,255,0.75)",
             }}
-          />
-        ) : svgMarkup ? (
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "100%",
+              }}
+              dangerouslySetInnerHTML={{ __html: svgMarkup }}
+            />
+          </div>
+        ) : showIcon ? (
           <span
             aria-hidden="true"
             style={{
@@ -529,7 +606,7 @@ function NotificationPreview({ form, isMobile = false }) {
           />
         ) : null}
         <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
-          <p style={{ margin: 0, color: form.titleColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: sized }}>
+          <p style={{ margin: 0, color: form.numberColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: sized }}>
             {form.messageTitle || "Flash Sale"}
           </p>
           <p style={{ margin: 0, fontSize: sized, lineHeight: 1.5 }}>
@@ -600,6 +677,9 @@ export default function FlashConfigPage() {
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("layout");
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
+  const [visibility, setVisibility] = useState(() =>
+    initVisibility("allpage")
+  );
 
   // defaults ONLY (no DB prefill)
   const defaultTitles = ["Flash Sale"];
@@ -621,26 +701,28 @@ export default function FlashConfigPage() {
     fontWeight: "600",
     layout: "landscape",
     imageAppearance: "cover",
+    template: "solid",
     position: "top-right",
     animation: "slide",
     mobileSize: "compact",
     mobilePosition: ["top"],
-    titleColor: "#000000",
     bgColor: "#FFFBD2",
-    msgColor: "#000000",
+    bgAlt: "#FBCFCF",
+    textColor: "#000000",
+    numberColor: "#000000",
+    priceTagBg: "#593E3F",
+    priceTagAlt: "#E66465",
+    priceColor: "#FFFFFF",
+    starColor: "#F06663",
     rounded: 14,
     durationSeconds: 1,
     alternateSeconds: 5,
     iconKey: "reshot", // default builtin
     iconSvg: "",       // uploaded svg string (optional)
-    iconImage: "",     // uploaded image (optional)
-    ctaBgColor: null,
   });
 
   const [svgName, setSvgName] = useState("");
   const [uploadError, setUploadError] = useState("");
-  const [iconImageName, setIconImageName] = useState("");
-  const [iconImageError, setIconImageError] = useState("");
 
   // keep preview first values in sync (preview only)
   useEffect(() => {
@@ -651,6 +733,11 @@ export default function FlashConfigPage() {
       messageText: namesList[0] || f.messageText || "",
     }));
   }, [titlesList, locationsList, namesList]);
+
+  useEffect(() => {
+    const nextShowType = visibilityToShowType(visibility);
+    setForm(f => (f.showType === nextShowType ? f : { ...f, showType: nextShowType }));
+  }, [visibility]);
 
   const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const onDurationChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 1 : Math.min(60, Math.max(1, n)); setForm(f => ({ ...f, durationSeconds: x })); };
@@ -708,36 +795,6 @@ export default function FlashConfigPage() {
     setUploadError("");
   };
 
-  const handleIconImageDrop = useCallback((_drop, accepted, rejected) => {
-    setIconImageError("");
-    if (rejected?.length) {
-      setIconImageError("Only image files are allowed.");
-      return;
-    }
-    const file = accepted?.[0];
-    if (!file) return;
-    if (!file.type?.startsWith("image/")) {
-      setIconImageError("File must be an image.");
-      return;
-    }
-    if (file.size > 600 * 1024) {
-      setIconImageError("Image is too large. Keep it under 600KB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      setForm(f => ({ ...f, iconImage: result }));
-      setIconImageName(file.name);
-    };
-    reader.readAsDataURL(file);
-  }, []);
-
-  const clearIconImage = () => {
-    setForm(f => ({ ...f, iconImage: "" }));
-    setIconImageName("");
-    setIconImageError("");
-  };
 
   const save = async () => {
     try {
@@ -763,14 +820,6 @@ export default function FlashConfigPage() {
     } finally { setSaving(false); }
   };
 
-  const pageOptions = [
-    { label: "All Pages", value: "allpage" },
-    { label: "Home Page", value: "home" },
-    { label: "Product Page", value: "product" },
-    { label: "Collection Page", value: "collection" },
-    { label: "Pages", value: "pages" },
-    { label: "Cart Page", value: "cart" },
-  ];
   const fontOptions = [
     { label: "System", value: "System" }, { label: "Inter", value: "Inter" }, { label: "Roboto", value: "Roboto" },
     { label: "Montserrat", value: "Montserrat" }, { label: "Poppins", value: "Poppins" }
@@ -836,15 +885,104 @@ export default function FlashConfigPage() {
                         alignment="horizontal"
                       />
                     </Box>
-                    <Box width="50%">
-                      <Select
-                        label="Display On Pages"
-                        options={pageOptions}
-                        value={form.showType}
-                        onChange={onField("showType")}
-                      />
-                    </Box>
                   </InlineStack>
+
+                  <Text as="h4" variant="headingSm">
+                    Show on
+                  </Text>
+                  <BlockStack gap="200">
+                    <Checkbox
+                      label="Home page"
+                      checked={visibility.showHome}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showHome: v }))
+                      }
+                    />
+                    <Checkbox
+                      label="Product page"
+                      checked={visibility.showProduct}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showProduct: v }))
+                      }
+                    />
+                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                      <RadioButton
+                        id="flash-product-scope-all"
+                        name="flash_product_scope"
+                        label="All products"
+                        checked={visibility.productScope === "all"}
+                        disabled={!visibility.showProduct}
+                        onChange={() =>
+                          setVisibility((s) => ({ ...s, productScope: "all" }))
+                        }
+                      />
+                      <RadioButton
+                        id="flash-product-scope-specific"
+                        name="flash_product_scope"
+                        label="Specific products"
+                        checked={visibility.productScope === "specific"}
+                        disabled={!visibility.showProduct}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            productScope: "specific",
+                          }))
+                        }
+                      />
+                    </div>
+                    <Checkbox
+                      label="Collection list"
+                      checked={visibility.showCollectionList}
+                      onChange={(v) =>
+                        setVisibility((s) => ({
+                          ...s,
+                          showCollectionList: v,
+                        }))
+                      }
+                    />
+                    <Checkbox
+                      label="Collection page"
+                      checked={visibility.showCollection}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showCollection: v }))
+                      }
+                    />
+                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
+                      <RadioButton
+                        id="flash-collection-scope-all"
+                        name="flash_collection_scope"
+                        label="All collections"
+                        checked={visibility.collectionScope === "all"}
+                        disabled={!visibility.showCollection}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            collectionScope: "all",
+                          }))
+                        }
+                      />
+                      <RadioButton
+                        id="flash-collection-scope-specific"
+                        name="flash_collection_scope"
+                        label="Specific collections"
+                        checked={visibility.collectionScope === "specific"}
+                        disabled={!visibility.showCollection}
+                        onChange={() =>
+                          setVisibility((s) => ({
+                            ...s,
+                            collectionScope: "specific",
+                          }))
+                        }
+                      />
+                    </div>
+                    <Checkbox
+                      label="Cart page"
+                      checked={visibility.showCart}
+                      onChange={(v) =>
+                        setVisibility((s) => ({ ...s, showCart: v }))
+                      }
+                    />
+                  </BlockStack>
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%">
                       <TextField
@@ -955,6 +1093,93 @@ export default function FlashConfigPage() {
                     value={form.layout}
                     onChange={onField("layout")}
                   />
+                  <BlockStack gap="200">
+                    <Text as="p">Color template</Text>
+                    <InlineStack gap="300">
+                      <RadioButton
+                        id="template-solid"
+                        name="template"
+                        label="Solid"
+                        checked={form.template === "solid"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, template: "solid" }))
+                        }
+                      />
+                      <RadioButton
+                        id="template-gradient"
+                        name="template"
+                        label="Gradient"
+                        checked={form.template === "gradient"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, template: "gradient" }))
+                        }
+                      />
+                    </InlineStack>
+                  </BlockStack>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%">
+                      <ColorInput
+                        label="Background color"
+                        value={form.bgColor}
+                        onChange={(v) => setForm(f => ({ ...f, bgColor: v }))}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Background color (alt)"
+                        value={form.bgAlt}
+                        onChange={(v) => setForm(f => ({ ...f, bgAlt: v }))}
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%">
+                      <ColorInput
+                        label="Text color"
+                        value={form.textColor}
+                        onChange={(v) => setForm(f => ({ ...f, textColor: v }))}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Number color"
+                        value={form.numberColor}
+                        onChange={(v) => setForm(f => ({ ...f, numberColor: v }))}
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%">
+                      <ColorInput
+                        label="Price tag background"
+                        value={form.priceTagBg}
+                        onChange={(v) => setForm(f => ({ ...f, priceTagBg: v }))}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Compare at price color"
+                        value={form.priceTagAlt}
+                        onChange={(v) => setForm(f => ({ ...f, priceTagAlt: v }))}
+                      />
+                    </Box>
+                  </InlineStack>
+                  <InlineStack gap="400" wrap={false} width="100%">
+                    <Box width="50%">
+                      <ColorInput
+                        label="Price color"
+                        value={form.priceColor}
+                        onChange={(v) => setForm(f => ({ ...f, priceColor: v }))}
+                      />
+                    </Box>
+                    <Box width="50%">
+                      <ColorInput
+                        label="Star color"
+                        value={form.starColor}
+                        onChange={(v) => setForm(f => ({ ...f, starColor: v }))}
+                      />
+                    </Box>
+                  </InlineStack>
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%"><Select label="Flash Bar Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
                     <Box width="50%"><Select label="Text Weight / Style" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
@@ -1023,30 +1248,7 @@ export default function FlashConfigPage() {
                     </Text>
                   </BlockStack>
 
-                  <BlockStack gap="150">
-                    <Text as="h4" variant="headingSm">Upload image icon (optional)</Text>
-                    <DropZone accept="image/*" allowMultiple={false} onDrop={handleIconImageDrop}>
-                      <DropZone.FileUpload actionHint="Upload a JPG/PNG/WebP (max 600KB)" />
-                    </DropZone>
-                    {iconImageName && (
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text variant="bodySm">Uploaded: {iconImageName}</Text>
-                        <Button onClick={clearIconImage} tone="critical" variant="plain">Remove</Button>
-                      </InlineStack>
-                    )}
-                    {iconImageError && (
-                      <Text tone="critical" variant="bodySm">{iconImageError}</Text>
-                    )}
-                    <Text as="p" tone="subdued" variant="bodySm">
-                      If an image icon is uploaded, it will be used in the preview instead of the SVG.
-                    </Text>
-                  </BlockStack>
 
-                  <InlineStack gap="400" wrap="wrap" width="100%">
-                    <Box width="30%"><ColorInput label="Banner Title Color" value={form.titleColor} onChange={(v) => setForm(f => ({ ...f, titleColor: v }))} /></Box>
-                    <Box width="30%"><ColorInput label="Bar Background Color" value={form.bgColor} onChange={(v) => setForm(f => ({ ...f, bgColor: v }))} /></Box>
-                    <Box width="30%"><ColorInput label="Offer Text Color" value={form.msgColor} onChange={(v) => setForm(f => ({ ...f, msgColor: v }))} /></Box>
-                  </InlineStack>
                 </BlockStack>
               </Box>
             </Card>
