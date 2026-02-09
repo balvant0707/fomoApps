@@ -1,4 +1,4 @@
-// app/routes/app.notification.lowstock.jsx
+// app/routes/app.notification.addtocart.jsx
 import React, { useMemo, useState } from "react";
 import {
   Page,
@@ -25,7 +25,7 @@ import { authenticate } from "../shopify.server";
 
 export async function loader({ request }) {
   await authenticate.admin(request);
-  return json({ title: "Low Stock Popup" });
+  return json({ title: "Add to cart Popup" });
 }
 
 const LAYOUTS = [
@@ -315,7 +315,7 @@ function PreviewCard({
   bgColor,
   bgAlt,
   textColor,
-  numberColor,
+  timestampColor,
   priceTagBg,
   priceTagAlt,
   priceColor,
@@ -324,6 +324,7 @@ function PreviewCard({
   textSizeCompare,
   textSizePrice,
   contentText,
+  timestampText,
   showProductImage,
   showPriceTag,
   showRating,
@@ -339,25 +340,64 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
+  const avatarSize = isPortrait ? 56 : 64;
+  const avatarOffset = Math.round(avatarSize * 0.45);
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
     background,
     color: textColor,
-    borderRadius: 16,
+    borderRadius: 18,
     boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
     border: "1px solid rgba(0,0,0,0.06)",
-    padding: 14,
+    padding: 16,
+    paddingLeft: showProductImage ? 16 + avatarOffset : 16,
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
     gap: 12,
-    alignItems: isPortrait ? "flex-start" : "center",
+    alignItems: "flex-start",
     maxWidth: isPortrait ? 320 : 460,
   };
 
-  const safeName = product?.title || "Your product will show here";
-  const safeCount = "5";
+  const safeName = product?.title || "Antique Drawers";
+  const tokenValues = {
+    full_name: "Jenna Doe",
+    first_name: "Jenna",
+    last_name: "Doe",
+    country: "United States",
+    city: "New York",
+    product_name: safeName,
+    product_price: product?.price || "Rs. 29.99",
+    time: "3",
+    unit: "minutes",
+  };
+
+  const resolveTemplate = (value) =>
+    String(value || "")
+      .trim()
+      .replace(/\{(\w+)\}/g, (match, key) => tokenValues[key] ?? match);
+
+  const resolvedContent = resolveTemplate(
+    contentText || "{full_name} from {country} added {product_name} to cart"
+  );
+  const resolvedTimestamp = resolveTemplate(
+    timestampText || "{time} {unit} ago"
+  );
+  const productName = tokenValues.product_name;
+  const productIndex = resolvedContent.indexOf(productName);
+  const contentNode =
+    productIndex >= 0 ? (
+      <>
+        {resolvedContent.slice(0, productIndex)}
+        <span style={{ fontWeight: 600, textDecoration: "underline" }}>
+          {productName}
+        </span>
+        {resolvedContent.slice(productIndex + productName.length)}
+      </>
+    ) : (
+      resolvedContent
+    );
 
   return (
     <div style={cardStyle}>
@@ -387,14 +427,22 @@ function PreviewCard({
       {showProductImage && (
         <div
           style={{
-            width: isPortrait ? 56 : 64,
-            height: isPortrait ? 56 : 64,
-            borderRadius: 12,
+            position: "absolute",
+            left: 16,
+            top: isPortrait ? 28 : "50%",
+            transform: isPortrait
+              ? "translate(-50%, 0)"
+              : "translate(-50%, -50%)",
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: 14,
             overflow: "hidden",
             background: "#f3f4f6",
             flexShrink: 0,
             display: "grid",
             placeItems: "center",
+            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+            border: "2px solid rgba(255,255,255,0.75)",
           }}
         >
           {product?.image ? (
@@ -413,22 +461,15 @@ function PreviewCard({
 
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         {showRating && (
-          <div style={{ color: starColor, fontSize: 12 }}>
-            {"*****".slice(0, product?.rating || 4)}
+          <div style={{ color: starColor, fontSize: 12, letterSpacing: 1 }}>
+            {"★★★★★".slice(0, product?.rating || 4)}
             <span style={{ color: "#d1d5db" }}>
-              {"*****".slice(0, 5 - (product?.rating || 4))}
+              {"★★★★★".slice(0, 5 - (product?.rating || 4))}
             </span>
           </div>
         )}
         <div style={{ fontSize: textSizeContent, lineHeight: 1.35 }}>
-          <span style={{ fontWeight: 600, textDecoration: "underline" }}>
-            {safeName}
-          </span>{" "}
-          has only{" "}
-          <span style={{ color: numberColor, fontWeight: 700 }}>
-            {safeCount}
-          </span>{" "}
-          items left in stock
+          {contentNode}
         </div>
         {showPriceTag && (
           <InlineStack gap="200" blockAlign="center">
@@ -442,7 +483,7 @@ function PreviewCard({
                 fontWeight: 600,
               }}
             >
-              {product?.price || "Rs. 500.00"}
+              {product?.price || "Rs. 29.99"}
             </span>
             <span
               style={{
@@ -451,19 +492,28 @@ function PreviewCard({
                 textDecoration: "line-through",
               }}
             >
-              {product?.compareAt || "Rs. 999.00"}
+              {product?.compareAt || "Rs. 49.99"}
             </span>
           </InlineStack>
         )}
-        <div style={{ fontSize: 12, color: "#6b7280" }}>
-          (c) WizzCommerce
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: 12,
+            color: timestampColor,
+            gap: 12,
+          }}
+        >
+          <span>{resolvedTimestamp}</span>
         </div>
       </div>
     </div>
   );
 }
 
-export default function LowStockPopupPage() {
+export default function AddToCartPopupPage() {
   const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState("layout");
 
@@ -472,10 +522,10 @@ export default function LowStockPopupPage() {
     size: 60,
     transparent: 10,
     template: "gradient",
-    bgColor: "#FFFBD2",
-    bgAlt: "#FBCFCF",
-    textColor: "#000000",
-    numberColor: "#000000",
+    bgColor: "#CCC01E",
+    bgAlt: "#7E6060",
+    textColor: "#F9EEEE",
+    timestampColor: "#FBF9F9",
     priceTagBg: "#593E3F",
     priceTagAlt: "#E66465",
     priceColor: "#FFFFFF",
@@ -489,7 +539,8 @@ export default function LowStockPopupPage() {
   });
 
   const [content, setContent] = useState({
-    message: "{product_name} has only {stock_count} items left in stock",
+    message: "{full_name} from {country} added {product_name} to cart",
+    timestamp: "{time} {unit} ago",
   });
 
   const [data, setData] = useState({
@@ -499,7 +550,7 @@ export default function LowStockPopupPage() {
     directProductPage: true,
     showProductImage: true,
     showPriceTag: true,
-    showRating: false,
+    showRating: true,
   });
 
   const [visibility, setVisibility] = useState({
@@ -546,17 +597,17 @@ export default function LowStockPopupPage() {
     );
   };
 
-  const insertToken = (token) => {
+  const insertToken = (field, token) => {
     setContent((c) => ({
       ...c,
-      message: `${c.message}${c.message ? " " : ""}{${token}}`,
+      [field]: `${c[field]}${c[field] ? " " : ""}{${token}}`,
     }));
   };
 
   return (
     <Frame>
       <Page
-        title="Update Low stock notification"
+        title="Edit Add to cart notification"
         backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
         primaryAction={{ content: "Save", onAction: () => {} }}
       >
@@ -653,7 +704,7 @@ export default function LowStockPopupPage() {
                                 <ColorField
                                   label="Background color"
                                   value={design.bgColor}
-                                  fallback="#FFFBD2"
+                                  fallback="#CCC01E"
                                   onChange={(v) =>
                                     setDesign((d) => ({ ...d, bgColor: v }))
                                   }
@@ -663,7 +714,7 @@ export default function LowStockPopupPage() {
                                 <ColorField
                                   label="Background color (alt)"
                                   value={design.bgAlt}
-                                  fallback="#FBCFCF"
+                                  fallback="#7E6060"
                                   onChange={(v) =>
                                     setDesign((d) => ({ ...d, bgAlt: v }))
                                   }
@@ -676,7 +727,7 @@ export default function LowStockPopupPage() {
                                 <ColorField
                                   label="Text color"
                                   value={design.textColor}
-                                  fallback="#000000"
+                                  fallback="#F9EEEE"
                                   onChange={(v) =>
                                     setDesign((d) => ({ ...d, textColor: v }))
                                   }
@@ -684,13 +735,13 @@ export default function LowStockPopupPage() {
                               </Box>
                               <Box width="50%">
                                 <ColorField
-                                  label="Number color"
-                                  value={design.numberColor}
-                                  fallback="#000000"
+                                  label="Timestamp color"
+                                  value={design.timestampColor}
+                                  fallback="#FBF9F9"
                                   onChange={(v) =>
                                     setDesign((d) => ({
                                       ...d,
-                                      numberColor: v,
+                                      timestampColor: v,
                                     }))
                                   }
                                 />
@@ -821,12 +872,33 @@ export default function LowStockPopupPage() {
                               helpText={`${content.message.length}/250`}
                             />
                             <InlineStack gap="150" wrap>
-                              {TOKEN_OPTIONS.map((token) => (
+                              {CONTENT_TOKENS.map((token) => (
                                 <button
                                   key={token}
                                   type="button"
                                   className="token-pill"
-                                  onClick={() => insertToken(token)}
+                                  onClick={() => insertToken("message", token)}
+                                >
+                                  {token}
+                                </button>
+                              ))}
+                            </InlineStack>
+                            <TextField
+                              label="Timestamp"
+                              value={content.timestamp}
+                              onChange={(v) =>
+                                setContent((c) => ({ ...c, timestamp: v }))
+                              }
+                              autoComplete="off"
+                              helpText={`${content.timestamp.length}/50`}
+                            />
+                            <InlineStack gap="150" wrap>
+                              {TIME_TOKENS.map((token) => (
+                                <button
+                                  key={token}
+                                  type="button"
+                                  className="token-pill"
+                                  onClick={() => insertToken("timestamp", token)}
                                 >
                                   {token}
                                 </button>
@@ -1176,9 +1248,9 @@ export default function LowStockPopupPage() {
                           bgColor={normalizeHex(design.bgColor, "#FFFBD2")}
                           bgAlt={normalizeHex(design.bgAlt, "#FBCFCF")}
                           textColor={normalizeHex(design.textColor, "#000000")}
-                          numberColor={normalizeHex(
-                            design.numberColor,
-                            "#000000"
+                          timestampColor={normalizeHex(
+                            design.timestampColor,
+                            "#FBF9F9"
                           )}
                           priceTagBg={normalizeHex(design.priceTagBg, "#593E3F")}
                           priceTagAlt={normalizeHex(
@@ -1191,6 +1263,7 @@ export default function LowStockPopupPage() {
                           textSizeCompare={Number(textSize.compareAt) || 12}
                           textSizePrice={Number(textSize.price) || 12}
                           contentText={content.message}
+                          timestampText={content.timestamp}
                           showProductImage={data.showProductImage}
                           showPriceTag={data.showPriceTag}
                           showRating={data.showRating}

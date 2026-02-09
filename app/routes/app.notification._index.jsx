@@ -261,6 +261,17 @@ export default function NotificationDashboardIndex() {
           />
 
           <DashboardCard
+            title="Add to Cart Notification"
+            desc="Show live add-to-cart activity to build social proof."
+            tag="Social proof"
+            emoji="A"
+            thumbBg="linear-gradient(135deg, #FFF2CC 0%, #D1FAE5 100%)"
+            previewText="Someone from abroad added DREAMY BLUE BALL GOWN to cart"
+            onConfigure={() => go('/app/notification/addtocart', 'addtocart')}
+            loading={loadingKey === 'addtocart'}
+          />
+
+          <DashboardCard
             title="Review Notification"
             desc="Show new product reviews to build trust and social proof."
             tag="Social proof"
