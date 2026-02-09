@@ -12,6 +12,10 @@ import prisma from "../db.server";
 
 /* ---------------- Constants ---------------- */
 const KEY = "flash";
+const LAYOUTS = [
+  { label: "Landscape", value: "landscape" },
+  { label: "Portrait", value: "portrait" },
+];
 
 const FLASH_STYLES = `
 .flash-shell {
@@ -459,13 +463,15 @@ const posToFlex = (pos) => {
 /* ---------------- Notification bubble ---------------- */
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
+  const isPortrait = form.layout === "portrait";
+  const iconSize = form.imageAppearance === "contain" ? 48 : 60;
 
   const svgMarkup = useMemo(() => {
     const uploaded = extractFirstSvg(form.iconSvg || "");
     const candidate = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
     const base = isSvgRenderable(candidate) ? candidate : SVGS["reshot"];
-    return base ? normalizeSvgSize(base, 50) : "";
-  }, [form.iconSvg, form.iconKey]);
+    return base ? normalizeSvgSize(base, iconSize) : "";
+  }, [form.iconSvg, form.iconKey, iconSize]);
 
   const base = Number(form.rounded ?? 14) || 14;
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
@@ -484,18 +490,30 @@ function NotificationPreview({ form, isMobile = false }) {
         fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
         background: form.bgColor, color: form.msgColor, borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
-        display: "flex", alignItems: "center", gap: 12,
-        maxWidth: isMobile ? mobileSizeToWidth(form?.mobileSize) : 560,
+        display: "flex",
+        alignItems: isPortrait ? "flex-start" : "center",
+        gap: isPortrait ? 10 : 12,
+        flexDirection: isPortrait ? "column" : "row",
+        maxWidth: isMobile
+          ? mobileSizeToWidth(form?.mobileSize)
+          : isPortrait
+            ? 340
+            : 560,
         ...animStyle
       }}>
         {svgMarkup ? (
           <span
             aria-hidden="true"
-            style={{ display: "block", flexShrink: 0, width: 60, height: 60 }}
+            style={{
+              display: "block",
+              flexShrink: 0,
+              width: isPortrait ? 56 : 60,
+              height: isPortrait ? 56 : 60,
+            }}
             dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />
         ) : null}
-        <div style={{ display: "grid", gap: 4 }}>
+        <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
           <p style={{ margin: 0, color: form.titleColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: sized }}>
             {form.messageTitle || "Flash Sale"}
           </p>
@@ -603,6 +621,8 @@ export default function FlashConfigPage() {
     messageText: defaultNames[0],
     fontFamily: "System",
     fontWeight: "600",
+    layout: "landscape",
+    imageAppearance: "cover",
     position: "top-right",
     animation: "slide",
     mobileSize: "compact",
@@ -897,6 +917,12 @@ export default function FlashConfigPage() {
               <Box padding="4">
                 <BlockStack gap="400">
                   <Text as="h3" variant="headingMd">Customize</Text>
+                  <Select
+                    label="Layout"
+                    options={LAYOUTS}
+                    value={form.layout}
+                    onChange={onField("layout")}
+                  />
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%"><Select label="Flash Bar Font Family" options={fontOptions} value={form.fontFamily} onChange={onField("fontFamily")} /></Box>
                     <Box width="50%"><Select label="Text Weight / Style" options={FontweightOptions} value={form.fontWeight} onChange={onField("fontWeight")} /></Box>
@@ -933,6 +959,20 @@ export default function FlashConfigPage() {
                       </BlockStack>
                     </Box>
                   </InlineStack>
+                  <ChoiceList
+                    title="Image appearance"
+                    choices={[
+                      { label: "Cover (Overflowing container)", value: "cover" },
+                      { label: "Fit within container", value: "contain" },
+                    ]}
+                    selected={[form.imageAppearance]}
+                    onChange={(v) =>
+                      setForm((f) => ({
+                        ...f,
+                        imageAppearance: v[0] || "cover",
+                      }))
+                    }
+                  />
 
                   <BlockStack gap="150">
                     <Text as="h4" variant="headingSm">Custom SVG Icon (optional)</Text>

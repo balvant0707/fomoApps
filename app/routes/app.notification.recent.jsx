@@ -39,6 +39,10 @@ const PAGES = [
   { label: "Pages", value: "pages" },
   { label: "Cart Page", value: "cart" },
 ];
+const LAYOUTS = [
+  { label: "Landscape", value: "landscape" },
+  { label: "Portrait", value: "portrait" },
+];
 const HIDE_CHOICES = [
   { label: "Customer Name", value: "name" },
   { label: "City", value: "city" },
@@ -268,6 +272,8 @@ const DEFAULT_SAVED = {
   selectedProductsJson: [],
   locationsJson: [],
   messageTitlesJson: [],
+  layout: "landscape",
+  imageAppearance: "cover",
   orderDays: 1,
   createOrderTime: null,
 };
@@ -1054,6 +1060,8 @@ function Bubble({ form, order, isMobile = false }) {
     () => getAnimationStyle(form.animation),
     [form.animation]
   );
+  const isPortrait = form.layout === "portrait";
+  const imageFit = form.imageAppearance === "contain" ? "contain" : "cover";
   const sizeBase = Number(form.rounded ?? 14) || 14;
   const sized = Math.max(
     10,
@@ -1087,8 +1095,9 @@ function Bubble({ form, order, isMobile = false }) {
     <div
       style={{
         display: "flex",
-        alignItems: "center",
-        gap: 12,
+        alignItems: isPortrait ? "flex-start" : "center",
+        gap: isPortrait ? 10 : 12,
+        flexDirection: isPortrait ? "column" : "row",
         fontFamily:
           form.fontFamily === "System"
             ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto"
@@ -1099,7 +1108,11 @@ function Bubble({ form, order, isMobile = false }) {
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         padding: 12,
         border: "1px solid rgba(17,24,39,0.06)",
-        maxWidth: isMobile ? mobileSizeToWidth(form.mobileSize) : 560,
+        maxWidth: isMobile
+          ? mobileSizeToWidth(form.mobileSize)
+          : isPortrait
+            ? 340
+            : 560,
         ...animStyle,
       }}
     >
@@ -1109,9 +1122,9 @@ function Bubble({ form, order, isMobile = false }) {
             src={productImg}
             alt={productTitle || "Product"}
             style={{
-              width: 60,
-              height: 60,
-              objectFit: "cover",
+              width: isPortrait ? 56 : 60,
+              height: isPortrait ? 56 : 60,
+              objectFit: imageFit,
               borderRadius: 6,
               background: "#f4f4f5",
             }}
@@ -1121,15 +1134,15 @@ function Bubble({ form, order, isMobile = false }) {
         ) : (
           <div
             style={{
-              width: 60,
-              height: 60,
+              width: isPortrait ? 56 : 60,
+              height: isPortrait ? 56 : 60,
               borderRadius: 6,
               background: "#f4f4f5",
             }}
           />
         )}
       </div>
-      <div>
+      <div style={{ minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: sized }}>
           {!hide.has("name") && (
             <span
@@ -1348,6 +1361,8 @@ export default function RecentOrdersPopupPage() {
     durationSeconds: saved.durationSeconds,
     alternateSeconds: saved.alternateSeconds,
     fontWeight: saved.fontWeight,
+    layout: saved.layout ?? "landscape",
+    imageAppearance: saved.imageAppearance ?? "cover",
 
     namesJson: saved.namesJson || [],
     selectedProductsJson: saved.selectedProductsJson || [],
@@ -1591,6 +1606,32 @@ export default function RecentOrdersPopupPage() {
                   <Text as="h3" variant="headingMd">
                     Customize
                   </Text>
+                  <Select
+                    label="Layout"
+                    options={LAYOUTS}
+                    value={form.layout}
+                    onChange={onField("layout")}
+                  />
+                  <ChoiceList
+                    title="Image appearance"
+                    choices={[
+                      {
+                        label: "Cover (Overflowing container)",
+                        value: "cover",
+                      },
+                      {
+                        label: "Fit within container",
+                        value: "contain",
+                      },
+                    ]}
+                    selected={[form.imageAppearance]}
+                    onChange={(v) =>
+                      setForm((f) => ({
+                        ...f,
+                        imageAppearance: v[0] || "cover",
+                      }))
+                    }
+                  />
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select
