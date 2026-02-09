@@ -456,9 +456,6 @@ function PreviewCard({
             </span>
           </InlineStack>
         )}
-        <div style={{ fontSize: 12, color: "#6b7280" }}>
-          (c) WizzCommerce
-        </div>
       </div>
     </div>
   );
