@@ -312,7 +312,7 @@ const DEFAULT_SAVED = {
   priceTagAlt: "#E66465",
   priceColor: "#FFFFFF",
   starColor: "#F06663",
-  rounded: "14",
+  rounded: "4",
   durationSeconds: 8,
   alternateSeconds: 10,
   fontWeight: "600",
@@ -1183,7 +1183,7 @@ function Bubble({ form, order, isMobile = false }) {
         <div
           style={{
             position: "absolute",
-            left: 16,
+            left: 0,
             top: isPortrait ? 24 : "50%",
             transform: isPortrait
               ? "translate(-50%, 0)"
