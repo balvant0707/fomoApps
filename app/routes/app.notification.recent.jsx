@@ -19,6 +19,7 @@ import {
   Popover,
   ButtonGroup,
   Banner,
+  DropZone,
 } from "@shopify/polaris";
 import {
   useLoaderData,
@@ -1087,7 +1088,7 @@ function Bubble({ form, order, isMobile = false }) {
     : first?.title || order?.productTitle || "";
   const productImg = hide.has("productImage")
     ? null
-    : first?.image || order?.productImage || null;
+    : form.customImage || first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
 
   const showTime = !hide.has("time");
@@ -1256,46 +1257,12 @@ function MobilePreview({ form, order }) {
   );
 }
 function LivePreview({ form, order }) {
-  const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="200">
-      <InlineStack align="space-between" blockAlign="center">
-        <Text as="h3" variant="headingMd">
-          Live Preview
-        </Text>
-        <ButtonGroup segmented>
-          <Button
-            pressed={mode === "desktop"}
-            onClick={() => setMode("desktop")}
-          >
-            Desktop
-          </Button>
-          <Button
-            pressed={mode === "mobile"}
-            onClick={() => setMode("mobile")}
-          >
-            Mobile
-          </Button>
-          <Button
-            pressed={mode === "both"}
-            onClick={() => setMode("both")}
-          >
-            Both
-          </Button>
-        </ButtonGroup>
-      </InlineStack>
-      {mode === "desktop" && <DesktopPreview form={form} order={order} />}
-      {mode === "mobile" && <MobilePreview form={form} order={order} />}
-      {mode === "both" && (
-        <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%">
-            <DesktopPreview form={form} order={order} />
-          </Box>
-          <Box width="40%">
-            <MobilePreview form={form} order={order} />
-          </Box>
-        </InlineStack>
-      )}
+      <Text as="h3" variant="headingMd">
+        Live Preview
+      </Text>
+      <DesktopPreview form={form} order={order} />
       <Text as="p" variant="bodySm" tone="subdued">
         Orders are pulled strictly by the selected window (shop timezone).
         Preview may show the latest order only for visual reference.
@@ -1336,6 +1303,8 @@ export default function RecentOrdersPopupPage() {
     error: false,
     msg: "",
   });
+  const [uploadError, setUploadError] = useState("");
+  const [uploadName, setUploadName] = useState("");
 
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
@@ -1363,6 +1332,7 @@ export default function RecentOrdersPopupPage() {
     fontWeight: saved.fontWeight,
     layout: saved.layout ?? "landscape",
     imageAppearance: saved.imageAppearance ?? "cover",
+    customImage: "",
 
     namesJson: saved.namesJson || [],
     selectedProductsJson: saved.selectedProductsJson || [],
@@ -1385,6 +1355,35 @@ export default function RecentOrdersPopupPage() {
     const n = parseInt(String(val ?? ""), 10);
     const clamped = isNaN(n) ? lo : Math.max(lo, Math.min(hi, n));
     setForm((f) => ({ ...f, [k]: clamped }));
+  };
+  const handleImageDrop = (_drop, accepted, rejected) => {
+    setUploadError("");
+    if (rejected?.length) {
+      setUploadError("Only image files are allowed.");
+      return;
+    }
+    const file = accepted?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      setUploadError("File must be an image.");
+      return;
+    }
+    if (file.size > 600 * 1024) {
+      setUploadError("Image is too large. Keep it under 600KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      setForm((f) => ({ ...f, customImage: result }));
+      setUploadName(file.name);
+    };
+    reader.readAsDataURL(file);
+  };
+  const clearUploadedImage = () => {
+    setForm((f) => ({ ...f, customImage: "" }));
+    setUploadName("");
+    setUploadError("");
   };
 
   const save = async () => {
@@ -1632,6 +1631,39 @@ export default function RecentOrdersPopupPage() {
                       }))
                     }
                   />
+                  <BlockStack gap="200">
+                    <Text as="h4" variant="headingSm">
+                      Upload preview image (optional)
+                    </Text>
+                    <DropZone
+                      accept="image/*"
+                      allowMultiple={false}
+                      onDrop={handleImageDrop}
+                    >
+                      <DropZone.FileUpload actionHint="Upload a JPG/PNG/WebP (max 600KB)" />
+                    </DropZone>
+                    {uploadName && (
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text variant="bodySm">Uploaded: {uploadName}</Text>
+                        <Button
+                          onClick={clearUploadedImage}
+                          tone="critical"
+                          variant="plain"
+                        >
+                          Remove
+                        </Button>
+                      </InlineStack>
+                    )}
+                    {uploadError && (
+                      <Text tone="critical" variant="bodySm">
+                        {uploadError}
+                      </Text>
+                    )}
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      This image is for preview only. On the store, the actual
+                      product image is shown.
+                    </Text>
+                  </BlockStack>
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <Select

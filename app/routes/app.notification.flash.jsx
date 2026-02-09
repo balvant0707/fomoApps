@@ -465,13 +465,16 @@ function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const isPortrait = form.layout === "portrait";
   const iconSize = form.imageAppearance === "contain" ? 48 : 60;
+  const imageFit = form.imageAppearance === "contain" ? "contain" : "cover";
+  const iconDim = isPortrait ? 56 : 60;
 
   const svgMarkup = useMemo(() => {
+    if (form.iconImage) return "";
     const uploaded = extractFirstSvg(form.iconSvg || "");
     const candidate = uploaded || SVGS[form.iconKey] || SVGS["reshot"];
     const base = isSvgRenderable(candidate) ? candidate : SVGS["reshot"];
     return base ? normalizeSvgSize(base, iconSize) : "";
-  }, [form.iconSvg, form.iconKey, iconSize]);
+  }, [form.iconImage, form.iconSvg, form.iconKey, iconSize]);
 
   const base = Number(form.rounded ?? 14) || 14;
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
@@ -501,14 +504,26 @@ function NotificationPreview({ form, isMobile = false }) {
             : 560,
         ...animStyle
       }}>
-        {svgMarkup ? (
+        {form.iconImage ? (
+          <img
+            src={form.iconImage}
+            alt="Icon"
+            style={{
+              width: iconDim,
+              height: iconDim,
+              objectFit: imageFit,
+              borderRadius: 10,
+              background: "#f3f4f6",
+            }}
+          />
+        ) : svgMarkup ? (
           <span
             aria-hidden="true"
             style={{
               display: "block",
               flexShrink: 0,
-              width: isPortrait ? 56 : 60,
-              height: isPortrait ? 56 : 60,
+              width: iconDim,
+              height: iconDim,
             }}
             dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />
@@ -566,29 +581,12 @@ function MobilePreview({ form }) {
 
 /* Live Preview wrapper */
 function LivePreview({ form }) {
-  const [mode, setMode] = useState("desktop");
   return (
     <BlockStack gap="300">
-      <InlineStack align="space-between" blockAlign="center">
-        <Text as="h3" variant="headingMd">Live Preview</Text>
-        <ButtonGroup segmented>
-          <Button pressed={mode === "desktop"} onClick={() => setMode("desktop")}>Desktop</Button>
-          <Button pressed={mode === "mobile"} onClick={() => setMode("mobile")}>Mobile</Button>
-          <Button pressed={mode === "both"} onClick={() => setMode("both")}>Both</Button>
-        </ButtonGroup>
-      </InlineStack>
-
-      {mode === "desktop" && <DesktopPreview form={form} />}
-      {mode === "mobile" && <MobilePreview form={form} />}
-      {mode === "both" && (
-        <InlineStack gap="400" align="space-between" wrap>
-          <Box width="58%"><DesktopPreview form={form} /></Box>
-          <Box width="40%"><MobilePreview form={form} /></Box>
-        </InlineStack>
-      )}
-
+      <Text as="h3" variant="headingMd">Live Preview</Text>
+      <DesktopPreview form={form} />
       <Text as="p" variant="bodySm" tone="subdued">
-        Desktop preview follows the Desktop position. Mobile preview follows the Mobile Position and the Notification size.
+        Preview reflects your desktop settings.
       </Text>
     </BlockStack>
   );
@@ -635,11 +633,14 @@ export default function FlashConfigPage() {
     alternateSeconds: 5,
     iconKey: "reshot", // default builtin
     iconSvg: "",       // uploaded svg string (optional)
+    iconImage: "",     // uploaded image (optional)
     ctaBgColor: null,
   });
 
   const [svgName, setSvgName] = useState("");
   const [uploadError, setUploadError] = useState("");
+  const [iconImageName, setIconImageName] = useState("");
+  const [iconImageError, setIconImageError] = useState("");
 
   // keep preview first values in sync (preview only)
   useEffect(() => {
@@ -705,6 +706,37 @@ export default function FlashConfigPage() {
     setForm(f => ({ ...f, iconSvg: "", iconKey: "reshot" })); // back to default builtin
     setSvgName("");
     setUploadError("");
+  };
+
+  const handleIconImageDrop = useCallback((_drop, accepted, rejected) => {
+    setIconImageError("");
+    if (rejected?.length) {
+      setIconImageError("Only image files are allowed.");
+      return;
+    }
+    const file = accepted?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      setIconImageError("File must be an image.");
+      return;
+    }
+    if (file.size > 600 * 1024) {
+      setIconImageError("Image is too large. Keep it under 600KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      setForm(f => ({ ...f, iconImage: result }));
+      setIconImageName(file.name);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  const clearIconImage = () => {
+    setForm(f => ({ ...f, iconImage: "" }));
+    setIconImageName("");
+    setIconImageError("");
   };
 
   const save = async () => {
@@ -988,6 +1020,25 @@ export default function FlashConfigPage() {
                     {uploadError && <Text tone="critical" variant="bodySm">{uploadError}</Text>}
                     <Text as="p" tone="subdued" variant="bodySm">
                       Once you upload, the uploaded icon will be used. Removing it will switch back to the built-in icon.
+                    </Text>
+                  </BlockStack>
+
+                  <BlockStack gap="150">
+                    <Text as="h4" variant="headingSm">Upload image icon (optional)</Text>
+                    <DropZone accept="image/*" allowMultiple={false} onDrop={handleIconImageDrop}>
+                      <DropZone.FileUpload actionHint="Upload a JPG/PNG/WebP (max 600KB)" />
+                    </DropZone>
+                    {iconImageName && (
+                      <InlineStack gap="200" blockAlign="center">
+                        <Text variant="bodySm">Uploaded: {iconImageName}</Text>
+                        <Button onClick={clearIconImage} tone="critical" variant="plain">Remove</Button>
+                      </InlineStack>
+                    )}
+                    {iconImageError && (
+                      <Text tone="critical" variant="bodySm">{iconImageError}</Text>
+                    )}
+                    <Text as="p" tone="subdued" variant="bodySm">
+                      If an image icon is uploaded, it will be used in the preview instead of the SVG.
                     </Text>
                   </BlockStack>
 
