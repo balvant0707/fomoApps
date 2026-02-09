@@ -490,9 +490,6 @@ function PreviewCard({
           }}
         >
           <span>{timestampText}</span>
-          <span style={{ fontSize: 11, color: "#6b7280" }}>
-            (c) WizzCommerce
-          </span>
         </div>
       </div>
     </div>

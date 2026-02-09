@@ -1,5 +1,5 @@
-// app/routes/app.notification.lowstock.jsx
-import React, { useMemo, useState } from "react";
+// app/routes/app.notification.review.jsx
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Page,
   Card,
@@ -10,7 +10,6 @@ import {
   BlockStack,
   InlineStack,
   Text,
-  RangeSlider,
   Frame,
   Modal,
   IndexTable,
@@ -19,18 +18,18 @@ import {
   Checkbox,
   RadioButton,
 } from "@shopify/polaris";
-import { useNavigate } from "@remix-run/react";
+import { useNavigate, useFetcher } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 
 export async function loader({ request }) {
   await authenticate.admin(request);
-  return json({ title: "Add to cart Popup" });
+  return json({ title: "Review Notification" });
 }
 
-const LAYOUTS = [
-  { label: "Landscape", value: "landscape" },
-  { label: "Portrait", value: "portrait" },
+const REVIEW_TYPES = [
+  { label: "Review content", value: "review_content" },
+  { label: "New review", value: "new_review" },
 ];
 const POSITIONS = [
   { label: "Bottom right", value: "bottom-right" },
@@ -45,29 +44,28 @@ const TIME_UNITS = [
 ];
 
 const CONTENT_TOKENS = [
-  "full_name",
-  "first_name",
-  "last_name",
-  "country",
-  "city",
+  "reviewer_name",
+  "review_title",
+  "review_body",
+  "reviewer_country",
+  "reviewer_city",
   "product_name",
-  "product_price",
 ];
-const TIME_TOKENS = ["time", "unit"];
+const TIME_TOKENS = ["review_date"];
 
-const LOW_STOCK_STYLES = `
-.lowstock-shell {
+const REVIEW_STYLES = `
+.review-shell {
   display: flex;
   gap: 24px;
   align-items: flex-start;
 }
-.lowstock-sidebar {
+.review-sidebar {
   width: 130px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
-.lowstock-nav-btn {
+.review-nav-btn {
   border: 1px solid #e5e7eb;
   background: #ffffff;
   border-radius: 12px;
@@ -83,38 +81,38 @@ const LOW_STOCK_STYLES = `
   cursor: pointer;
   transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
 }
-.lowstock-nav-btn:hover {
+.review-nav-btn:hover {
   border-color: #cbd5e1;
 }
-.lowstock-nav-btn.is-active {
+.review-nav-btn.is-active {
   background: #2f855a;
   color: #ffffff;
   border-color: #2f855a;
 }
-.lowstock-nav-icon {
+.review-nav-icon {
   width: 20px;
   height: 20px;
 }
-.lowstock-main {
+.review-main {
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.lowstock-columns {
+.review-columns {
   display: flex;
   gap: 24px;
   align-items: flex-start;
 }
-.lowstock-form {
+.review-form {
   flex: 1;
   min-width: 360px;
 }
-.lowstock-preview {
+.review-preview {
   flex: 1;
   min-width: 320px;
 }
-.lowstock-preview-box {
+.review-preview-box {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
   padding: 24px;
@@ -136,40 +134,40 @@ const LOW_STOCK_STYLES = `
 .token-pill:hover {
   background: #e5e7eb;
 }
-.lowstock-help {
+.review-help {
   margin-top: 24px;
   text-align: center;
   color: #6b7280;
   font-size: 13px;
 }
-.lowstock-help a {
+.review-help a {
   color: #111827;
   text-decoration: underline;
 }
 @media (max-width: 1100px) {
-  .lowstock-shell {
+  .review-shell {
     flex-direction: column;
   }
-  .lowstock-sidebar {
+  .review-sidebar {
     width: 100%;
     flex-direction: row;
   }
-  .lowstock-nav-btn {
+  .review-nav-btn {
     flex: 1;
     flex-direction: row;
     justify-content: center;
   }
-  .lowstock-columns {
+  .review-columns {
     flex-direction: column;
   }
 }
 @media (max-width: 640px) {
-  .lowstock-nav-btn {
+  .review-nav-btn {
     padding: 10px;
     font-size: 12px;
   }
-  .lowstock-form,
-  .lowstock-preview {
+  .review-form,
+  .review-preview {
     min-width: 0;
   }
 }
@@ -178,7 +176,7 @@ const LOW_STOCK_STYLES = `
 function LayoutIcon() {
   return (
     <svg
-      className="lowstock-nav-icon"
+      className="review-nav-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -196,7 +194,7 @@ function LayoutIcon() {
 function ContentIcon() {
   return (
     <svg
-      className="lowstock-nav-icon"
+      className="review-nav-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -214,7 +212,7 @@ function ContentIcon() {
 function DisplayIcon() {
   return (
     <svg
-      className="lowstock-nav-icon"
+      className="review-nav-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -232,7 +230,7 @@ function DisplayIcon() {
 function BehaviorIcon() {
   return (
     <svg
-      className="lowstock-nav-icon"
+      className="review-nav-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -256,21 +254,12 @@ const NAV_ITEMS = [
 const MOCK_PRODUCTS = [
   {
     id: "p1",
-    title: "Free Polo T-Shirt",
+    title: "DREAMY BLUE BALL GOWN",
     image:
-      "https://cdn.shopify.com/s/files/1/0000/0001/products/Classic-Tee.jpg?v=1",
-    price: "Rs. 500.00",
-    compareAt: "Rs. 999.00",
+      "https://cdn.shopify.com/s/files/1/0000/0001/products/Dreamy-Blue-Ball-Gown.jpg?v=1",
+    price: "Rs. 14,099.00",
+    compareAt: "Rs. 24,099.00",
     rating: 4,
-  },
-  {
-    id: "p2",
-    title: "Canvas Backpack",
-    image:
-      "https://cdn.shopify.com/s/files/1/0000/0001/products/Canvas-Backpack.jpg?v=1",
-    price: "Rs. 299.00",
-    compareAt: "Rs. 349.00",
-    rating: 5,
   },
 ];
 
@@ -308,12 +297,16 @@ function ColorField({ label, value, onChange, fallback }) {
   );
 }
 
+function resolveTemplate(value, map) {
+  return String(value || "")
+    .trim()
+    .replace(/\\{(\\w+)\\}/g, (match, key) => map[key] ?? match);
+}
+
 function PreviewCard({
-  layout,
-  size,
-  transparency,
   bgColor,
   bgAlt,
+  template,
   textColor,
   timestampColor,
   priceTagBg,
@@ -330,77 +323,63 @@ function PreviewCard({
   showRating,
   showClose,
   product,
-  template,
 }) {
-  const scale = 0.8 + (size / 100) * 0.4;
-  const opacity = 1 - (transparency / 100) * 0.7;
   const background =
     template === "gradient"
       ? `linear-gradient(135deg, ${bgColor} 0%, ${bgAlt} 100%)`
       : bgColor;
 
-  const isPortrait = layout === "portrait";
-  const avatarSize = isPortrait ? 56 : 64;
-  const avatarOffset = Math.round(avatarSize * 0.45);
-  const cardStyle = {
-    transform: `scale(${scale})`,
-    opacity,
-    background,
-    color: textColor,
-    borderRadius: 18,
-    boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
-    border: "1px solid rgba(0,0,0,0.06)",
-    padding: 16,
-    paddingLeft: showProductImage ? 16 + avatarOffset : 16,
-    display: "flex",
-    position: "relative",
-    flexDirection: isPortrait ? "column" : "row",
-    gap: 12,
-    alignItems: "flex-start",
-    maxWidth: isPortrait ? 320 : 460,
-  };
-
-  const safeName = product?.title || "Antique Drawers";
+  const safeProductName = product?.title || "DREAMY BLUE BALL GOWN";
   const tokenValues = {
-    full_name: "Jenna Doe",
-    first_name: "Jenna",
-    last_name: "Doe",
-    country: "United States",
-    city: "New York",
-    product_name: safeName,
-    product_price: product?.price || "Rs. 29.99",
-    time: "3",
-    unit: "minutes",
+    reviewer_name: "Jane B.",
+    review_title: "Beautiful and elegant",
+    review_body: "Absolutely stunning and elegant.",
+    reviewer_country: "abroad",
+    reviewer_city: "London",
+    product_name: safeProductName,
+    review_date: "2 days ago",
   };
-
-  const resolveTemplate = (value) =>
-    String(value || "")
-      .trim()
-      .replace(/\{(\w+)\}/g, (match, key) => tokenValues[key] ?? match);
 
   const resolvedContent = resolveTemplate(
-    contentText || "{full_name} from {country} added {product_name} to cart"
+    contentText ||
+      "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
+    tokenValues
   );
   const resolvedTimestamp = resolveTemplate(
-    timestampText || "{time} {unit} ago"
+    timestampText || "{review_date}",
+    tokenValues
   );
-  const productName = tokenValues.product_name;
-  const productIndex = resolvedContent.indexOf(productName);
+
+  const productIndex = resolvedContent.indexOf(safeProductName);
   const contentNode =
     productIndex >= 0 ? (
       <>
         {resolvedContent.slice(0, productIndex)}
-        <span style={{ fontWeight: 600, textDecoration: "underline" }}>
-          {productName}
+        <span style={{ fontWeight: 700, textTransform: "uppercase" }}>
+          {safeProductName}
         </span>
-        {resolvedContent.slice(productIndex + productName.length)}
+        {resolvedContent.slice(productIndex + safeProductName.length)}
       </>
     ) : (
       resolvedContent
     );
 
   return (
-    <div style={cardStyle}>
+    <div
+      style={{
+        background,
+        color: textColor,
+        borderRadius: 16,
+        boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+        border: "1px solid rgba(0,0,0,0.06)",
+        padding: 16,
+        display: "flex",
+        gap: 14,
+        alignItems: "center",
+        position: "relative",
+        maxWidth: 460,
+      }}
+    >
       {showClose && (
         <button
           type="button"
@@ -427,22 +406,14 @@ function PreviewCard({
       {showProductImage && (
         <div
           style={{
-            position: "absolute",
-            left: 16,
-            top: isPortrait ? 28 : "50%",
-            transform: isPortrait
-              ? "translate(-50%, 0)"
-              : "translate(-50%, -50%)",
-            width: avatarSize,
-            height: avatarSize,
-            borderRadius: 14,
+            width: 56,
+            height: 56,
+            borderRadius: 12,
             overflow: "hidden",
             background: "#f3f4f6",
             flexShrink: 0,
             display: "grid",
             placeItems: "center",
-            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
-            border: "2px solid rgba(255,255,255,0.75)",
           }}
         >
           {product?.image ? (
@@ -458,13 +429,12 @@ function PreviewCard({
           )}
         </div>
       )}
-
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         {showRating && (
           <div style={{ color: starColor, fontSize: 12, letterSpacing: 1 }}>
-            {"★★★★★".slice(0, product?.rating || 4)}
+            {"*****".slice(0, product?.rating || 4)}
             <span style={{ color: "#d1d5db" }}>
-              {"★★★★★".slice(0, 5 - (product?.rating || 4))}
+              {"*****".slice(0, 5 - (product?.rating || 4))}
             </span>
           </div>
         )}
@@ -483,7 +453,7 @@ function PreviewCard({
                 fontWeight: 600,
               }}
             >
-              {product?.price || "Rs. 29.99"}
+              {product?.price || "Rs. 14,099.00"}
             </span>
             <span
               style={{
@@ -492,7 +462,7 @@ function PreviewCard({
                 textDecoration: "line-through",
               }}
             >
-              {product?.compareAt || "Rs. 49.99"}
+              {product?.compareAt || "Rs. 24,099.00"}
             </span>
           </InlineStack>
         )}
@@ -501,35 +471,41 @@ function PreviewCard({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: 12,
             fontSize: 12,
             color: timestampColor,
-            gap: 12,
           }}
         >
           <span>{resolvedTimestamp}</span>
+          <span style={{ color: "rgba(0,0,0,0.35)", fontSize: 11 }}>
+            (c) WizzCommerce
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-export default function LowStockPopupPage() {
+export default function ReviewNotificationPage() {
   const navigate = useNavigate();
+  const fetcher = useFetcher();
   const [activeSection, setActiveSection] = useState("layout");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const [design, setDesign] = useState({
-    layout: "landscape",
-    size: 60,
-    transparent: 10,
-    template: "gradient",
-    bgColor: "#CCC01E",
-    bgAlt: "#7E6060",
-    textColor: "#F9EEEE",
-    timestampColor: "#FBF9F9",
+    reviewType: "new_review",
+    template: "solid",
+    bgColor: "#FFFFFF",
+    bgAlt: "#F3F4F6",
+    textColor: "#000000",
+    timestampColor: "#696969",
     priceTagBg: "#593E3F",
     priceTagAlt: "#E66465",
     priceColor: "#FFFFFF",
-    starColor: "#F06663",
+    starColor: "#FFCF0D",
   });
 
   const [textSize, setTextSize] = useState({
@@ -539,14 +515,13 @@ export default function LowStockPopupPage() {
   });
 
   const [content, setContent] = useState({
-    message: "{full_name} from {country} added {product_name} to cart",
-    timestamp: "{time} {unit} ago",
+    message:
+      "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
+    timestamp: "{review_date}",
   });
 
   const [data, setData] = useState({
-    dataSource: "shopify",
-    stockUnder: "10",
-    hideOutOfStock: true,
+    dataSource: "judge_me",
     directProductPage: true,
     showProductImage: true,
     showPriceTag: true,
@@ -556,12 +531,12 @@ export default function LowStockPopupPage() {
   const [visibility, setVisibility] = useState({
     showHome: true,
     showProduct: true,
-    productScope: "specific",
+    productScope: "all",
     showCollectionList: true,
     showCollection: true,
     collectionScope: "all",
     showCart: true,
-    position: "top-right",
+    position: "bottom-right",
   });
 
   const [behavior, setBehavior] = useState({
@@ -569,32 +544,53 @@ export default function LowStockPopupPage() {
     hideOnMobile: false,
     delay: "1",
     duration: "10",
-    interval: "5",
-    intervalUnit: "seconds",
-    randomize: true,
+    interval: "1",
+    intervalUnit: "mins",
+    randomize: false,
   });
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [search, setSearch] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState([]);
 
-  const products = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return MOCK_PRODUCTS;
-    return MOCK_PRODUCTS.filter((p) => p.title.toLowerCase().includes(term));
-  }, [search]);
+  useEffect(() => {
+    if (hasLoaded) return;
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    fetcher.load(`/app/products-picker?${params.toString()}`);
+    setHasLoaded(true);
+  }, [hasLoaded, fetcher]);
 
-  const selectedProducts = useMemo(
-    () => MOCK_PRODUCTS.filter((p) => selectedIds.includes(p.id)),
-    [selectedIds]
-  );
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    params.set("page", String(page));
+    fetcher.load(`/app/products-picker?${params.toString()}`);
+  }, [pickerOpen, search, page, fetcher]);
 
-  const previewProduct = selectedProducts[0] || MOCK_PRODUCTS[0];
+  const storeProducts = useMemo(() => {
+    const items = fetcher.data?.items || [];
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.featuredImage || null,
+      status: item.status,
+      price: null,
+      compareAt: null,
+      rating: 4,
+    }));
+  }, [fetcher.data]);
 
-  const togglePick = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
+  const allProducts = storeProducts.length ? storeProducts : MOCK_PRODUCTS;
+  const previewProduct =
+    selectedProducts[0] || storeProducts[0] || MOCK_PRODUCTS[0];
+
+  const togglePick = (item) => {
+    setSelectedProducts((prev) => {
+      const exists = prev.some((p) => p.id === item.id);
+      if (exists) return prev.filter((p) => p.id !== item.id);
+      return [...prev, item];
+    });
   };
 
   const insertToken = (field, token) => {
@@ -604,21 +600,27 @@ export default function LowStockPopupPage() {
     }));
   };
 
+  const items = allProducts;
+  const hasNextPage = Boolean(fetcher.data?.hasNextPage);
+
   return (
     <Frame>
       <Page
-        title="Edit Add to cart notification"
-        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
+        title="Create Review notification"
+        backAction={{
+          content: "Back",
+          onAction: () => navigate("/app/notification"),
+        }}
         primaryAction={{ content: "Save", onAction: () => {} }}
       >
-        <style>{LOW_STOCK_STYLES}</style>
-        <div className="lowstock-shell">
-          <div className="lowstock-sidebar">
+        <style>{REVIEW_STYLES}</style>
+        <div className="review-shell">
+          <div className="review-sidebar">
             {NAV_ITEMS.map(({ id, label, Icon }) => (
               <button
                 key={id}
                 type="button"
-                className={`lowstock-nav-btn ${activeSection === id ? "is-active" : ""}`}
+                className={`review-nav-btn ${activeSection === id ? "is-active" : ""}`}
                 onClick={() => setActiveSection(id)}
               >
                 <Icon />
@@ -626,10 +628,9 @@ export default function LowStockPopupPage() {
               </button>
             ))}
           </div>
-
-          <div className="lowstock-main">
-            <div className="lowstock-columns">
-              <div className="lowstock-form">
+          <div className="review-main">
+            <div className="review-columns">
+              <div className="review-form">
                 <BlockStack gap="400">
                   {activeSection === "layout" && (
                     <>
@@ -640,37 +641,13 @@ export default function LowStockPopupPage() {
                               Design
                             </Text>
                             <Select
-                              label="Layout"
-                              options={LAYOUTS}
-                              value={design.layout}
+                              label="Type"
+                              options={REVIEW_TYPES}
+                              value={design.reviewType}
                               onChange={(v) =>
-                                setDesign((d) => ({ ...d, layout: v }))
+                                setDesign((d) => ({ ...d, reviewType: v }))
                               }
                             />
-
-                            <BlockStack gap="200">
-                              <Text>Size</Text>
-                              <RangeSlider
-                                min={0}
-                                max={100}
-                                value={design.size}
-                                onChange={(v) =>
-                                  setDesign((d) => ({ ...d, size: v }))
-                                }
-                              />
-                            </BlockStack>
-
-                            <BlockStack gap="200">
-                              <Text>Transparent</Text>
-                              <RangeSlider
-                                min={0}
-                                max={100}
-                                value={design.transparent}
-                                onChange={(v) =>
-                                  setDesign((d) => ({ ...d, transparent: v }))
-                                }
-                              />
-                            </BlockStack>
 
                             <BlockStack gap="200">
                               <Text as="p">Color template</Text>
@@ -699,35 +676,31 @@ export default function LowStockPopupPage() {
                               </InlineStack>
                             </BlockStack>
 
-                            <InlineStack gap="400" wrap={false}>
-                              <Box width="50%">
-                                <ColorField
-                                  label="Background color"
-                                  value={design.bgColor}
-                                  fallback="#CCC01E"
-                                  onChange={(v) =>
-                                    setDesign((d) => ({ ...d, bgColor: v }))
-                                  }
-                                />
-                              </Box>
-                              <Box width="50%">
-                                <ColorField
-                                  label="Background color (alt)"
-                                  value={design.bgAlt}
-                                  fallback="#7E6060"
-                                  onChange={(v) =>
-                                    setDesign((d) => ({ ...d, bgAlt: v }))
-                                  }
-                                />
-                              </Box>
-                            </InlineStack>
+                            <ColorField
+                              label="Background color"
+                              value={design.bgColor}
+                              fallback="#FFFFFF"
+                              onChange={(v) =>
+                                setDesign((d) => ({ ...d, bgColor: v }))
+                              }
+                            />
+                            {design.template === "gradient" && (
+                              <ColorField
+                                label="Background color (alt)"
+                                value={design.bgAlt}
+                                fallback="#F3F4F6"
+                                onChange={(v) =>
+                                  setDesign((d) => ({ ...d, bgAlt: v }))
+                                }
+                              />
+                            )}
 
                             <InlineStack gap="400" wrap={false}>
                               <Box width="50%">
                                 <ColorField
                                   label="Text color"
                                   value={design.textColor}
-                                  fallback="#F9EEEE"
+                                  fallback="#000000"
                                   onChange={(v) =>
                                     setDesign((d) => ({ ...d, textColor: v }))
                                   }
@@ -737,7 +710,7 @@ export default function LowStockPopupPage() {
                                 <ColorField
                                   label="Timestamp color"
                                   value={design.timestampColor}
-                                  fallback="#FBF9F9"
+                                  fallback="#696969"
                                   onChange={(v) =>
                                     setDesign((d) => ({
                                       ...d,
@@ -755,10 +728,26 @@ export default function LowStockPopupPage() {
                                   value={design.priceTagBg}
                                   fallback="#593E3F"
                                   onChange={(v) =>
-                                    setDesign((d) => ({ ...d, priceTagBg: v }))
+                                    setDesign((d) => ({
+                                      ...d,
+                                      priceTagBg: v,
+                                    }))
                                   }
                                 />
                               </Box>
+                              <Box width="50%">
+                                <ColorField
+                                  label="Price color"
+                                  value={design.priceColor}
+                                  fallback="#FFFFFF"
+                                  onChange={(v) =>
+                                    setDesign((d) => ({ ...d, priceColor: v }))
+                                  }
+                                />
+                              </Box>
+                            </InlineStack>
+
+                            <InlineStack gap="400" wrap={false}>
                               <Box width="50%">
                                 <ColorField
                                   label="Compare at price color"
@@ -772,24 +761,11 @@ export default function LowStockPopupPage() {
                                   }
                                 />
                               </Box>
-                            </InlineStack>
-
-                            <InlineStack gap="400" wrap={false}>
                               <Box width="50%">
                                 <ColorField
-                                  label="Price color"
-                                  value={design.priceColor}
-                                  fallback="#FFFFFF"
-                                  onChange={(v) =>
-                                    setDesign((d) => ({ ...d, priceColor: v }))
-                                  }
-                                />
-                              </Box>
-                              <Box width="50%">
-                                <ColorField
-                                  label="Star color"
+                                  label="Star rating color"
                                   value={design.starColor}
-                                  fallback="#F06663"
+                                  fallback="#FFCF0D"
                                   onChange={(v) =>
                                     setDesign((d) => ({ ...d, starColor: v }))
                                   }
@@ -852,7 +828,6 @@ export default function LowStockPopupPage() {
                       </Card>
                     </>
                   )}
-
                   {activeSection === "content" && (
                     <>
                       <Card>
@@ -916,48 +891,36 @@ export default function LowStockPopupPage() {
                             </Text>
                             <InlineStack gap="400">
                               <RadioButton
-                                id="data-shopify"
+                                id="data-judge"
                                 name="data_source"
-                                label="Data from Shopify"
-                                checked={data.dataSource === "shopify"}
+                                label="Sync Judge.me Review"
+                                checked={data.dataSource === "judge_me"}
                                 onChange={() =>
                                   setData((d) => ({
                                     ...d,
-                                    dataSource: "shopify",
+                                    dataSource: "judge_me",
                                   }))
                                 }
                               />
                               <RadioButton
-                                id="data-manual"
+                                id="data-csv"
                                 name="data_source"
-                                label="Set manually"
-                                checked={data.dataSource === "manual"}
+                                label="Import CSV"
+                                checked={data.dataSource === "csv"}
                                 onChange={() =>
                                   setData((d) => ({
                                     ...d,
-                                    dataSource: "manual",
+                                    dataSource: "csv",
                                   }))
                                 }
                               />
                             </InlineStack>
-
-                            <TextField
-                              label="Show notification for product with stock under"
-                              type="number"
-                              value={data.stockUnder}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, stockUnder: v }))
-                              }
-                              autoComplete="off"
-                            />
-
-                            <Checkbox
-                              label="Don't show notification when out of stock"
-                              checked={data.hideOutOfStock}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, hideOutOfStock: v }))
-                              }
-                            />
+                            {data.dataSource === "judge_me" && (
+                              <Button>Connect with Judge.me</Button>
+                            )}
+                            {data.dataSource === "csv" && (
+                              <Button>Import CSV</Button>
+                            )}
                           </BlockStack>
                         </Box>
                       </Card>
@@ -979,7 +942,10 @@ export default function LowStockPopupPage() {
                               label="Show product/avatar image"
                               checked={data.showProductImage}
                               onChange={(v) =>
-                                setData((d) => ({ ...d, showProductImage: v }))
+                                setData((d) => ({
+                                  ...d,
+                                  showProductImage: v,
+                                }))
                               }
                             />
                             <Checkbox
@@ -1001,7 +967,6 @@ export default function LowStockPopupPage() {
                       </Card>
                     </>
                   )}
-
                   {activeSection === "display" && (
                     <Card>
                       <Box padding="4">
@@ -1065,7 +1030,7 @@ export default function LowStockPopupPage() {
                                     Browse products
                                   </Button>
                                   <Text tone="subdued">
-                                    {selectedIds.length} products selected
+                                    {selectedProducts.length} products selected
                                   </Text>
                                 </InlineStack>
                               )}
@@ -1084,10 +1049,7 @@ export default function LowStockPopupPage() {
                               label="Collection page"
                               checked={visibility.showCollection}
                               onChange={(v) =>
-                                setVisibility((s) => ({
-                                  ...s,
-                                  showCollection: v,
-                                }))
+                                setVisibility((s) => ({ ...s, showCollection: v }))
                               }
                             />
                             <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
@@ -1138,7 +1100,6 @@ export default function LowStockPopupPage() {
                       </Box>
                     </Card>
                   )}
-
                   {activeSection === "behavior" && (
                     <>
                       <Card>
@@ -1148,7 +1109,7 @@ export default function LowStockPopupPage() {
                               Appearance
                             </Text>
                             <Checkbox
-                              label="Display a close button"
+                              label="Display close button"
                               checked={behavior.showClose}
                               onChange={(v) =>
                                 setBehavior((b) => ({ ...b, showClose: v }))
@@ -1232,33 +1193,33 @@ export default function LowStockPopupPage() {
                   )}
                 </BlockStack>
               </div>
-
-              <div className="lowstock-preview">
+              <div className="review-preview">
                 <Card>
                   <Box padding="4">
                     <BlockStack gap="300">
                       <Text as="h3" variant="headingMd">
                         Preview
                       </Text>
-                      <div className="lowstock-preview-box">
+                      <div className="review-preview-box">
                         <PreviewCard
-                          layout={design.layout}
-                          size={design.size}
-                          transparency={design.transparent}
-                          bgColor={normalizeHex(design.bgColor, "#FFFBD2")}
-                          bgAlt={normalizeHex(design.bgAlt, "#FBCFCF")}
+                          bgColor={normalizeHex(design.bgColor, "#FFFFFF")}
+                          bgAlt={normalizeHex(design.bgAlt, "#F3F4F6")}
+                          template={design.template}
                           textColor={normalizeHex(design.textColor, "#000000")}
                           timestampColor={normalizeHex(
                             design.timestampColor,
-                            "#FBF9F9"
+                            "#696969"
                           )}
-                          priceTagBg={normalizeHex(design.priceTagBg, "#593E3F")}
+                          priceTagBg={normalizeHex(
+                            design.priceTagBg,
+                            "#593E3F"
+                          )}
                           priceTagAlt={normalizeHex(
                             design.priceTagAlt,
                             "#E66465"
                           )}
                           priceColor={normalizeHex(design.priceColor, "#FFFFFF")}
-                          starColor={normalizeHex(design.starColor, "#F06663")}
+                          starColor={normalizeHex(design.starColor, "#FFCF0D")}
                           textSizeContent={Number(textSize.content) || 14}
                           textSizeCompare={Number(textSize.compareAt) || 12}
                           textSizePrice={Number(textSize.price) || 12}
@@ -1269,7 +1230,6 @@ export default function LowStockPopupPage() {
                           showRating={data.showRating}
                           showClose={behavior.showClose}
                           product={previewProduct}
-                          template={design.template}
                         />
                       </div>
                     </BlockStack>
@@ -1277,15 +1237,13 @@ export default function LowStockPopupPage() {
                 </Card>
               </div>
             </div>
-
-            <div className="lowstock-help">
-              We're here to help! Contact support or refer to the{" "}
+            <div className="review-help">
+              We&apos;re here to help! Contact support or refer to the{" "}
               <a href="#">User guide</a>
             </div>
           </div>
         </div>
       </Page>
-
       <Modal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
@@ -1305,7 +1263,10 @@ export default function LowStockPopupPage() {
                   labelHidden
                   placeholder="Search products"
                   value={search}
-                  onChange={setSearch}
+                  onChange={(v) => {
+                    setSearch(v);
+                    setPage(1);
+                  }}
                   autoComplete="off"
                 />
               </Box>
@@ -1322,7 +1283,7 @@ export default function LowStockPopupPage() {
 
             <IndexTable
               resourceName={{ singular: "product", plural: "products" }}
-              itemCount={products.length}
+              itemCount={items.length}
               selectable={false}
               headings={[
                 { title: "Select" },
@@ -1330,15 +1291,15 @@ export default function LowStockPopupPage() {
                 { title: "Status" },
               ]}
             >
-              {products.map((item, index) => {
-                const checked = selectedIds.includes(item.id);
+              {items.map((item, index) => {
+                const checked = selectedProducts.some((p) => p.id === item.id);
                 return (
                   <IndexTable.Row id={item.id} key={item.id} position={index}>
                     <IndexTable.Cell>
                       <Checkbox
                         label=""
                         checked={checked}
-                        onChange={() => togglePick(item.id)}
+                        onChange={() => togglePick(item)}
                       />
                     </IndexTable.Cell>
                     <IndexTable.Cell>
@@ -1352,14 +1313,34 @@ export default function LowStockPopupPage() {
                       </InlineStack>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <Badge tone="success">active</Badge>
+                      <Badge tone="success">
+                        {item.status || "active"}
+                      </Badge>
                     </IndexTable.Cell>
                   </IndexTable.Row>
                 );
               })}
             </IndexTable>
 
-            <Text tone="subdued">{selectedIds.length} products selected</Text>
+            <InlineStack gap="200" align="space-between" blockAlign="center">
+              <Text tone="subdued">
+                {selectedProducts.length} products selected
+              </Text>
+              <InlineStack gap="200">
+                <Button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={!hasNextPage}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </InlineStack>
+            </InlineStack>
           </BlockStack>
         </Modal.Section>
       </Modal>

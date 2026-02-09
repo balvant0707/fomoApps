@@ -259,6 +259,17 @@ export default function NotificationDashboardIndex() {
             onConfigure={() => go('/app/notification/lowstock', 'lowstock')}
             loading={loadingKey === 'lowstock'}
           />
+
+          <DashboardCard
+            title="Review Notification"
+            desc="Show new product reviews to build trust and social proof."
+            tag="Social proof"
+            emoji="R"
+            thumbBg="linear-gradient(135deg, #FFF7CC 0%, #FFE0B2 100%)"
+            previewText="Jane B. from abroad just reviewed DREAMY BLUE BALL GOWN"
+            onConfigure={() => go('/app/notification/review', 'review')}
+            loading={loadingKey === 'review'}
+          />
         </div>
       </Page>
     </>
