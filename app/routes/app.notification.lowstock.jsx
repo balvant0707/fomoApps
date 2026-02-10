@@ -121,7 +121,7 @@ const LOW_STOCK_STYLES = `
   padding: 0px;
   min-height: 320px;
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: center;
   background: #fafafa;
 }

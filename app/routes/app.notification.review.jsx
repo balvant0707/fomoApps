@@ -116,7 +116,7 @@ const REVIEW_STYLES = `
   border-radius: 16px;
   min-height: 320px;
   display: flex;
-  align-items: start;
+  align-items: center;
   justify-content: center;
 }
 .token-pill {
