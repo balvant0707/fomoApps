@@ -95,6 +95,7 @@ const HIDE_CHOICES = [
   { label: "Product Image", value: "productImage" },
   { label: "Order Time", value: "time" },
 ];
+const DEFAULT_PRODUCT_NAME_LIMIT = "15";
 
 const RECENT_STYLES = `
 .recent-shell {
@@ -1133,9 +1134,10 @@ function Bubble({ form, order, isMobile = false }) {
 
   const products = Array.isArray(order?.products) ? order.products : [];
   const first = products[0] || null;
+  const rawTitle = first?.title || order?.productTitle || "";
   const productTitle = hide.has("productTitle")
     ? ""
-    : first?.title || order?.productTitle || "";
+    : formatProductName(rawTitle, form.productNameMode, form.productNameLimit);
   const productImg = hide.has("productImage")
     ? null
     : first?.image || order?.productImage || null;
@@ -1307,6 +1309,7 @@ function DesktopPreview({ form, order }) {
         overflow: "hidden",
         position: "relative",
         display: "flex",
+        justifyContent: "center",
         padding: 18,
         boxSizing: "border-box",
         ...flex,
@@ -1357,6 +1360,20 @@ function MobilePreview({ form, order }) {
     </div>
   );
 }
+function clampNameLimit(value, fallback = 15) {
+  const n = parseInt(String(value || ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(60, n);
+}
+
+function formatProductName(name, mode, limit) {
+  if (!name) return "";
+  if (mode !== "half") return name;
+  const max = clampNameLimit(limit, 15);
+  if (name.length <= max) return name;
+  return `${name.slice(0, max).trimEnd()}...`;
+}
+
 function LivePreview({ form, order }) {
   return (
     <BlockStack gap="200">
@@ -1439,6 +1456,8 @@ export default function RecentOrdersPopupPage() {
     fontWeight: saved.fontWeight,
     layout: saved.layout ?? "landscape",
     imageAppearance: saved.imageAppearance ?? "cover",
+    productNameMode: saved.productNameMode ?? "full",
+    productNameLimit: saved.productNameLimit ?? DEFAULT_PRODUCT_NAME_LIMIT,
 
     namesJson: saved.namesJson || [],
     selectedProductsJson: saved.selectedProductsJson || [],
@@ -1612,6 +1631,42 @@ export default function RecentOrdersPopupPage() {
                     helpText="Short line shown after the product name."
                     autoComplete="off"
                   />
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodySm">
+                      Product name display
+                    </Text>
+                    <InlineStack gap="400">
+                      <RadioButton
+                        id="product-name-full"
+                        name="product_name_mode"
+                        label="Show full product name"
+                        checked={form.productNameMode === "full"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, productNameMode: "full" }))
+                        }
+                      />
+                      <RadioButton
+                        id="product-name-half"
+                        name="product_name_mode"
+                        label="Show half product name"
+                        checked={form.productNameMode === "half"}
+                        onChange={() =>
+                          setForm((f) => ({ ...f, productNameMode: "half" }))
+                        }
+                      />
+                    </InlineStack>
+                    {form.productNameMode === "half" && (
+                      <Box width="50%">
+                        <TextField
+                          label="Character limit"
+                          type="number"
+                          value={form.productNameLimit}
+                          onChange={onField("productNameLimit")}
+                          autoComplete="off"
+                        />
+                      </Box>
+                    )}
+                  </BlockStack>
                 </BlockStack>
               </Box>
             </Card>

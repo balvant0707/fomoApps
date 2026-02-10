@@ -55,6 +55,7 @@ const CONTENT_TOKENS = [
 ];
 const TIME_TOKENS = ["time", "unit"];
 const TOKEN_OPTIONS = [...CONTENT_TOKENS, "stock_count"];
+const DEFAULT_PRODUCT_NAME_LIMIT = "15";
 
 const LOW_STOCK_STYLES = `
 .lowstock-shell {
@@ -63,7 +64,7 @@ const LOW_STOCK_STYLES = `
   align-items: flex-start;
 }
 .lowstock-sidebar {
-  width: 130px;
+  width: 80px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -71,8 +72,8 @@ const LOW_STOCK_STYLES = `
 .lowstock-nav-btn {
   border: 1px solid #e5e7eb;
   background: #ffffff;
-  border-radius: 12px;
-  padding: 14px 10px;
+  border-radius: 4px;
+  padding: 5px 10px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
@@ -121,7 +122,7 @@ const LOW_STOCK_STYLES = `
   padding: 0px;
   min-height: 320px;
   display: flex;
-  align-items: center;
+  align-items: start;
   justify-content: center;
   background: #fafafa;
 }
@@ -281,6 +282,20 @@ function normalizeHex(value, fallback) {
   return fallback;
 }
 
+function clampNameLimit(value, fallback = 15) {
+  const n = parseInt(String(value || ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(60, n);
+}
+
+function formatProductName(name, mode, limit) {
+  if (!name) return "";
+  if (mode !== "half") return name;
+  const max = clampNameLimit(limit, 15);
+  if (name.length <= max) return name;
+  return `${name.slice(0, max).trimEnd()}...`;
+}
+
 function ColorField({ label, value, onChange, fallback }) {
   const safeValue = normalizeHex(value, fallback);
   return (
@@ -331,6 +346,8 @@ function PreviewCard({
   showClose,
   product,
   template,
+  productNameMode,
+  productNameLimit,
 }) {
   const scale = 0.8 + (size / 100) * 0.4;
   const opacity = 1 - (transparency / 100) * 0.7;
@@ -357,7 +374,8 @@ function PreviewCard({
     maxWidth: isPortrait ? 320 : 460,
   };
 
-  const safeName = product?.title || "Your product will show here";
+  const rawName = product?.title || "Your product will show here";
+  const safeName = formatProductName(rawName, productNameMode, productNameLimit);
   const safeCount = "5";
 
   return (
@@ -489,6 +507,10 @@ export default function LowStockPopupPage() {
   const [content, setContent] = useState({
     message: "{product_name} has only {stock_count} items left in stock",
   });
+  const [productNameMode, setProductNameMode] = useState("full");
+  const [productNameLimit, setProductNameLimit] = useState(
+    DEFAULT_PRODUCT_NAME_LIMIT
+  );
 
   const [data, setData] = useState({
     dataSource: "shopify",
@@ -830,6 +852,38 @@ export default function LowStockPopupPage() {
                                 </button>
                               ))}
                             </InlineStack>
+                            <BlockStack gap="200">
+                              <Text as="p" variant="bodySm">
+                                Product name display
+                              </Text>
+                              <InlineStack gap="400">
+                                <RadioButton
+                                  id="product-name-full"
+                                  name="product_name_mode"
+                                  label="Show full product name"
+                                  checked={productNameMode === "full"}
+                                  onChange={() => setProductNameMode("full")}
+                                />
+                                <RadioButton
+                                  id="product-name-half"
+                                  name="product_name_mode"
+                                  label="Show half product name"
+                                  checked={productNameMode === "half"}
+                                  onChange={() => setProductNameMode("half")}
+                                />
+                              </InlineStack>
+                              {productNameMode === "half" && (
+                                <Box width="50%">
+                                  <TextField
+                                    label="Character limit"
+                                    type="number"
+                                    value={productNameLimit}
+                                    onChange={setProductNameLimit}
+                                    autoComplete="off"
+                                  />
+                                </Box>
+                              )}
+                            </BlockStack>
                           </BlockStack>
                         </Box>
                       </Card>
@@ -1195,6 +1249,8 @@ export default function LowStockPopupPage() {
                           showClose={behavior.showClose}
                           product={previewProduct}
                           template={design.template}
+                          productNameMode={productNameMode}
+                          productNameLimit={productNameLimit}
                         />
                       </div>
                     </BlockStack>

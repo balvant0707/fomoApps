@@ -52,6 +52,7 @@ const CONTENT_TOKENS = [
   "product_name",
 ];
 const TIME_TOKENS = ["review_date"];
+const DEFAULT_PRODUCT_NAME_LIMIT = "15";
 
 const REVIEW_STYLES = `
 .review-shell {
@@ -266,6 +267,20 @@ function normalizeHex(value, fallback) {
   return fallback;
 }
 
+function clampNameLimit(value, fallback = 15) {
+  const n = parseInt(String(value || ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(60, n);
+}
+
+function formatProductName(name, mode, limit) {
+  if (!name) return "";
+  if (mode !== "half") return name;
+  const max = clampNameLimit(limit, 15);
+  if (name.length <= max) return name;
+  return `${name.slice(0, max).trimEnd()}...`;
+}
+
 function ColorField({ label, value, onChange, fallback }) {
   const safeValue = normalizeHex(value, fallback);
   return (
@@ -320,13 +335,20 @@ function PreviewCard({
   showRating,
   showClose,
   product,
+  productNameMode,
+  productNameLimit,
 }) {
   const background =
     template === "gradient"
       ? `linear-gradient(135deg, ${bgColor} 0%, ${bgAlt} 100%)`
       : bgColor;
 
-  const safeProductName = product?.title || "DREAMY BLUE BALL GOWN";
+  const rawProductName = product?.title || "DREAMY BLUE BALL GOWN";
+  const safeProductName = formatProductName(
+    rawProductName,
+    productNameMode,
+    productNameLimit
+  );
   const tokenValues = {
     reviewer_name: "Jane B.",
     review_title: "Beautiful and elegant",
@@ -512,6 +534,10 @@ export default function ReviewNotificationPage() {
       "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
     timestamp: "{review_date}",
   });
+  const [productNameMode, setProductNameMode] = useState("full");
+  const [productNameLimit, setProductNameLimit] = useState(
+    DEFAULT_PRODUCT_NAME_LIMIT
+  );
 
   const [data, setData] = useState({
     dataSource: "judge_me",
@@ -851,6 +877,38 @@ export default function ReviewNotificationPage() {
                                 </button>
                               ))}
                             </InlineStack>
+                            <BlockStack gap="200">
+                              <Text as="p" variant="bodySm">
+                                Product name display
+                              </Text>
+                              <InlineStack gap="400">
+                                <RadioButton
+                                  id="product-name-full"
+                                  name="product_name_mode"
+                                  label="Show full product name"
+                                  checked={productNameMode === "full"}
+                                  onChange={() => setProductNameMode("full")}
+                                />
+                                <RadioButton
+                                  id="product-name-half"
+                                  name="product_name_mode"
+                                  label="Show half product name"
+                                  checked={productNameMode === "half"}
+                                  onChange={() => setProductNameMode("half")}
+                                />
+                              </InlineStack>
+                              {productNameMode === "half" && (
+                                <Box width="50%">
+                                  <TextField
+                                    label="Character limit"
+                                    type="number"
+                                    value={productNameLimit}
+                                    onChange={setProductNameLimit}
+                                    autoComplete="off"
+                                  />
+                                </Box>
+                              )}
+                            </BlockStack>
                             <TextField
                               label="Timestamp"
                               value={content.timestamp}
@@ -1223,6 +1281,8 @@ export default function ReviewNotificationPage() {
                           showRating={data.showRating}
                           showClose={behavior.showClose}
                           product={previewProduct}
+                          productNameMode={productNameMode}
+                          productNameLimit={productNameLimit}
                         />
                       </div>
                     </BlockStack>

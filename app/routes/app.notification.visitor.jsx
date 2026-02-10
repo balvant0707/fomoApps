@@ -60,6 +60,7 @@ const TOKEN_OPTIONS = [
   "price",
 ];
 const TIME_TOKENS = ["time", "unit"];
+const DEFAULT_PRODUCT_NAME_LIMIT = "15";
 
 const VISITOR_STYLES = `
 .visitor-shell {
@@ -303,6 +304,20 @@ function normalizeHex(value, fallback) {
   return fallback;
 }
 
+function clampNameLimit(value, fallback = 15) {
+  const n = parseInt(String(value || ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(60, n);
+}
+
+function formatProductName(name, mode, limit) {
+  if (!name) return "";
+  if (mode !== "half") return name;
+  const max = clampNameLimit(limit, 15);
+  if (name.length <= max) return name;
+  return `${name.slice(0, max).trimEnd()}...`;
+}
+
 function ColorField({ label, value, onChange, fallback }) {
   const safeValue = normalizeHex(value, fallback);
   return (
@@ -353,6 +368,8 @@ function PreviewCard({
   showClose,
   product,
   template,
+  productNameMode,
+  productNameLimit,
 }) {
   const scale = 0.8 + (size / 100) * 0.4;
   const opacity = 1 - (transparency / 100) * 0.7;
@@ -362,6 +379,8 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
+  const rawName = product?.title || "Your product will show here";
+  const safeName = formatProductName(rawName, productNameMode, productNameLimit);
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -451,7 +470,7 @@ function PreviewCard({
             lineHeight: 1.4,
           }}
         >
-          {product?.title || "Your product will show here"}
+          {safeName}
         </div>
         {showPriceTag && (
           <InlineStack gap="200" blockAlign="center">
@@ -526,6 +545,10 @@ export default function VisitorPopupPage() {
     avgTime: "2",
     avgUnit: "mins",
   });
+  const [productNameMode, setProductNameMode] = useState("full");
+  const [productNameLimit, setProductNameLimit] = useState(
+    DEFAULT_PRODUCT_NAME_LIMIT
+  );
 
   const [data, setData] = useState({
     directProductPage: true,
@@ -857,6 +880,38 @@ export default function VisitorPopupPage() {
                         </button>
                       ))}
                     </InlineStack>
+                    <BlockStack gap="200">
+                      <Text as="p" variant="bodySm">
+                        Product name display
+                      </Text>
+                      <InlineStack gap="400">
+                        <RadioButton
+                          id="product-name-full"
+                          name="product_name_mode"
+                          label="Show full product name"
+                          checked={productNameMode === "full"}
+                          onChange={() => setProductNameMode("full")}
+                        />
+                        <RadioButton
+                          id="product-name-half"
+                          name="product_name_mode"
+                          label="Show half product name"
+                          checked={productNameMode === "half"}
+                          onChange={() => setProductNameMode("half")}
+                        />
+                      </InlineStack>
+                      {productNameMode === "half" && (
+                        <Box width="50%">
+                          <TextField
+                            label="Character limit"
+                            type="number"
+                            value={productNameLimit}
+                            onChange={setProductNameLimit}
+                            autoComplete="off"
+                          />
+                        </Box>
+                      )}
+                    </BlockStack>
 
                     <TextField
                       label="Timestamp"
@@ -1288,6 +1343,8 @@ export default function VisitorPopupPage() {
                       showClose={behavior.showClose}
                       product={previewProduct}
                       template={design.template}
+                      productNameMode={productNameMode}
+                      productNameLimit={productNameLimit}
                     />
                   </div>
                 </BlockStack>
