@@ -130,7 +130,7 @@ const FLASH_STYLES = `
 .flash-preview-box {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 24px;
+  padding: 0;
   min-height: 320px;
   display: flex;
   align-items: center;
@@ -529,7 +529,7 @@ function NotificationPreview({ form, isMobile = false }) {
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
   const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
   const showIcon = !!svgMarkup;
-  const imageOverflow = showIcon && form.imageAppearance === "cover";
+  const imageOverflow = showIcon && form.imageAppearance === "cover" && !isPortrait;
   const avatarOffset = Math.round(iconDim * 0.45);
   const background =
     form.template === "gradient"
@@ -550,7 +550,7 @@ function NotificationPreview({ form, isMobile = false }) {
         background, color: form.textColor, borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
         display: "flex",
-        alignItems: isPortrait ? "flex-start" : "center",
+        alignItems: isPortrait ? "center" : "center",
         gap: isPortrait ? 10 : 12,
         flexDirection: isPortrait ? "column" : "row",
         maxWidth: isMobile
@@ -605,7 +605,14 @@ function NotificationPreview({ form, isMobile = false }) {
             dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />
         ) : null}
-        <div style={{ display: "grid", gap: 4, minWidth: 0 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 4,
+            minWidth: 0,
+            textAlign: isPortrait ? "center" : "left",
+          }}
+        >
           <p style={{ margin: 0, color: form.numberColor, fontWeight: form.fontWeight ? Number(form.fontWeight) : 600, fontSize: sized }}>
             {form.messageTitle || "Flash Sale"}
           </p>
@@ -626,7 +633,7 @@ function DesktopPreview({ form }) {
       style={{
         width: "100%", maxWidth: 900, minHeight: 320, height: 400, borderRadius: 12,
         border: "1px solid #e5e7eb", background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
-        overflow: "hidden", position: "relative", display: "flex", padding: 18, boxSizing: "border-box", ...flex,
+        overflow: "hidden", position: "relative", display: "flex", padding: 0, boxSizing: "border-box", ...flex,
       }}
     >
       <NotificationPreview form={form} />
