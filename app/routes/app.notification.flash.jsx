@@ -132,9 +132,6 @@ const FLASH_STYLES = `
   border-radius: 16px;
   padding: 0;
   min-height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: #fafafa;
 }
 @media (max-width: 1100px) {
@@ -631,9 +628,15 @@ function DesktopPreview({ form }) {
   return (
     <div
       style={{
-        width: "100%", maxWidth: 900, minHeight: 320, height: 400, borderRadius: 12,
-        border: "1px solid #e5e7eb", background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
-        overflow: "hidden", position: "relative", display: "flex", padding: 0, boxSizing: "border-box", ...flex,
+        width: "100%",
+        minHeight: 320,
+        height: "100%",
+        overflow: "hidden",
+        position: "relative",
+        display: "flex",
+        padding: 0,
+        boxSizing: "border-box",
+        ...flex,
       }}
     >
       <NotificationPreview form={form} />
