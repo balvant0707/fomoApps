@@ -236,7 +236,7 @@ export default function AppIndex() {
         <Card>
           <BlockStack gap="300">
             <Text as="p">
-              Open Theme Customize -> <b>App embeds</b> with this app selected.
+              Open Theme Customize - <b>App embeds</b> with this app selected.
             </Text>
             <InlineStack gap="300" align="start">
               <Button variant="secondary" onClick={() => openFallback(resolvedThemeId)}>
