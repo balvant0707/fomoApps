@@ -1096,7 +1096,7 @@ const posToFlex = (pos) => {
     case "bottom-right":
       return { justifyContent: "flex-end", alignItems: "flex-end" };
     default:
-      return { justifyContent: "flex-start", alignItems: "flex-end" };
+      return { justifyContent: "center", alignItems: "flex-end" };
   }
 };
 const mobilePosToFlex = (pos) => ({

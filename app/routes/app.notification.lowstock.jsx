@@ -117,14 +117,12 @@ const LOW_STOCK_STYLES = `
   min-width: 320px;
 }
 .lowstock-preview-box {
-  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 0px;
+  padding: 15px;
   min-height: 320px;
   display: flex;
   align-items: start;
   justify-content: center;
-  background: #fafafa;
 }
 .token-pill {
   border: none;

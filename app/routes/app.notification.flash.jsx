@@ -544,8 +544,11 @@ function NotificationPreview({ form, isMobile = false }) {
 
       <div style={{
         fontFamily: form.fontFamily === "System" ? "ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto" : form.fontFamily,
-        background, color: form.textColor, borderRadius: 14,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 12, border: "1px solid rgba(17,24,39,0.06)",
+        background, color: form.textColor, 
+        borderRadius: 14,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+        padding: "15px 20px 15px 40px", 
+        border: "1px solid rgba(17,24,39,0.06)",
         display: "flex",
         alignItems: isPortrait ? "center" : "center",
         gap: isPortrait ? 10 : 12,
@@ -563,7 +566,7 @@ function NotificationPreview({ form, isMobile = false }) {
           <div
             style={{
               position: "absolute",
-              left: 16,
+              left: 0,
               top: isPortrait ? 24 : "50%",
               transform: isPortrait
                 ? "translate(-50%, 0)"
@@ -636,7 +639,8 @@ function DesktopPreview({ form }) {
         display: "flex",
         padding: 0,
         boxSizing: "border-box",
-        ...flex,
+        justifyContent: "center",
+        alignItems: "flex-start",
       }}
     >
       <NotificationPreview form={form} />
