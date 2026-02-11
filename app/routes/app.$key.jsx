@@ -16,7 +16,7 @@ import {
   Toast,
   Loading,
 } from "@shopify/polaris";
-import { useLoaderData, useNavigate, useParams } from "@remix-run/react";
+import { useLoaderData, useNavigate, useParams, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { prisma } from "../db.server";
@@ -192,6 +192,10 @@ function NotificationPreview({ form }) {
 
 export default function NotificationConfigPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const search = location.search || "";
+  const notificationUrl = `/app/notification${search}`;
+  const dashboardUrl = `/app/dashboard${search}`;
   const { key } = useParams();
   const { existing } = useLoaderData();
 
@@ -264,7 +268,7 @@ export default function NotificationConfigPage() {
 
       // થોડા પળો બાદ dashboard પર લઇ જવું
       setTimeout(() => {
-        navigate("/app/dashboard");
+        navigate(dashboardUrl);
       }, 900);
     } catch (err) {
       setToastMsg(err?.message || "Something went wrong");
@@ -332,7 +336,7 @@ export default function NotificationConfigPage() {
       {saving && <Loading />}
       <Page
         title={`Configuration – ${title}`}
-        secondaryActions={[{ content: "Back", onAction: () => navigate("/app/notification") }]}
+        secondaryActions={[{ content: "Back", onAction: () => navigate(notificationUrl) }]}
         primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving }}
       >
         {/* Preview */}
@@ -457,7 +461,7 @@ export default function NotificationConfigPage() {
               <Text as="h3" variant="headingMd">Launch</Text>
               <TextField label="Notification Name" value={form.name} onChange={onText("name")} autoComplete="off" />
               <InlineStack gap="200">
-                <Button onClick={() => navigate("/app/notification")}>Cancel</Button>
+                <Button onClick={() => navigate(notificationUrl)}>Cancel</Button>
                 <Button primary onClick={save} loading={saving} disabled={saving}>Save</Button>
               </InlineStack>
             </BlockStack>

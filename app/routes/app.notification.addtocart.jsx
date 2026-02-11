@@ -19,7 +19,7 @@ import {
   Checkbox,
   RadioButton,
 } from "@shopify/polaris";
-import { useNavigate, useFetcher } from "@remix-run/react";
+import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 
@@ -532,6 +532,8 @@ function PreviewCard({
 
 export default function AddToCartPopupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const notificationUrl = `/app/notification${location.search || ""}`;
   const [activeSection, setActiveSection] = useState("layout");
 
   const [design, setDesign] = useState({
@@ -730,7 +732,7 @@ export default function AddToCartPopupPage() {
     <Frame>
       <Page
         title="Edit Add to cart notification"
-        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
+        backAction={{ content: "Back", onAction: () => navigate(notificationUrl) }}
         primaryAction={{ content: "Save", onAction: () => {} }}
       >
         <style>{LOW_STOCK_STYLES}</style>

@@ -18,7 +18,7 @@ import {
   Checkbox,
   RadioButton,
 } from "@shopify/polaris";
-import { useNavigate, useFetcher } from "@remix-run/react";
+import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 
@@ -505,6 +505,8 @@ function PreviewCard({
 
 export default function ReviewNotificationPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const notificationUrl = `/app/notification${location.search || ""}`;
   const fetcher = useFetcher();
   const collectionFetcher = useFetcher();
   const [activeSection, setActiveSection] = useState("layout");
@@ -694,7 +696,7 @@ export default function ReviewNotificationPage() {
         title="Create Review notification"
         backAction={{
           content: "Back",
-          onAction: () => navigate("/app/notification"),
+          onAction: () => navigate(notificationUrl),
         }}
         primaryAction={{ content: "Save", onAction: () => {} }}
       >

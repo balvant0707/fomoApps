@@ -1,5 +1,5 @@
 // app/routes/app.jsx
-import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
+import { Link, Outlet, useLoaderData, useRouteError, useLocation } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -46,14 +46,16 @@ export const loader = async ({ request }) => {
 
 export default function App() {
   const { apiKey } = useLoaderData();
+  const location = useLocation();
+  const search = location.search || "";
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home" prefetch="intent">Home</Link>
-        <Link to="/app/notification" prefetch="intent">Notification</Link>
-        <Link to="/app/dashboard" prefetch="intent">Analytics</Link>
-        <Link to="/app/documents" prefetch="intent">Documents</Link>
-        <Link to="/app/help" prefetch="intent">Help</Link>
+        <Link to={`/app${search}`} rel="home" prefetch="intent">Home</Link>
+        <Link to={`/app/notification${search}`} prefetch="intent">Notification</Link>
+        <Link to={`/app/dashboard${search}`} prefetch="intent">Analytics</Link>
+        <Link to={`/app/documents${search}`} prefetch="intent">Documents</Link>
+        <Link to={`/app/help${search}`} prefetch="intent">Help</Link>
       </NavMenu>
       <LcpObserver />
       <Outlet />

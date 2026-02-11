@@ -25,6 +25,7 @@ import {
 import {
   useLoaderData,
   useNavigate,
+  useLocation,
   useRouteError,
 } from "@remix-run/react";
 import { json } from "@remix-run/node";
@@ -1465,6 +1466,8 @@ export default function RecentOrdersPopupPage() {
     loaderError,
   } = useLoaderData();
   const navigate = useNavigate();
+  const location = useLocation();
+  const notificationUrl = `/app/notification${location.search || ""}`;
 
   useEffect(() => {
     console.log(
@@ -1637,7 +1640,7 @@ export default function RecentOrdersPopupPage() {
         title={`Configuration - ${title}`}
         backAction={{
           content: "Back",
-          onAction: () => navigate("/app/notification"),
+          onAction: () => navigate(notificationUrl),
         }}
         primaryAction={{
           content: "Save",

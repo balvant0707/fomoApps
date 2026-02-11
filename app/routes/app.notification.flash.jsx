@@ -5,7 +5,7 @@ import {
   BlockStack, InlineStack, Text, ColorPicker, Frame,
   Toast, Loading, Popover, Tag, ButtonGroup, DropZone, RadioButton, Checkbox
 } from "@shopify/polaris";
-import { useLoaderData, useNavigate } from "@remix-run/react";
+import { useLoaderData, useNavigate, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -707,6 +707,8 @@ function LivePreview({ form }) {
 /* ---------------- Page ---------------- */
 export default function FlashConfigPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const notificationUrl = `/app/notification${location.search || ""}`;
   const { title } = useLoaderData();
 
   const [saving, setSaving] = useState(false);
@@ -911,7 +913,7 @@ export default function FlashConfigPage() {
       {saving && <Loading />}
       <Page
         title="Configuration - Flash Sale Bars"
-        backAction={{ content: "Back", onAction: () => navigate("/app/notification") }}
+        backAction={{ content: "Back", onAction: () => navigate(notificationUrl) }}
         primaryAction={{ content: "Save as New", onAction: save, loading: saving, disabled: saving }}
       >
         <style>{FLASH_STYLES}</style>
