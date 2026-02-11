@@ -162,7 +162,6 @@ const RECENT_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
 }
 @media (max-width: 1100px) {
   .recent-shell {
@@ -1143,9 +1142,12 @@ function Bubble({ form, order, isMobile = false }) {
     : first?.image || order?.productImage || null;
   const moreCount = Math.max(0, products.length - 1);
   const showImage = !!productImg;
-  const imageOverflow = showImage && form.imageAppearance === "cover";
+  const imageOverflow =
+    showImage && form.imageAppearance === "cover" && !isPortrait;
   const avatarSize = isPortrait ? 56 : 60;
   const avatarOffset = Math.round(avatarSize * 0.45);
+  const portraitImageSize = isMobile ? 120 : 160;
+  const showPortraitBlock = isPortrait && !hide.has("productImage");
 
   const showTime = !hide.has("time");
   const background =
@@ -1179,7 +1181,44 @@ function Bubble({ form, order, isMobile = false }) {
         ...animStyle,
       }}
     >
-      {imageOverflow ? (
+      {showPortraitBlock ? (
+        <div
+          style={{
+            width: portraitImageSize,
+            height: portraitImageSize,
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "#ffffff",
+            alignSelf: "center",
+            display: "grid",
+            placeItems: "center",
+            boxShadow: "0 10px 22px rgba(0,0,0,0.12)",
+            border: "1px solid rgba(15,23,42,0.08)",
+          }}
+        >
+          {showImage ? (
+            <img
+              src={productImg}
+              alt={productTitle || "Product"}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: imageFit,
+              }}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                background: "#f4f4f5",
+              }}
+            />
+          )}
+        </div>
+      ) : imageOverflow ? (
         <div
           style={{
             position: "absolute",
@@ -1305,14 +1344,14 @@ function DesktopPreview({ form, order }) {
         height: 400,
         borderRadius: 12,
         border: "1px solid #e5e7eb",
-        background: "linear-gradient(180deg,#fafafa 0%,#f5f5f5 100%)",
+        background: "#ffffff",
         overflow: "hidden",
         position: "relative",
         display: "flex",
         justifyContent: "center",
         padding: 18,
         boxSizing: "border-box",
-        ...flex,
+        alignItems: "start",
       }}
     >
       <Bubble form={form} order={order} />
