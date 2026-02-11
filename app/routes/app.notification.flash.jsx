@@ -130,9 +130,8 @@ const FLASH_STYLES = `
 .flash-preview-box {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 0;
+  padding: 10px;
   min-height: 320px;
-  background: #fafafa;
 }
 @media (max-width: 1100px) {
   .flash-shell {
@@ -919,31 +918,7 @@ export default function FlashConfigPage() {
                         setVisibility((s) => ({ ...s, showProduct: v }))
                       }
                     />
-                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
-                      <RadioButton
-                        id="flash-product-scope-all"
-                        name="flash_product_scope"
-                        label="All products"
-                        checked={visibility.productScope === "all"}
-                        disabled={!visibility.showProduct}
-                        onChange={() =>
-                          setVisibility((s) => ({ ...s, productScope: "all" }))
-                        }
-                      />
-                      <RadioButton
-                        id="flash-product-scope-specific"
-                        name="flash_product_scope"
-                        label="Specific products"
-                        checked={visibility.productScope === "specific"}
-                        disabled={!visibility.showProduct}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            productScope: "specific",
-                          }))
-                        }
-                      />
-                    </div>
+                
                     <Checkbox
                       label="Collection list"
                       checked={visibility.showCollectionList}
@@ -961,34 +936,7 @@ export default function FlashConfigPage() {
                         setVisibility((s) => ({ ...s, showCollection: v }))
                       }
                     />
-                    <div style={{ marginLeft: 28, display: "grid", gap: 8 }}>
-                      <RadioButton
-                        id="flash-collection-scope-all"
-                        name="flash_collection_scope"
-                        label="All collections"
-                        checked={visibility.collectionScope === "all"}
-                        disabled={!visibility.showCollection}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            collectionScope: "all",
-                          }))
-                        }
-                      />
-                      <RadioButton
-                        id="flash-collection-scope-specific"
-                        name="flash_collection_scope"
-                        label="Specific collections"
-                        checked={visibility.collectionScope === "specific"}
-                        disabled={!visibility.showCollection}
-                        onChange={() =>
-                          setVisibility((s) => ({
-                            ...s,
-                            collectionScope: "specific",
-                          }))
-                        }
-                      />
-                    </div>
+                    
                     <Checkbox
                       label="Cart page"
                       checked={visibility.showCart}
