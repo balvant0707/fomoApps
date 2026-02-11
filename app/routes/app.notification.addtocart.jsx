@@ -1191,12 +1191,13 @@ export default function AddToCartPopupPage() {
                                 label="Specific products"
                                 checked={visibility.productScope === "specific"}
                                 disabled={!visibility.showProduct}
-                                onChange={() =>
+                                onChange={() => {
                                   setVisibility((s) => ({
                                     ...s,
                                     productScope: "specific",
-                                  }))
-                                }
+                                  }));
+                                  setPickerOpen(true);
+                                }}
                               />
                               {visibility.productScope === "specific" && (
                                 <InlineStack
@@ -1254,12 +1255,13 @@ export default function AddToCartPopupPage() {
                                 label="Specific collections"
                                 checked={visibility.collectionScope === "specific"}
                                 disabled={!visibility.showCollection}
-                                onChange={() =>
+                                onChange={() => {
                                   setVisibility((s) => ({
                                     ...s,
                                     collectionScope: "specific",
-                                  }))
-                                }
+                                  }));
+                                  setCollectionPickerOpen(true);
+                                }}
                               />
                               {visibility.collectionScope === "specific" && (
                                 <InlineStack

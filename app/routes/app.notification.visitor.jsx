@@ -1279,19 +1279,20 @@ export default function VisitorPopupPage() {
                             setVisibility((s) => ({ ...s, productScope: "all" }))
                           }
                         />
-                        <RadioButton
-                          id="product-scope-specific"
-                          name="product_scope"
-                          label="Specific products"
-                          checked={visibility.productScope === "specific"}
-                          disabled={!visibility.showProduct}
-                          onChange={() =>
-                            setVisibility((s) => ({
-                              ...s,
-                              productScope: "specific",
-                            }))
-                          }
-                        />
+                          <RadioButton
+                            id="product-scope-specific"
+                            name="product_scope"
+                            label="Specific products"
+                            checked={visibility.productScope === "specific"}
+                            disabled={!visibility.showProduct}
+                            onChange={() => {
+                              setVisibility((s) => ({
+                                ...s,
+                                productScope: "specific",
+                              }));
+                              setPickerOpen(true);
+                            }}
+                          />
                       </div>
                       <Checkbox
                         label="Collection list"
@@ -1327,12 +1328,13 @@ export default function VisitorPopupPage() {
                             label="Specific collections"
                             checked={visibility.collectionScope === "specific"}
                             disabled={!visibility.showCollection}
-                            onChange={() =>
+                            onChange={() => {
                               setVisibility((s) => ({
                                 ...s,
                                 collectionScope: "specific",
-                              }))
-                            }
+                              }));
+                              setCollectionPickerOpen(true);
+                            }}
                           />
                           {visibility.collectionScope === "specific" && (
                             <InlineStack

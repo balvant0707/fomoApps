@@ -25,7 +25,6 @@ export async function loader({ request }) {
               id
               title
               handle
-              productsCount
               image { url altText }
               products(first: 1) {
                 nodes {
@@ -76,7 +75,8 @@ export async function loader({ request }) {
             id: c.id,
             title: c.title,
             handle: c.handle,
-            productsCount: c.productsCount ?? 0,
+            productsCount:
+              c.productsCount ?? c?.products?.nodes?.length ?? 0,
             image: c.image?.url || null,
             sampleProduct: sample
               ? {
