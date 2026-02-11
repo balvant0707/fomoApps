@@ -562,7 +562,7 @@ export default function LowStockPopupPage() {
   const [visibility, setVisibility] = useState({
     showHome: true,
     showProduct: true,
-    productScope: "specific",
+    productScope: "all",
     showCollectionList: true,
     showCollection: true,
     collectionScope: "all",
