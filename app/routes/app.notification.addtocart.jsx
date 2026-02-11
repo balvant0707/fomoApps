@@ -1196,7 +1196,6 @@ export default function AddToCartPopupPage() {
                                     ...s,
                                     productScope: "specific",
                                   }));
-                                  setPickerOpen(true);
                                 }}
                               />
                               {visibility.productScope === "specific" && (
@@ -1207,7 +1206,7 @@ export default function AddToCartPopupPage() {
                                   style={{ marginTop: 6 }}
                                 >
                                   <Button onClick={() => setPickerOpen(true)}>
-                                    Browse products
+                                    Select Product
                                   </Button>
                                   <Text tone="subdued">
                                     {selectedProducts.length} products selected
@@ -1260,7 +1259,6 @@ export default function AddToCartPopupPage() {
                                     ...s,
                                     collectionScope: "specific",
                                   }));
-                                  setCollectionPickerOpen(true);
                                 }}
                               />
                               {visibility.collectionScope === "specific" && (
@@ -1271,7 +1269,7 @@ export default function AddToCartPopupPage() {
                                   style={{ marginTop: 6 }}
                                 >
                                   <Button onClick={() => setCollectionPickerOpen(true)}>
-                                    Browse collections
+                                    Select collections
                                   </Button>
                                   <Text tone="subdued">
                                     {selectedCollections.length} collections selected
