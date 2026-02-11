@@ -662,6 +662,12 @@ export default function LowStockPopupPage() {
 
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
+  const needsProductSelection =
+    visibility.productScope === "specific" && selectedProducts.length === 0;
+  const needsCollectionSelection =
+    visibility.collectionScope === "specific" &&
+    selectedCollections.length === 0;
+
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -669,10 +675,14 @@ export default function LowStockPopupPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct ||
-    scopedCollectionProduct ||
-    storeProducts[0] ||
-    MOCK_PRODUCTS[0];
+    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+  const previewMessage = needsProductSelection
+    ? "Select a product to preview."
+    : needsCollectionSelection
+      ? "Select a collection to preview."
+      : !previewProduct
+        ? "Preview will appear once a product is available."
+        : null;
 
   const togglePick = (item) => {
     setSelectedProducts((prev) => {
@@ -1155,13 +1165,12 @@ export default function LowStockPopupPage() {
                                 label="Specific products"
                                 checked={visibility.productScope === "specific"}
                                 disabled={!visibility.showProduct}
-                                onChange={() => {
+                                onChange={() =>
                                   setVisibility((s) => ({
                                     ...s,
                                     productScope: "specific",
-                                  }));
-                                  setPickerOpen(true);
-                                }}
+                                  }))
+                                }
                               />
                               {visibility.productScope === "specific" && (
                                 <InlineStack
@@ -1219,13 +1228,12 @@ export default function LowStockPopupPage() {
                                 label="Specific collections"
                                 checked={visibility.collectionScope === "specific"}
                                 disabled={!visibility.showCollection}
-                                onChange={() => {
+                                onChange={() =>
                                   setVisibility((s) => ({
                                     ...s,
                                     collectionScope: "specific",
-                                  }));
-                                  setCollectionPickerOpen(true);
-                                }}
+                                  }))
+                                }
                               />
                               {visibility.collectionScope === "specific" && (
                                 <InlineStack
@@ -1366,38 +1374,58 @@ export default function LowStockPopupPage() {
                         Preview
                       </Text>
                       <div className="lowstock-preview-box">
-                        <PreviewCard
-                          layout={design.layout}
-                          size={design.size}
-                          transparency={design.transparent}
-                          bgColor={normalizeHex(design.bgColor, "#FFFBD2")}
-                          bgAlt={normalizeHex(design.bgAlt, "#FBCFCF")}
-                          textColor={normalizeHex(design.textColor, "#000000")}
-                          numberColor={normalizeHex(
-                            design.numberColor,
-                            "#000000"
-                          )}
-                          priceTagBg={normalizeHex(design.priceTagBg, "#593E3F")}
-                          priceTagAlt={normalizeHex(
-                            design.priceTagAlt,
-                            "#E66465"
-                          )}
-                          priceColor={normalizeHex(design.priceColor, "#FFFFFF")}
-                          starColor={normalizeHex(design.starColor, "#F06663")}
-                          textSizeContent={Number(textSize.content) || 14}
-                          textSizeCompare={Number(textSize.compareAt) || 12}
-                          textSizePrice={Number(textSize.price) || 12}
-                          contentText={content.message}
-                          stockCount={data.stockUnder}
-                          showProductImage={data.showProductImage}
-                          showPriceTag={data.showPriceTag}
-                          showRating={data.showRating}
-                          showClose={behavior.showClose}
-                          product={previewProduct}
-                          template={design.template}
-                          productNameMode={productNameMode}
-                          productNameLimit={productNameLimit}
-                        />
+                        {previewMessage ? (
+                          <div style={{ textAlign: "center" }}>
+                            <Text as="p" tone="subdued">
+                              {previewMessage}
+                            </Text>
+                          </div>
+                        ) : (
+                          <PreviewCard
+                            layout={design.layout}
+                            size={design.size}
+                            transparency={design.transparent}
+                            bgColor={normalizeHex(design.bgColor, "#FFFBD2")}
+                            bgAlt={normalizeHex(design.bgAlt, "#FBCFCF")}
+                            textColor={normalizeHex(
+                              design.textColor,
+                              "#000000"
+                            )}
+                            numberColor={normalizeHex(
+                              design.numberColor,
+                              "#000000"
+                            )}
+                            priceTagBg={normalizeHex(
+                              design.priceTagBg,
+                              "#593E3F"
+                            )}
+                            priceTagAlt={normalizeHex(
+                              design.priceTagAlt,
+                              "#E66465"
+                            )}
+                            priceColor={normalizeHex(
+                              design.priceColor,
+                              "#FFFFFF"
+                            )}
+                            starColor={normalizeHex(
+                              design.starColor,
+                              "#F06663"
+                            )}
+                            textSizeContent={Number(textSize.content) || 14}
+                            textSizeCompare={Number(textSize.compareAt) || 12}
+                            textSizePrice={Number(textSize.price) || 12}
+                            contentText={content.message}
+                            stockCount={data.stockUnder}
+                            showProductImage={data.showProductImage}
+                            showPriceTag={data.showPriceTag}
+                            showRating={data.showRating}
+                            showClose={behavior.showClose}
+                            product={previewProduct}
+                            template={design.template}
+                            productNameMode={productNameMode}
+                            productNameLimit={productNameLimit}
+                          />
+                        )}
                       </div>
                     </BlockStack>
                   </Box>

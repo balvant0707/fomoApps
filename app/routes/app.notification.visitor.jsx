@@ -708,6 +708,12 @@ export default function VisitorPopupPage() {
 
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
+  const needsProductSelection =
+    visibility.productScope === "specific" && selectedProducts.length === 0;
+  const needsCollectionSelection =
+    visibility.collectionScope === "specific" &&
+    selectedCollections.length === 0;
+
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -715,10 +721,14 @@ export default function VisitorPopupPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct ||
-    scopedCollectionProduct ||
-    storeProducts[0] ||
-    MOCK_PRODUCTS[0];
+    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+  const previewMessage = needsProductSelection
+    ? "Select a product to preview."
+    : needsCollectionSelection
+      ? "Select a collection to preview."
+      : !previewProduct
+        ? "Preview will appear once a product is available."
+        : null;
 
   const togglePick = (item) => {
     setSelectedProducts((prev) => {
@@ -1279,20 +1289,34 @@ export default function VisitorPopupPage() {
                             setVisibility((s) => ({ ...s, productScope: "all" }))
                           }
                         />
-                          <RadioButton
-                            id="product-scope-specific"
-                            name="product_scope"
-                            label="Specific products"
-                            checked={visibility.productScope === "specific"}
-                            disabled={!visibility.showProduct}
-                            onChange={() => {
-                              setVisibility((s) => ({
-                                ...s,
-                                productScope: "specific",
-                              }));
-                              setPickerOpen(true);
-                            }}
-                          />
+                        <RadioButton
+                          id="product-scope-specific"
+                          name="product_scope"
+                          label="Specific products"
+                          checked={visibility.productScope === "specific"}
+                          disabled={!visibility.showProduct}
+                          onChange={() =>
+                            setVisibility((s) => ({
+                              ...s,
+                              productScope: "specific",
+                            }))
+                          }
+                        />
+                        {visibility.productScope === "specific" && (
+                          <InlineStack
+                            gap="200"
+                            blockAlign="center"
+                            wrap
+                            style={{ marginTop: 6 }}
+                          >
+                            <Button onClick={() => setPickerOpen(true)}>
+                              Select Product
+                            </Button>
+                            <Text tone="subdued">
+                              {selectedProducts.length} products selected
+                            </Text>
+                          </InlineStack>
+                        )}
                       </div>
                       <Checkbox
                         label="Collection list"
@@ -1328,13 +1352,12 @@ export default function VisitorPopupPage() {
                             label="Specific collections"
                             checked={visibility.collectionScope === "specific"}
                             disabled={!visibility.showCollection}
-                            onChange={() => {
+                            onChange={() =>
                               setVisibility((s) => ({
                                 ...s,
                                 collectionScope: "specific",
-                              }));
-                              setCollectionPickerOpen(true);
-                            }}
+                              }))
+                            }
                           />
                           {visibility.collectionScope === "specific" && (
                             <InlineStack
@@ -1471,37 +1494,48 @@ export default function VisitorPopupPage() {
                     Preview
                   </Text>
                   <div className="visitor-preview-box">
-                    <PreviewCard
-                      layout={design.layout}
-                      size={design.size}
-                      transparency={design.transparent}
-                      bgColor={normalizeHex(design.bgColor, "#FFFFFF")}
-                      bgAlt={normalizeHex(design.bgAlt, "#F3F4F6")}
-                      textColor={normalizeHex(design.textColor, "#111111")}
-                      timestampColor={normalizeHex(
-                        design.timestampColor,
-                        "#696969"
-                      )}
-                      priceTagBg={normalizeHex(design.priceTagBg, "#593E3F")}
-                      priceTagAlt={normalizeHex(design.priceTagAlt, "#E66465")}
-                      priceColor={normalizeHex(design.priceColor, "#FFFFFF")}
-                      starColor={normalizeHex(design.starColor, "#FFD240")}
-                      textSizeContent={Number(textSize.content) || 14}
-                      textSizeCompare={Number(textSize.compareAt) || 13}
-                      textSizePrice={Number(textSize.price) || 13}
-                      contentText={content.message}
-                      timestampText={content.timestamp}
-                      avgTime={content.avgTime}
-                      avgUnit={content.avgUnit}
-                      showProductImage={data.showProductImage}
-                      showPriceTag={data.showPriceTag}
-                      showRating={data.showRating}
-                      showClose={behavior.showClose}
-                      product={previewProduct}
-                      template={design.template}
-                      productNameMode={productNameMode}
-                      productNameLimit={productNameLimit}
-                    />
+                    {previewMessage ? (
+                      <div style={{ textAlign: "center" }}>
+                        <Text as="p" tone="subdued">
+                          {previewMessage}
+                        </Text>
+                      </div>
+                    ) : (
+                      <PreviewCard
+                        layout={design.layout}
+                        size={design.size}
+                        transparency={design.transparent}
+                        bgColor={normalizeHex(design.bgColor, "#FFFFFF")}
+                        bgAlt={normalizeHex(design.bgAlt, "#F3F4F6")}
+                        textColor={normalizeHex(design.textColor, "#111111")}
+                        timestampColor={normalizeHex(
+                          design.timestampColor,
+                          "#696969"
+                        )}
+                        priceTagBg={normalizeHex(design.priceTagBg, "#593E3F")}
+                        priceTagAlt={normalizeHex(
+                          design.priceTagAlt,
+                          "#E66465"
+                        )}
+                        priceColor={normalizeHex(design.priceColor, "#FFFFFF")}
+                        starColor={normalizeHex(design.starColor, "#FFD240")}
+                        textSizeContent={Number(textSize.content) || 14}
+                        textSizeCompare={Number(textSize.compareAt) || 13}
+                        textSizePrice={Number(textSize.price) || 13}
+                        contentText={content.message}
+                        timestampText={content.timestamp}
+                        avgTime={content.avgTime}
+                        avgUnit={content.avgUnit}
+                        showProductImage={data.showProductImage}
+                        showPriceTag={data.showPriceTag}
+                        showRating={data.showRating}
+                        showClose={behavior.showClose}
+                        product={previewProduct}
+                        template={design.template}
+                        productNameMode={productNameMode}
+                        productNameLimit={productNameLimit}
+                      />
+                    )}
                   </div>
                 </BlockStack>
               </Box>
