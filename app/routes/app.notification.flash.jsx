@@ -16,6 +16,27 @@ const LAYOUTS = [
   { label: "Landscape", value: "landscape" },
   { label: "Portrait", value: "portrait" },
 ];
+const TIME_UNITS = [
+  { label: "Seconds", value: "seconds" },
+  { label: "Minutes", value: "minutes" },
+];
+const intervalUnitFromSeconds = (seconds) => {
+  const n = Number(seconds || 0);
+  return n >= 60 && n % 60 === 0 ? "minutes" : "seconds";
+};
+const intervalValueFromSeconds = (seconds, unit) => {
+  const n = Number(seconds || 0);
+  if (unit === "minutes") return Math.round(n / 60);
+  return Math.round(n);
+};
+const intervalSecondsFromValue = (value, unit, maxSeconds = 3600) => {
+  const n = parseInt(String(value || "0"), 10);
+  const base = Number.isFinite(n) ? n : 0;
+  const max =
+    unit === "minutes" ? Math.max(0, Math.floor(maxSeconds / 60)) : maxSeconds;
+  const clamped = Math.max(0, Math.min(max, base));
+  return unit === "minutes" ? clamped * 60 : clamped;
+};
 
 const initVisibility = (showType) => {
   const base = {
@@ -320,6 +341,7 @@ export async function action({ request }) {
     ctaBgColor: form?.bgAlt ?? null,
 
     rounded: form?.rounded != null ? Number(form.rounded) : null,
+    firstDelaySeconds: form?.firstDelaySeconds != null ? Number(form.firstDelaySeconds) : null,
     durationSeconds: form?.durationSeconds != null ? Number(form.durationSeconds) : null,
     alternateSeconds: form?.alternateSeconds != null ? Number(form.alternateSeconds) : null,
 
@@ -728,8 +750,10 @@ export default function FlashConfigPage() {
     priceColor: "#FFFFFF",
     starColor: "#F06663",
     rounded: 14,
+    firstDelaySeconds: 1,
     durationSeconds: 1,
     alternateSeconds: 5,
+    intervalUnit: intervalUnitFromSeconds(5),
     iconKey: "reshot", // default builtin
     iconSvg: "",       // uploaded svg string (optional)
   });
@@ -754,7 +778,28 @@ export default function FlashConfigPage() {
 
   const onField = (k) => (v) => setForm(f => ({ ...f, [k]: v }));
   const onDurationChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 1 : Math.min(60, Math.max(1, n)); setForm(f => ({ ...f, durationSeconds: x })); };
-  const onAlternateChange = (val) => { const n = parseInt(val || "0", 10); const x = isNaN(n) ? 0 : Math.min(3600, Math.max(0, n)); setForm(f => ({ ...f, alternateSeconds: x })); };
+  const onDelayChange = (val) => {
+    const n = parseInt(val || "0", 10);
+    const x = isNaN(n) ? 0 : Math.min(3600, Math.max(0, n));
+    setForm((f) => ({ ...f, firstDelaySeconds: x }));
+  };
+  const onIntervalValueChange = (val) => {
+    setForm((f) => {
+      const unit = f.intervalUnit || intervalUnitFromSeconds(f.alternateSeconds);
+      const nextSeconds = intervalSecondsFromValue(val, unit, 3600);
+      return { ...f, alternateSeconds: nextSeconds };
+    });
+  };
+  const onIntervalUnitChange = (unit) => {
+    setForm((f) => {
+      const nextSeconds = intervalSecondsFromValue(
+        intervalValueFromSeconds(f.alternateSeconds, unit),
+        unit,
+        3600
+      );
+      return { ...f, intervalUnit: unit, alternateSeconds: nextSeconds };
+    });
+  };
 
   const titlesDraft = useTokenDraft(titlesList, setTitlesList);
   const locationsDraft = useTokenDraft(locationsList, setLocationsList);
@@ -766,6 +811,12 @@ export default function FlashConfigPage() {
       ? [{ label: "Custom (uploaded)", value: "upload_svg" }, ...baseSvgOptions]
       : baseSvgOptions;
   }, [form.iconSvg]);
+  const intervalUnit =
+    form.intervalUnit || intervalUnitFromSeconds(form.alternateSeconds);
+  const intervalValue = intervalValueFromSeconds(
+    form.alternateSeconds,
+    intervalUnit
+  );
 
   // Handle SVG drop
   const handleSvgDrop = useCallback((_drop, accepted, rejected) => {
@@ -945,34 +996,54 @@ export default function FlashConfigPage() {
                       }
                     />
                   </BlockStack>
+                  <TextField
+                    label="Delay before first notification"
+                    type="number"
+                    value={String(form.firstDelaySeconds ?? 0)}
+                    onChange={onDelayChange}
+                    suffix="seconds"
+                    min={0}
+                    max={3600}
+                    step={1}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Display duration"
+                    type="number"
+                    value={String(form.durationSeconds)}
+                    onChange={onDurationChange}
+                    suffix="seconds"
+                    min={1}
+                    max={60}
+                    step={1}
+                    autoComplete="off"
+                  />
                   <InlineStack gap="400" wrap={false} width="100%">
                     <Box width="50%">
                       <TextField
-                        label="Popup Display Duration (seconds)"
+                        label="Interval time"
                         type="number"
-                        value={String(form.durationSeconds)}
-                        onChange={onDurationChange}
-                        suffix="S"
-                        min={1}
-                        max={60}
+                        value={String(intervalValue)}
+                        onChange={onIntervalValueChange}
+                        min={0}
+                        max={intervalUnit === "minutes" ? 60 : 3600}
                         step={1}
                         autoComplete="off"
                       />
                     </Box>
                     <Box width="50%">
-                      <TextField
-                        label="Interval Between Sale Bars (seconds)"
-                        type="number"
-                        value={String(form.alternateSeconds)}
-                        onChange={onAlternateChange}
-                        suffix="S"
-                        min={0}
-                        max={3600}
-                        step={1}
-                        autoComplete="off"
+                      <Select
+                        label=" "
+                        labelHidden
+                        options={TIME_UNITS}
+                        value={intervalUnit}
+                        onChange={onIntervalUnitChange}
                       />
                     </Box>
                   </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Delay between each notification.
+                  </Text>
                 </BlockStack>
               </Box>
             </Card>

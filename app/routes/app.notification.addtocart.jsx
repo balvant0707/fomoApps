@@ -1,5 +1,5 @@
 // app/routes/app.notification.addtocart.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Page,
   Card,
@@ -19,7 +19,7 @@ import {
   Checkbox,
   RadioButton,
 } from "@shopify/polaris";
-import { useNavigate } from "@remix-run/react";
+import { useNavigate, useFetcher } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 
@@ -118,12 +118,11 @@ const LOW_STOCK_STYLES = `
 .lowstock-preview-box {
   border: 1px solid #e5e7eb;
   border-radius: 16px;
-  padding: 0px;
-  min-height: 320px;
+  padding: 12px;
+  min-height: 340px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
 }
 .token-pill {
   border: none;
@@ -596,28 +595,119 @@ export default function AddToCartPopupPage() {
     randomize: true,
   });
 
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [search, setSearch] = useState("");
+  const productFetcher = useFetcher();
+  const collectionFetcher = useFetcher();
 
-  const products = useMemo(() => {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [collectionSearch, setCollectionSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [collectionPage, setCollectionPage] = useState(1);
+  const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
+  const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
+
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedCollections, setSelectedCollections] = useState([]);
+
+  useEffect(() => {
+    if (hasLoadedProducts) return;
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    productFetcher.load(`/app/products-picker?${params.toString()}`);
+    setHasLoadedProducts(true);
+  }, [hasLoadedProducts, productFetcher]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    params.set("page", String(page));
+    productFetcher.load(`/app/products-picker?${params.toString()}`);
+  }, [pickerOpen, search, page, productFetcher]);
+
+  useEffect(() => {
+    if (hasLoadedCollections) return;
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    collectionFetcher.load(`/app/collections-picker?${params.toString()}`);
+    setHasLoadedCollections(true);
+  }, [hasLoadedCollections, collectionFetcher]);
+
+  useEffect(() => {
+    if (!collectionPickerOpen) return;
+    const params = new URLSearchParams();
+    if (collectionSearch) params.set("q", collectionSearch);
+    params.set("page", String(collectionPage));
+    collectionFetcher.load(`/app/collections-picker?${params.toString()}`);
+  }, [collectionPickerOpen, collectionSearch, collectionPage, collectionFetcher]);
+
+  const storeProducts = useMemo(() => {
+    const items = productFetcher.data?.items || [];
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.featuredImage || null,
+      status: item.status,
+      price: item.price || null,
+      compareAt: item.compareAt || null,
+      rating: 4,
+    }));
+  }, [productFetcher.data]);
+
+  const storeCollections = useMemo(() => {
+    const items = collectionFetcher.data?.items || [];
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      handle: item.handle,
+      image: item.image || null,
+      productsCount: item.productsCount ?? 0,
+      sampleProduct: item.sampleProduct || null,
+    }));
+  }, [collectionFetcher.data]);
+
+  const fallbackProducts = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return MOCK_PRODUCTS;
     return MOCK_PRODUCTS.filter((p) => p.title.toLowerCase().includes(term));
   }, [search]);
 
-  const selectedProducts = useMemo(
-    () => MOCK_PRODUCTS.filter((p) => selectedIds.includes(p.id)),
-    [selectedIds]
-  );
+  const products = storeProducts.length ? storeProducts : fallbackProducts;
 
-  const previewProduct = selectedProducts[0] || MOCK_PRODUCTS[0];
+  const scopedProduct =
+    visibility.productScope === "specific" ? selectedProducts[0] : null;
+  const scopedCollectionProduct =
+    visibility.collectionScope === "specific"
+      ? selectedCollections[0]?.sampleProduct
+      : null;
+  const previewProduct =
+    scopedProduct ||
+    scopedCollectionProduct ||
+    storeProducts[0] ||
+    MOCK_PRODUCTS[0];
 
-  const togglePick = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
+  const togglePick = (item) => {
+    setSelectedProducts((prev) => {
+      const exists = prev.some((p) => p.id === item.id);
+      if (exists) return prev.filter((p) => p.id !== item.id);
+      return [...prev, item];
+    });
   };
+
+  const toggleCollection = (item) => {
+    setSelectedCollections((prev) => {
+      const exists = prev.some((c) => c.id === item.id);
+      if (exists) return prev.filter((c) => c.id !== item.id);
+      return [...prev, item];
+    });
+  };
+
+  const hasNextPage = Boolean(productFetcher.data?.hasNextPage);
+  const hasNextCollectionPage = Boolean(collectionFetcher.data?.hasNextPage);
+  const collectionItems = storeCollections;
 
   const insertToken = (field, token) => {
     setContent((c) => ({
@@ -1119,7 +1209,7 @@ export default function AddToCartPopupPage() {
                                     Browse products
                                   </Button>
                                   <Text tone="subdued">
-                                    {selectedIds.length} products selected
+                                    {selectedProducts.length} products selected
                                   </Text>
                                 </InlineStack>
                               )}
@@ -1171,6 +1261,21 @@ export default function AddToCartPopupPage() {
                                   }))
                                 }
                               />
+                              {visibility.collectionScope === "specific" && (
+                                <InlineStack
+                                  gap="200"
+                                  blockAlign="center"
+                                  wrap
+                                  style={{ marginTop: 6 }}
+                                >
+                                  <Button onClick={() => setCollectionPickerOpen(true)}>
+                                    Browse collections
+                                  </Button>
+                                  <Text tone="subdued">
+                                    {selectedCollections.length} collections selected
+                                  </Text>
+                                </InlineStack>
+                              )}
                             </div>
                             <Checkbox
                               label="Cart page"
@@ -1361,7 +1466,10 @@ export default function AddToCartPopupPage() {
                   labelHidden
                   placeholder="Search products"
                   value={search}
-                  onChange={setSearch}
+                  onChange={(v) => {
+                    setSearch(v);
+                    setPage(1);
+                  }}
                   autoComplete="off"
                 />
               </Box>
@@ -1387,14 +1495,14 @@ export default function AddToCartPopupPage() {
               ]}
             >
               {products.map((item, index) => {
-                const checked = selectedIds.includes(item.id);
+                const checked = selectedProducts.some((p) => p.id === item.id);
                 return (
                   <IndexTable.Row id={item.id} key={item.id} position={index}>
                     <IndexTable.Cell>
                       <Checkbox
                         label=""
                         checked={checked}
-                        onChange={() => togglePick(item.id)}
+                        onChange={() => togglePick(item)}
                       />
                     </IndexTable.Cell>
                     <IndexTable.Cell>
@@ -1415,7 +1523,125 @@ export default function AddToCartPopupPage() {
               })}
             </IndexTable>
 
-            <Text tone="subdued">{selectedIds.length} products selected</Text>
+            <InlineStack gap="200" align="space-between" blockAlign="center">
+              <Text tone="subdued">
+                {selectedProducts.length} products selected
+              </Text>
+              <InlineStack gap="200">
+                <Button
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={!hasNextPage}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </InlineStack>
+            </InlineStack>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
+      <Modal
+        open={collectionPickerOpen}
+        onClose={() => setCollectionPickerOpen(false)}
+        title="Select collections"
+        primaryAction={{ content: "Select", onAction: () => setCollectionPickerOpen(false) }}
+        secondaryActions={[
+          { content: "Cancel", onAction: () => setCollectionPickerOpen(false) },
+        ]}
+        large
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <InlineStack gap="200" wrap={false}>
+              <Box width="70%">
+                <TextField
+                  label="Search collections"
+                  labelHidden
+                  placeholder="Search collections"
+                  value={collectionSearch}
+                  onChange={(v) => {
+                    setCollectionSearch(v);
+                    setCollectionPage(1);
+                  }}
+                  autoComplete="off"
+                />
+              </Box>
+              <Box width="30%">
+                <Select
+                  label="Search by"
+                  labelHidden
+                  options={[{ label: "All", value: "all" }]}
+                  value="all"
+                  onChange={() => {}}
+                />
+              </Box>
+            </InlineStack>
+
+            <IndexTable
+              resourceName={{ singular: "collection", plural: "collections" }}
+              itemCount={collectionItems.length}
+              selectable={false}
+              headings={[
+                { title: "Select" },
+                { title: "Collection" },
+                { title: "Products" },
+              ]}
+            >
+              {collectionItems.map((item, index) => {
+                const checked = selectedCollections.some((c) => c.id === item.id);
+                return (
+                  <IndexTable.Row id={item.id} key={item.id} position={index}>
+                    <IndexTable.Cell>
+                      <Checkbox
+                        label=""
+                        checked={checked}
+                        onChange={() => toggleCollection(item)}
+                      />
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Thumbnail
+                          source={item.image}
+                          alt={item.title}
+                          size="small"
+                        />
+                        <Text>{item.title}</Text>
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone="info">
+                        {Number(item.productsCount ?? 0)} items
+                      </Badge>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
+
+            <InlineStack gap="200" align="space-between" blockAlign="center">
+              <Text tone="subdued">
+                {selectedCollections.length} collections selected
+              </Text>
+              <InlineStack gap="200">
+                <Button
+                  disabled={collectionPage <= 1}
+                  onClick={() => setCollectionPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={!hasNextCollectionPage}
+                  onClick={() => setCollectionPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </InlineStack>
+            </InlineStack>
           </BlockStack>
         </Modal.Section>
       </Modal>

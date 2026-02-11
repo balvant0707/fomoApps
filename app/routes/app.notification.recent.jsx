@@ -96,6 +96,27 @@ const HIDE_CHOICES = [
   { label: "Order Time", value: "time" },
 ];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
+const TIME_UNITS = [
+  { label: "Seconds", value: "seconds" },
+  { label: "Minutes", value: "minutes" },
+];
+const intervalUnitFromSeconds = (seconds) => {
+  const n = Number(seconds || 0);
+  return n >= 60 && n % 60 === 0 ? "minutes" : "seconds";
+};
+const intervalValueFromSeconds = (seconds, unit) => {
+  const n = Number(seconds || 0);
+  if (unit === "minutes") return Math.round(n / 60);
+  return Math.round(n);
+};
+const intervalSecondsFromValue = (value, unit, maxSeconds = 3600) => {
+  const n = parseInt(String(value || "0"), 10);
+  const base = Number.isFinite(n) ? n : 0;
+  const max =
+    unit === "minutes" ? Math.max(0, Math.floor(maxSeconds / 60)) : maxSeconds;
+  const clamped = Math.max(0, Math.min(max, base));
+  return unit === "minutes" ? clamped * 60 : clamped;
+};
 
 const RECENT_STYLES = `
 .recent-shell {
@@ -311,6 +332,7 @@ const DEFAULT_SAVED = {
   priceColor: "#FFFFFF",
   starColor: "#F06663",
   rounded: "4",
+  firstDelaySeconds: 1,
   durationSeconds: 8,
   alternateSeconds: 10,
   fontWeight: "600",
@@ -744,6 +766,7 @@ export async function loader({ request }) {
         priceColor: "#FFFFFF",
         starColor: "#F06663",
         rounded: String(last?.rounded ?? 14),
+        firstDelaySeconds: Number(last?.firstDelaySeconds ?? 1),
         durationSeconds: Number(last?.durationSeconds ?? 1),
         alternateSeconds: Number(last?.alternateSeconds ?? 10),
         fontWeight: String(last?.fontWeight ?? 600),
@@ -889,6 +912,7 @@ export async function action({ request }) {
     msgColor: nullIfBlank(form?.textColor),
     ctaBgColor: nullIfBlank(form?.bgAlt),
     rounded: intOrNull(form?.rounded, 10, 72),
+    firstDelaySeconds: intOrNull(form?.firstDelaySeconds, 0, 3600),
     durationSeconds: intOrNull(form?.durationSeconds, 1, 60),
     alternateSeconds: intOrNull(form?.alternateSeconds, 0, 3600),
     fontWeight: intOrNull(form?.fontWeight, 100, 900),
@@ -1490,8 +1514,10 @@ export default function RecentOrdersPopupPage() {
     priceColor: saved.priceColor ?? "#FFFFFF",
     starColor: saved.starColor ?? "#F06663",
     rounded: saved.rounded,
+    firstDelaySeconds: saved.firstDelaySeconds ?? 1,
     durationSeconds: saved.durationSeconds,
     alternateSeconds: saved.alternateSeconds,
+    intervalUnit: intervalUnitFromSeconds(saved.alternateSeconds),
     fontWeight: saved.fontWeight,
     layout: saved.layout ?? "landscape",
     imageAppearance: saved.imageAppearance ?? "cover",
@@ -1524,6 +1550,23 @@ export default function RecentOrdersPopupPage() {
     const n = parseInt(String(val ?? ""), 10);
     const clamped = isNaN(n) ? lo : Math.max(lo, Math.min(hi, n));
     setForm((f) => ({ ...f, [k]: clamped }));
+  };
+  const onIntervalValueChange = (val) => {
+    setForm((f) => {
+      const unit = f.intervalUnit || intervalUnitFromSeconds(f.alternateSeconds);
+      const nextSeconds = intervalSecondsFromValue(val, unit, 3600);
+      return { ...f, alternateSeconds: nextSeconds };
+    });
+  };
+  const onIntervalUnitChange = (unit) => {
+    setForm((f) => {
+      const nextSeconds = intervalSecondsFromValue(
+        intervalValueFromSeconds(f.alternateSeconds, unit),
+        unit,
+        3600
+      );
+      return { ...f, intervalUnit: unit, alternateSeconds: nextSeconds };
+    });
   };
 
   const save = async () => {
@@ -1580,6 +1623,12 @@ export default function RecentOrdersPopupPage() {
   }));
 
   const unusable = !hasUsableOrders;
+  const intervalUnit =
+    form.intervalUnit || intervalUnitFromSeconds(form.alternateSeconds);
+  const intervalValue = intervalValueFromSeconds(
+    form.alternateSeconds,
+    intervalUnit
+  );
 
   return (
     <Frame>
@@ -1777,34 +1826,54 @@ export default function RecentOrdersPopupPage() {
                     />
                   </BlockStack>
 
+                  <TextField
+                    label="Delay before first notification"
+                    type="number"
+                    min={0}
+                    max={3600}
+                    step={1}
+                    value={String(form.firstDelaySeconds ?? 0)}
+                    onChange={onNumClamp("firstDelaySeconds", 0, 3600)}
+                    suffix="seconds"
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="Display duration"
+                    type="number"
+                    min={1}
+                    max={120}
+                    step={1}
+                    value={String(form.durationSeconds)}
+                    onChange={onNumClamp("durationSeconds", 1, 120)}
+                    suffix="seconds"
+                    autoComplete="off"
+                  />
                   <InlineStack gap="400" wrap={false}>
                     <Box width="50%">
                       <TextField
-                        label="Popup Display Duration (seconds)"
+                        label="Interval time"
                         type="number"
-                        min={1}
-                        max={120}
+                        min={0}
+                        max={intervalUnit === "minutes" ? 60 : 3600}
                         step={1}
-                        value={String(form.durationSeconds)}
-                        onChange={onNumClamp("durationSeconds", 1, 120)}
-                        suffix="S"
+                        value={String(intervalValue)}
+                        onChange={onIntervalValueChange}
                         autoComplete="off"
                       />
                     </Box>
                     <Box width="50%">
-                      <TextField
-                        label="Interval Between Popups (seconds)"
-                        type="number"
-                        min={0}
-                        max={3600}
-                        step={1}
-                        value={String(form.alternateSeconds)}
-                        onChange={onNumClamp("alternateSeconds", 0, 3600)}
-                        suffix="S"
-                        autoComplete="off"
+                      <Select
+                        label=" "
+                        labelHidden
+                        options={TIME_UNITS}
+                        value={intervalUnit}
+                        onChange={onIntervalUnitChange}
                       />
                     </Box>
                   </InlineStack>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Delay between each notification.
+                  </Text>
                 </BlockStack>
               </Box>
             </Card>

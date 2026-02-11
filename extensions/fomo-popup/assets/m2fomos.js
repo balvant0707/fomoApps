@@ -936,8 +936,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           }, Math.max(0, delaySec) * 1000);
         };
 
-        // FIRST POPUP: show immediately
-        showNext(0);
+        const firstDelay = immediate
+          ? 0
+          : Math.max(0, Number(seq[0]?.firstDelaySeconds ?? 0));
+        showNext(firstDelay);
       },
       stop() {
         if (this.t) clearTimeout(this.t);
@@ -982,7 +984,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           }, Math.max(0, delaySec) * 1000);
         };
 
-        showNext(0);
+        const firstDelay = immediate
+          ? 0
+          : Math.max(0, Number(this.seq[0]?.cfg?.firstDelaySeconds ?? 0));
+        showNext(firstDelay);
       },
       stop() {
         if (this.t) clearTimeout(this.t);
@@ -1153,6 +1158,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         cornerRadius: Number(it.cornerRadius ?? 16),
         visibleSeconds: Number(it.durationSeconds ?? it.visibleSeconds ?? 6),
         alternateSeconds: Number(it.alternateSeconds || 4),
+        firstDelaySeconds: Number(it.firstDelaySeconds ?? it.delaySeconds ?? 0),
         progressColor: it.progressColor,
         bgColor: it.bgColor,
         fontColor: it.msgColor,
@@ -1304,6 +1310,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               visibleSeconds:
                 Number(it.durationSeconds ?? it.visibleSeconds ?? 6),
               alternateSeconds: Number(it.alternateSeconds || 4),
+              firstDelaySeconds: Number(it.firstDelaySeconds ?? it.delaySeconds ?? 0),
             };
             recentConfigs.push(cfg);
           }
@@ -1332,6 +1339,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         visibleSeconds:
           Number(it.durationSeconds ?? it.visibleSeconds ?? 6),
         alternateSeconds: Number(it.alternateSeconds || 4),
+        firstDelaySeconds: Number(it.firstDelaySeconds ?? it.delaySeconds ?? 0),
       };
       const includeCurrent = it.includeCurrentProduct !== false;
       const hideFlags = flagsFromNamesJson(it.namesJson);
@@ -1497,7 +1505,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         RecentStream.seqMobile.map((cfg) => ({ type: "recent", cfg })),
         FlashStream.seqMobile.map((cfg) => ({ type: "flash", cfg }))
       );
-      Combined.start(true);
+      Combined.start(false);
     } else {
       if (FlashStream.seqDesktop.length || FlashStream.seqMobile.length) {
         FlashStream.start(false);

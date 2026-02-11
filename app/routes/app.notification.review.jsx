@@ -114,8 +114,10 @@ const REVIEW_STYLES = `
   min-width: 320px;
 }
 .review-preview-box {
+  border: 1px solid #e5e7eb;
   border-radius: 16px;
-  min-height: 320px;
+  min-height: 340px;
+  padding: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -504,11 +506,16 @@ function PreviewCard({
 export default function ReviewNotificationPage() {
   const navigate = useNavigate();
   const fetcher = useFetcher();
+  const collectionFetcher = useFetcher();
   const [activeSection, setActiveSection] = useState("layout");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [collectionSearch, setCollectionSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [collectionPage, setCollectionPage] = useState(1);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
 
   const [design, setDesign] = useState({
     reviewType: "new_review",
@@ -569,6 +576,7 @@ export default function ReviewNotificationPage() {
   });
 
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedCollections, setSelectedCollections] = useState([]);
 
   useEffect(() => {
     if (hasLoaded) return;
@@ -586,6 +594,22 @@ export default function ReviewNotificationPage() {
     fetcher.load(`/app/products-picker?${params.toString()}`);
   }, [pickerOpen, search, page, fetcher]);
 
+  useEffect(() => {
+    if (hasLoadedCollections) return;
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    collectionFetcher.load(`/app/collections-picker?${params.toString()}`);
+    setHasLoadedCollections(true);
+  }, [hasLoadedCollections, collectionFetcher]);
+
+  useEffect(() => {
+    if (!collectionPickerOpen) return;
+    const params = new URLSearchParams();
+    if (collectionSearch) params.set("q", collectionSearch);
+    params.set("page", String(collectionPage));
+    collectionFetcher.load(`/app/collections-picker?${params.toString()}`);
+  }, [collectionPickerOpen, collectionSearch, collectionPage, collectionFetcher]);
+
   const storeProducts = useMemo(() => {
     const items = fetcher.data?.items || [];
     if (!Array.isArray(items)) return [];
@@ -600,9 +624,31 @@ export default function ReviewNotificationPage() {
     }));
   }, [fetcher.data]);
 
+  const storeCollections = useMemo(() => {
+    const items = collectionFetcher.data?.items || [];
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      handle: item.handle,
+      image: item.image || null,
+      productsCount: item.productsCount ?? 0,
+      sampleProduct: item.sampleProduct || null,
+    }));
+  }, [collectionFetcher.data]);
+
   const allProducts = storeProducts.length ? storeProducts : MOCK_PRODUCTS;
+  const scopedProduct =
+    visibility.productScope === "specific" ? selectedProducts[0] : null;
+  const scopedCollectionProduct =
+    visibility.collectionScope === "specific"
+      ? selectedCollections[0]?.sampleProduct
+      : null;
   const previewProduct =
-    selectedProducts[0] || storeProducts[0] || MOCK_PRODUCTS[0];
+    scopedProduct ||
+    scopedCollectionProduct ||
+    storeProducts[0] ||
+    MOCK_PRODUCTS[0];
 
   const togglePick = (item) => {
     setSelectedProducts((prev) => {
@@ -612,6 +658,18 @@ export default function ReviewNotificationPage() {
     });
   };
 
+  const toggleCollection = (item) => {
+    setSelectedCollections((prev) => {
+      const exists = prev.some((c) => c.id === item.id);
+      if (exists) return prev.filter((c) => c.id !== item.id);
+      return [...prev, item];
+    });
+  };
+
+  const hasNextPage = Boolean(fetcher.data?.hasNextPage);
+  const hasNextCollectionPage = Boolean(collectionFetcher.data?.hasNextPage);
+  const collectionItems = storeCollections;
+
   const insertToken = (field, token) => {
     setContent((c) => ({
       ...c,
@@ -620,7 +678,6 @@ export default function ReviewNotificationPage() {
   };
 
   const items = allProducts;
-  const hasNextPage = Boolean(fetcher.data?.hasNextPage);
 
   return (
     <Frame>
@@ -1130,6 +1187,21 @@ export default function ReviewNotificationPage() {
                                   }))
                                 }
                               />
+                              {visibility.collectionScope === "specific" && (
+                                <InlineStack
+                                  gap="200"
+                                  blockAlign="center"
+                                  wrap
+                                  style={{ marginTop: 6 }}
+                                >
+                                  <Button onClick={() => setCollectionPickerOpen(true)}>
+                                    Browse collections
+                                  </Button>
+                                  <Text tone="subdued">
+                                    {selectedCollections.length} collections selected
+                                  </Text>
+                                </InlineStack>
+                              )}
                             </div>
                             <Checkbox
                               label="Cart page"
@@ -1389,6 +1461,106 @@ export default function ReviewNotificationPage() {
                 <Button
                   disabled={!hasNextPage}
                   onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </InlineStack>
+            </InlineStack>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
+      <Modal
+        open={collectionPickerOpen}
+        onClose={() => setCollectionPickerOpen(false)}
+        title="Select collections"
+        primaryAction={{ content: "Select", onAction: () => setCollectionPickerOpen(false) }}
+        secondaryActions={[
+          { content: "Cancel", onAction: () => setCollectionPickerOpen(false) },
+        ]}
+        large
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <InlineStack gap="200" wrap={false}>
+              <Box width="70%">
+                <TextField
+                  label="Search collections"
+                  labelHidden
+                  placeholder="Search collections"
+                  value={collectionSearch}
+                  onChange={(v) => {
+                    setCollectionSearch(v);
+                    setCollectionPage(1);
+                  }}
+                  autoComplete="off"
+                />
+              </Box>
+              <Box width="30%">
+                <Select
+                  label="Search by"
+                  labelHidden
+                  options={[{ label: "All", value: "all" }]}
+                  value="all"
+                  onChange={() => {}}
+                />
+              </Box>
+            </InlineStack>
+
+            <IndexTable
+              resourceName={{ singular: "collection", plural: "collections" }}
+              itemCount={collectionItems.length}
+              selectable={false}
+              headings={[
+                { title: "Select" },
+                { title: "Collection" },
+                { title: "Products" },
+              ]}
+            >
+              {collectionItems.map((item, index) => {
+                const checked = selectedCollections.some((c) => c.id === item.id);
+                return (
+                  <IndexTable.Row id={item.id} key={item.id} position={index}>
+                    <IndexTable.Cell>
+                      <Checkbox
+                        label=""
+                        checked={checked}
+                        onChange={() => toggleCollection(item)}
+                      />
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <InlineStack gap="200" blockAlign="center">
+                        <Thumbnail
+                          source={item.image}
+                          alt={item.title}
+                          size="small"
+                        />
+                        <Text>{item.title}</Text>
+                      </InlineStack>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone="info">
+                        {Number(item.productsCount ?? 0)} items
+                      </Badge>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
+
+            <InlineStack gap="200" align="space-between" blockAlign="center">
+              <Text tone="subdued">
+                {selectedCollections.length} collections selected
+              </Text>
+              <InlineStack gap="200">
+                <Button
+                  disabled={collectionPage <= 1}
+                  onClick={() => setCollectionPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  disabled={!hasNextCollectionPage}
+                  onClick={() => setCollectionPage((p) => p + 1)}
                 >
                   Next
                 </Button>

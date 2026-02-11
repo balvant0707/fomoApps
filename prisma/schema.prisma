@@ -60,6 +60,7 @@ model notificationconfig {
   rounded              Int?
   durationSeconds      Int?
   alternateSeconds     Int?
+  firstDelaySeconds    Int?
   fontWeight           Int?
   messageTitlesJson    String?  @db.LongText
   orderDays            Int?     @default(7)
