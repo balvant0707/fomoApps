@@ -101,6 +101,55 @@ document.addEventListener("DOMContentLoaded", async function () {
     v = String(v || "").trim().toLowerCase();
     return v === "top" || v === "bottom" ? v : fb;
   };
+  const toNum = (v, fb = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fb;
+  };
+  const unitToSeconds = (value, unit) => {
+    const n = Math.max(0, toNum(value, 0));
+    const u = String(unit || "seconds").toLowerCase();
+    if (u.startsWith("hour")) return Math.round(n * 3600);
+    if (u.startsWith("min")) return Math.round(n * 60);
+    return Math.round(n);
+  };
+  const formatProductName = (name, mode, limit) => {
+    const raw = String(name || "").trim();
+    if (!raw) return "";
+    if (String(mode || "").toLowerCase() !== "half") return raw;
+    const lim = Math.max(1, Math.min(60, parseInt(limit || "15", 10) || 15));
+    if (raw.length <= lim) return raw;
+    return `${raw.slice(0, lim).trimEnd()}...`;
+  };
+  const applyTokens = (tpl, tokens) =>
+    String(tpl || "").replace(/\{(\w+)\}/g, (m, k) =>
+      tokens[k] !== undefined && tokens[k] !== null ? String(tokens[k]) : m
+    );
+  const currCollectionHandle = () => {
+    const raw =
+      (window.meta && window.meta.collection && window.meta.collection.handle) ||
+      "";
+    if (raw) return raw;
+    const m = window.location.pathname.match(/\/collections\/([^/?#]+)/i);
+    return m?.[1] ? decodeURIComponent(m[1]) : "";
+  };
+  const mobilePosFromDesktop = (pos) =>
+    String(pos || "").toLowerCase().includes("top") ? "top" : "bottom";
+  const matchesVisibility = (cfg, page) => {
+    const showHome = toBool(cfg?.showHome, false);
+    const showProduct = toBool(cfg?.showProduct, false);
+    const showCollectionList = toBool(cfg?.showCollectionList, false);
+    const showCollection = toBool(cfg?.showCollection, false);
+    const showCart = toBool(cfg?.showCart, false);
+    const any =
+      showHome || showProduct || showCollectionList || showCollection || showCart;
+    if (!any) return true;
+    if (page === "home") return showHome;
+    if (page === "product") return showProduct;
+    if (page === "collection")
+      return showCollection || showCollectionList;
+    if (page === "cart") return showCart;
+    return true;
+  };
 
   const parseList = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -110,6 +159,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     } catch {
       return raw ? [raw] : [];
     }
+  };
+  const parseProductList = (raw) => {
+    const arr = parseList(raw);
+    return Array.isArray(arr) ? arr.filter(Boolean) : [];
   };
 
   const cacheKey = (k) =>
@@ -589,6 +642,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
+    const bgFlash =
+      String(cfg.template || "solid").toLowerCase() === "gradient"
+        ? `linear-gradient(135deg, ${cfg.bgColor || "#111"} 0%, ${cfg.bgAlt || cfg.bgColor || "#111"} 100%)`
+        : cfg.bgColor || "#111";
 
     const wrap = document.createElement("div");
     wrap.className = "fomo-flash";
@@ -596,7 +653,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
       border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
-      background:${cfg.bgColor || "#111"}; color:${cfg.fontColor || "#fff"};
+      background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
       font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
       animation:${inAnim} ${DUR.in}ms ease-out both;
@@ -619,7 +676,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.src = cfg.uploadedImage || cfg.image || FLAME_SVG;
     const iSize = mode === "mobile" ? mt.img : 58,
       iRad = mode === "mobile" ? Math.round(mt.img * 0.17) : 12;
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:cover;border-radius:${iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
+    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${cfg.imageAppearance || "cover"};border-radius:${iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.src = FLAME_SVG;
     };
@@ -735,8 +792,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     const { inAnim, outAnim } = theAnim;
     const DUR = getAnimDur(cfg);
     const ACCENT = cfg.accentColor || cfg.titleColor || "#6C63FF";
+    const bgRecent =
+      String(cfg.template || "solid").toLowerCase() === "gradient"
+        ? `linear-gradient(135deg, ${cfg.bgColor || "#ffffff"} 0%, ${cfg.bgAlt || cfg.bgColor || "#ffffff"} 100%)`
+        : cfg.bgColor || "#ffffff";
 
-    // ✅ Product title: only first 2 words + "..." if more
+    // Product title helper (legacy 2-word fallback)
     function shortProductTitle(title, wordCount = 2) {
       const t = String(title || "").trim().replace(/\s+/g, " ");
       if (!t) return "";
@@ -750,7 +811,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     position:fixed; z-index:9999; box-sizing:border-box;
     width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
     border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
-    background:${cfg.bgColor || "#ffffff"}; color:${cfg.fontColor || "#111"};
+    background:${bgRecent}; color:${cfg.fontColor || "#111"};
     box-shadow:0 10px 30px rgba(0,0,0,.12);
     font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
     animation:${inAnim} ${DUR.in}ms ease-out both;
@@ -769,7 +830,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.alt = safe(cfg.productTitle, "Product");
     const iSize = mode === "mobile" ? mt.img : 50,
       iRad = Math.round(iSize * 0.18);
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:cover;border-radius:${iRad}px;background:#eee;flex:0 0 ${iSize}px;pointer-events:none;`;
+    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${cfg.imageAppearance || "cover"};border-radius:${iRad}px;background:#eee;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.style.display = "none";
     };
@@ -823,7 +884,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // ✅ Use only first 2 words of productTitle
     const rawTitle = safe(cfg.productTitle, "");
-    const shortTitle = shortProductTitle(rawTitle, 2);
+    const shortTitle =
+      cfg.productNameMode || cfg.productNameLimit
+        ? formatProductName(rawTitle, cfg.productNameMode, cfg.productNameLimit)
+        : shortProductTitle(rawTitle, 2);
 
     const boughtTxt = cfg.hideProductTitle
       ? "placed an order"
@@ -907,8 +971,243 @@ document.addEventListener("DOMContentLoaded", async function () {
     return wrap;
   }
 
+  /* ========== GENERIC product popup renderer (visitor/lowstock/addtocart/review) ========== */
+  function renderProductPopup(cfg, mode, onDone) {
+    const visibleSec =
+      Number(cfg.durationSeconds ?? cfg.visibleSeconds ?? 6) || 6;
+    const visibleMs = Math.max(1, visibleSec) * 1000;
+    const { inAnim, outAnim } = getAnimPair(cfg, mode);
+    const DUR = getAnimDur(cfg);
+
+    const sizeScale =
+      0.8 + (Math.max(0, Math.min(100, Number(cfg.size ?? 60))) / 100) * 0.4;
+    const opacity =
+      1 -
+      (Math.max(0, Math.min(100, Number(cfg.transparent ?? 0))) / 100) * 0.7;
+    const isPortrait =
+      String(cfg.layout || "landscape").toLowerCase() === "portrait";
+
+    const bg =
+      String(cfg.template || "solid").toLowerCase() === "gradient"
+        ? `linear-gradient(135deg, ${cfg.bgColor || "#ffffff"} 0%, ${cfg.bgAlt || cfg.bgColor || "#ffffff"} 100%)`
+        : cfg.bgColor || "#ffffff";
+
+    const baseFont = Number(cfg.textSizeContent) || (mode === "mobile" ? 13 : 14);
+    const fontSize = Math.max(11, Math.round(baseFont));
+    const pad = Math.round(mode === "mobile" ? 12 : 16);
+    const gap = Math.round(mode === "mobile" ? 10 : 12);
+    const imgSize = Math.round((mode === "mobile" ? 56 : 64));
+    const imgOffset = Math.round(imgSize * 0.45);
+
+    const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
+    const originX = posKey.includes("right") ? "right" : "left";
+    const originY = posKey.includes("top") ? "top" : "bottom";
+    const transformOrigin = `${originY} ${originX}`;
+
+    const wrap = document.createElement("div");
+    wrap.style.cssText = `
+      position:fixed; z-index:9999; box-sizing:border-box;
+      width:${mode === "mobile" ? "min(92vw,420px)" : ""};
+      overflow:hidden; cursor:pointer; opacity:${opacity};
+      border-radius:${Math.round(18 * sizeScale)}px;
+      background:${bg}; color:${cfg.textColor || "#111"};
+      box-shadow:0 10px 30px rgba(0,0,0,.12);
+      font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+      animation:${inAnim} ${DUR.in}ms ease-out both;
+      transform:scale(${sizeScale});
+      transform-origin:${transformOrigin};
+    `;
+    (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
+
+    const card = document.createElement("div");
+    const leftPad =
+      isPortrait || cfg.showProductImage === false ? pad : pad + imgOffset;
+    card.style.cssText = `
+      display:flex; gap:${gap}px; align-items:flex-start;
+      flex-direction:${isPortrait ? "column" : "row"};
+      position:relative; padding:${pad}px;
+      font-size:${fontSize}px; line-height:1.35;
+      padding-left:${leftPad}px;
+    `;
+
+    const imgWrap = document.createElement("div");
+    imgWrap.style.cssText = `
+      position:absolute;
+      left:${pad}px;
+      top:${isPortrait ? 28 : "50%"};
+      transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
+      width:${imgSize}px;height:${imgSize}px;
+      border-radius:${Math.round(imgSize * 0.22)}px;
+      overflow:hidden;background:#f3f4f6;
+      box-shadow:0 8px 18px rgba(0,0,0,0.18);
+      border:2px solid rgba(255,255,255,0.75);
+      display:${cfg.showProductImage === false ? "none" : "grid"};
+      place-items:center;
+      pointer-events:none;
+    `;
+
+    const img = document.createElement("img");
+    img.src = cfg.productImage || cfg.image || "";
+    img.alt = safe(cfg.productTitle, "Product");
+    img.style.cssText = `
+      width:100%;height:100%;object-fit:${cfg.imageAppearance || "cover"};
+    `;
+    img.onerror = () => {
+      imgWrap.style.display = "none";
+    };
+    imgWrap.appendChild(img);
+
+    const body = document.createElement("div");
+    body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:6px;`;
+
+    if (cfg.showRating) {
+      const rating = Math.max(
+        1,
+        Math.min(5, Number(cfg.rating || 4))
+      );
+      const stars = Array.from({ length: 5 })
+        .map((_, i) => (i < rating ? "&#9733;" : "&#9734;"))
+        .join("");
+      const rate = document.createElement("div");
+      rate.innerHTML = stars;
+      rate.style.cssText = `color:${cfg.starColor || "#f5a623"};font-size:${Math.max(
+        10,
+        fontSize - 2
+      )}px;letter-spacing:1px;`;
+      body.appendChild(rate);
+    }
+
+    if (cfg.message) {
+      const msg = document.createElement("div");
+      msg.style.cssText = `color:${cfg.textColor || "#111"};`;
+      const messageText = String(cfg.message || "");
+      const productName = String(cfg.productTitle || "").trim();
+      if (productName && messageText.includes(productName)) {
+        const idx = messageText.indexOf(productName);
+        const before = document.createTextNode(messageText.slice(0, idx));
+        const prod = document.createElement("span");
+        prod.textContent = productName;
+        prod.style.cssText = "font-weight:600;text-decoration:underline;";
+        const after = document.createTextNode(
+          messageText.slice(idx + productName.length)
+        );
+        msg.appendChild(before);
+        msg.appendChild(prod);
+        msg.appendChild(after);
+      } else {
+        msg.textContent = messageText;
+      }
+      body.appendChild(msg);
+    }
+
+    if (cfg.showPriceTag && (cfg.price || cfg.compareAt)) {
+      const line = document.createElement("div");
+      line.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;`;
+      if (cfg.price) {
+        const p = document.createElement("span");
+        p.textContent = cfg.price;
+        p.style.cssText = `
+          background:${cfg.priceTagBg || "#111"};
+          color:${cfg.priceColor || "#fff"};
+          font-size:${Math.max(10, Math.round((Number(cfg.textSizePrice) || fontSize - 2) * sizeScale))}px;
+          padding:2px 8px;border-radius:6px;font-weight:600;
+        `;
+        line.appendChild(p);
+      }
+      if (cfg.compareAt) {
+        const c = document.createElement("span");
+        c.textContent = cfg.compareAt;
+        c.style.cssText = `
+          color:${cfg.priceTagAlt || "#666"};
+          font-size:${Math.max(10, Math.round((Number(cfg.textSizeCompareAt) || fontSize - 3) * sizeScale))}px;
+          text-decoration:line-through;
+        `;
+        line.appendChild(c);
+      }
+      body.appendChild(line);
+    }
+
+    if (cfg.timestamp) {
+      const ts = document.createElement("div");
+      ts.textContent = cfg.timestamp;
+      ts.style.cssText = `font-size:${Math.max(10, fontSize - 2)}px;color:${cfg.timestampColor || "rgba(0,0,0,0.6)"};`;
+      body.appendChild(ts);
+    }
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.setAttribute("aria-label", "Close");
+    close.innerHTML = "&times;";
+    close.style.cssText = `position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:#ffffff;color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
+    close.onmouseenter = () => (close.style.opacity = "1");
+    close.onmouseleave = () => (close.style.opacity = ".8");
+    if (cfg.showClose === false) close.style.display = "none";
+
+    card.appendChild(imgWrap);
+    card.appendChild(body);
+    card.appendChild(close);
+    wrap.appendChild(card);
+
+    const barWrap = document.createElement("div");
+    barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
+    const bar = document.createElement("div");
+    bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || cfg.textColor || "#22c55e"};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
+    barWrap.appendChild(bar);
+    wrap.appendChild(barWrap);
+
+    wrap.addEventListener("click", (e) => {
+      if (e.target === close) return;
+      sendTrack({
+        eventType: "click",
+        popupType: cfg.popupType || "recent",
+        productUrl: cfg.productUrl,
+      });
+      if (cfg.productUrl && cfg.directProductPage !== false) {
+        window.location.href = cfg.productUrl;
+      }
+    });
+
+    let tid = setTimeout(autoClose, visibleMs);
+    function autoClose() {
+      wrap.style.animation = `${outAnim} ${DUR.out}ms ease-in forwards`;
+      setTimeout(() => {
+        wrap.remove();
+        onDone && onDone("auto");
+      }, DUR.out + 20);
+    }
+    close.onclick = (e) => {
+      e.stopPropagation();
+      clearTimeout(tid);
+      autoClose();
+      onDone && onDone("closed");
+    };
+
+    document.body.appendChild(wrap);
+    sendTrack({
+      eventType: "view",
+      popupType: cfg.popupType || "recent",
+      productUrl: cfg.productUrl,
+    });
+    return wrap;
+  }
+
 
   /* ========== stream factory ========== */
+  function rendererForType(type) {
+    switch (type) {
+      case "flash":
+        return renderFlash;
+      case "recent":
+        return renderRecent;
+      case "visitor":
+      case "lowstock":
+      case "addtocart":
+      case "review":
+        return renderProductPopup;
+      default:
+        return renderRecent;
+    }
+  }
   function createStream(name, renderer) {
     return {
       name,
@@ -974,8 +1273,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           this.t = setTimeout(() => {
             if (!this.seq.length) return;
             const item = this.seq[this.idx % this.seq.length]; // {type, cfg}
-            const renderer =
-              item.type === "recent" ? renderRecent : renderFlash;
+            const renderer = rendererForType(item.type);
             this.el = renderer(item.cfg, "mobile", () => {
               const gap = Math.max(0, +item.cfg.alternateSeconds || 0);
               this.idx = (this.idx + 1) % this.seq.length;
@@ -1001,6 +1299,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   const Flash = createStream("flash", renderFlash);
   const Recent = createStream("recent", renderRecent);
+  const Visitor = createStream("visitor", renderProductPopup);
+  const LowStock = createStream("lowstock", renderProductPopup);
+  const AddToCart = createStream("addtocart", renderProductPopup);
+  const Review = createStream("review", renderProductPopup);
   const Combined = createCombinedStream();
 
   // ===== THEME EDITOR PREVIEW =====
@@ -1016,6 +1318,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     // No dummy sample data – just keep preview infra safe.
     Flash.seqDesktop = Flash.seqMobile = [];
     Recent.seqDesktop = Recent.seqMobile = [];
+    Visitor.seqDesktop = Visitor.seqMobile = [];
+    LowStock.seqDesktop = LowStock.seqMobile = [];
+    AddToCart.seqDesktop = AddToCart.seqMobile = [];
+    Review.seqDesktop = Review.seqMobile = [];
 
     function place(el, side, baseBottom = 24) {
       if (!el) return;
@@ -1046,6 +1352,18 @@ document.addEventListener("DOMContentLoaded", async function () {
       } catch { }
       try {
         Recent.el?.remove();
+      } catch { }
+      try {
+        Visitor.el?.remove();
+      } catch { }
+      try {
+        LowStock.el?.remove();
+      } catch { }
+      try {
+        AddToCart.el?.remove();
+      } catch { }
+      try {
+        Review.el?.remove();
       } catch { }
       try {
         Combined.el?.remove();
@@ -1110,17 +1428,50 @@ document.addEventListener("DOMContentLoaded", async function () {
     let data = { records: [] };
     const cachedConfig = await fetchJson(ENDPOINT, "config", 60000);
     if (cachedConfig) data = cachedConfig;
+    window.FOMOIFY = window.FOMOIFY || {};
+    window.FOMOIFY.popupTables = data?.tables || {};
+    window.FOMOIFY.notificationRecords = data?.records || [];
 
     const recs = Array.isArray(data?.records) ? data.records : [];
+    const tables = data?.tables || {};
+    const tableFlash = Array.isArray(tables.flash) ? tables.flash : [];
+    const tableRecent = Array.isArray(tables.recent) ? tables.recent : [];
+    const tableVisitor = Array.isArray(tables.visitor) ? tables.visitor : [];
+    const tableLowStock = Array.isArray(tables.lowstock) ? tables.lowstock : [];
+    const tableAddToCart = Array.isArray(tables.addtocart) ? tables.addtocart : [];
+    const tableReview = Array.isArray(tables.review) ? tables.review : [];
+    const useFlashLegacy = tableFlash.length === 0;
+    const useRecentLegacy = tableRecent.length === 0;
+
     const pt = pageType(),
       ch = currHandle(),
+      colHandle = currCollectionHandle(),
       isPd = pt === "product";
 
+    let currentProduct = null;
+    if (isPd && ch) {
+      currentProduct = await fetchJson(`/products/${ch}.js`, `prod:${ch}`, 600000);
+    }
+
     const flashConfigs = [],
-      recentConfigs = [];
+      recentConfigs = [],
+      visitorConfigs = [],
+      lowStockConfigs = [],
+      addToCartConfigs = [],
+      reviewConfigs = [];
 
     // ======= MAIN LOOP over DB configs =======
     for (const it of recs) {
+      if (!useFlashLegacy && it?.key === "flash") continue;
+      if (
+        !useRecentLegacy &&
+        (it?.key === "recent" ||
+          it?.key === "orders" ||
+          it?.useOrders === true ||
+          String(it?.useOrders) === "1")
+      ) {
+        continue;
+      }
       if (!(it?.enabled == 1 || it?.enabled === "1" || it?.enabled === true))
         continue;
       if (!["flash", "recent", "orders"].includes(it.key)) continue;
@@ -1466,6 +1817,519 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     }
 
+    // ==== TABLE CONFIGS (new popup tables) ====
+    const matchesShowType = (showType) => {
+      const st = String(showType || "allpage").toLowerCase();
+      return st === "all" || st === "allpage" || st === pt;
+    };
+    const normalizeImage = (img) => {
+      if (!img) return "";
+      if (typeof img === "string") return img;
+      if (typeof img === "object") {
+        return img.url || img.src || img.originalSrc || "";
+      }
+      return "";
+    };
+    const normalizePrice = (v) => {
+      if (v === undefined || v === null || v === "") return "";
+      if (typeof v === "number") return String(v);
+      if (typeof v === "object" && v?.amount) return String(v.amount);
+      return String(v);
+    };
+    const normalizeProduct = (p) => {
+      if (!p) return null;
+      const title = p.title || p.productTitle || p.name || "";
+      const handle = p.handle || p.productHandle || "";
+      const image =
+        normalizeImage(p.image) ||
+        normalizeImage(p.featuredImage) ||
+        normalizeImage(p.featured_image) ||
+        (Array.isArray(p.images) ? p.images[0] : "") ||
+        p.productImage ||
+        "";
+      const url =
+        p.url ||
+        (handle ? `/products/${handle}` : "") ||
+        p.productUrl ||
+        "";
+      const price =
+        p.price ||
+        p.price_min ||
+        p.priceMax ||
+        p.priceRange?.minVariantPrice?.amount ||
+        "";
+      const compareAt =
+        p.compareAt ||
+        p.compare_at_price ||
+        p.compareAtPrice ||
+        p.compareAt ||
+        "";
+      return {
+        title,
+        handle,
+        image,
+        url,
+        price: normalizePrice(price),
+        compareAt: normalizePrice(compareAt),
+        rating: p.rating,
+      };
+    };
+    const productHandleFromEntry = (entry) => {
+      if (!entry) return "";
+      if (typeof entry === "string") return entry;
+      if (typeof entry === "object") return entry.handle || entry.productHandle || "";
+      return "";
+    };
+    const productTitleFromEntry = (entry) => {
+      if (!entry) return "";
+      if (typeof entry === "object") return entry.title || entry.productTitle || "";
+      return "";
+    };
+    const matchesScope = (row) => {
+      const pScope = String(row?.productScope || "").toLowerCase();
+      if (pt === "product" && pScope === "specific") {
+        const list = parseProductList(row?.selectedProductsJson);
+        if (!list.length || !ch) return false;
+        const hit = list.some((entry) => {
+          const h = productHandleFromEntry(entry);
+          if (h && String(h).toLowerCase() === String(ch).toLowerCase()) return true;
+          const t = productTitleFromEntry(entry);
+          if (
+            t &&
+            currentProduct?.title &&
+            String(t).toLowerCase() === String(currentProduct.title).toLowerCase()
+          )
+            return true;
+          return false;
+        });
+        if (!hit) return false;
+      }
+      const cScope = String(row?.collectionScope || "").toLowerCase();
+      if (pt === "collection" && cScope === "specific") {
+        const list = parseList(row?.selectedCollectionsJson);
+        if (!list.length || !colHandle) return false;
+        const hit = list.some((entry) => {
+          const h =
+            (entry && typeof entry === "object" && entry.handle) ||
+            (typeof entry === "string" ? entry : "");
+          return (
+            h &&
+            String(h).toLowerCase() === String(colHandle).toLowerCase()
+          );
+        });
+        if (!hit) return false;
+      }
+      return true;
+    };
+
+    const productCache = new Map();
+    const fetchProductByHandle = async (handle) => {
+      const h = String(handle || "").trim();
+      if (!h || h.startsWith("gid://")) return null;
+      if (productCache.has(h)) return productCache.get(h);
+      const p = await fetchJson(`/products/${h}.js`, `prod:${h}`, 600000);
+      const normalized = normalizeProduct(p) || {
+        title: h,
+        handle: h,
+        url: `/products/${h}`,
+      };
+      productCache.set(h, normalized);
+      return normalized;
+    };
+    const resolveProduct = async (entry) => {
+      if (!entry) return null;
+      if (typeof entry === "string") return fetchProductByHandle(entry);
+      if (typeof entry === "object") {
+        if (entry.handle && (!entry.title || !entry.image)) {
+          const p = await fetchProductByHandle(entry.handle);
+          if (p) return p;
+        }
+        return normalizeProduct(entry);
+      }
+      return null;
+    };
+    const collectProducts = async (row) => {
+      const list = parseProductList(row?.selectedProductsJson);
+      const out = [];
+      for (const entry of list) {
+        const p = await resolveProduct(entry);
+        if (p) out.push(p);
+      }
+      if (!out.length && currentProduct) {
+        const p = normalizeProduct(currentProduct);
+        if (p) out.push(p);
+      }
+      return out;
+    };
+
+    const baseTokens = {
+      full_name: "Jenna Doe",
+      first_name: "Jenna",
+      last_name: "Doe",
+      country: "United States",
+      city: "New York",
+      reviewer_name: "Jane B.",
+      review_title: "Beautiful and elegant",
+      review_body: "Absolutely stunning and elegant.",
+      reviewer_country: "United States",
+      reviewer_city: "New York",
+    };
+
+    if (tableFlash.length) {
+      for (const it of tableFlash) {
+        if (!(it?.enabled == 1 || it?.enabled === "1" || it?.enabled === true))
+          continue;
+        if (!matchesShowType(it.showType)) continue;
+
+        const titlesArr = parseList(it.messageTitlesJson);
+        const locsArrRaw = parseList(it.locationsJson);
+        const timesArr = parseList(it.namesJson);
+        const mbPosArr = parseList(it.mobilePositionJson);
+
+        const defaultTitle = safe(it.messageTitle || it.messageText, "Flash Sale");
+        const defaultLocation = safe(it.name, "Limited time");
+        const defaultTime = safe(it.messageText, "Just now");
+        const defaultMB = normMB(mobilePosFromDesktop(it.position || "bottom-right"));
+        const iconSrc = tryAnySvg(it.iconSvg) || FLAME_SVG;
+
+        const n = Math.max(
+          titlesArr.length || 0,
+          locsArrRaw.length || 0,
+          timesArr.length || 0,
+          mbPosArr.length || 0,
+          1
+        );
+
+        for (let i = 0; i < n; i++) {
+          const mbPos = pickSmart(mbPosArr, i, defaultMB);
+          flashConfigs.push({
+            title: pickSmart(titlesArr, i, defaultTitle),
+            location: pickSmart(locsArrRaw, i, defaultLocation),
+            timeText: pickSmart(timesArr, i, defaultTime),
+            uploadedImage: iconSrc,
+            productUrl: safe(it.ctaUrl, "#"),
+            mobilePosition: normMB(mbPos, defaultMB),
+            durationSeconds: Number(it.durationSeconds || 0),
+
+            positionDesktop: it.position,
+            mobileSize: it.mobileSize,
+            animation: it.animation,
+            fontFamily: it.fontFamily,
+            fontWeight: it.fontWeight,
+            template: it.template,
+            bgColor: it.bgColor,
+            bgAlt: it.bgAlt,
+            fontColor: it.textColor,
+            titleColor: it.numberColor,
+            progressColor: it.numberColor || it.textColor,
+            imageAppearance: it.imageAppearance,
+            cornerRadius: Number(it.rounded ?? 16),
+            firstDelaySeconds: Number(it.firstDelaySeconds ?? 0),
+            alternateSeconds: Number(it.alternateSeconds || 0),
+          });
+        }
+      }
+    }
+
+    if (tableRecent.length) {
+      for (const it of tableRecent) {
+        if (!(it?.enabled == 1 || it?.enabled === "1" || it?.enabled === true))
+          continue;
+        if (!matchesShowType(it.showType)) continue;
+
+        const titlesArr = parseList(it.messageTitlesJson);
+        const locsArrRaw = parseList(it.locationsJson);
+        let handlesArr = parseList(it.selectedProductsJson);
+        const mbPosArr = parseList(it.mobilePositionJson);
+        if (handlesArr.length > 1) handlesArr = shuffled(handlesArr);
+
+        const defaultMB = normMB(
+          it.mobilePosition || it.positionMobile || (mbPosArr[0] || "bottom")
+        );
+        const hideFlags = flagsFromNamesJson(it.namesJson);
+        const msgTxt = safe(it.messageText, "recently bought");
+
+        const COMMON_RECENT = {
+          bgColor: it.bgColor || "#ffffff",
+          bgAlt: it.bgAlt || "#ffffff",
+          template: it.template || "solid",
+          fontColor: it.textColor || "#111",
+          titleColor: it.numberColor || "#6C63FF",
+          accentColor: it.numberColor || "#6C63FF",
+          progressColor: it.numberColor || "#6C63FF",
+          positionDesktop: it.position,
+          mobileSize: it.mobileSize,
+          animation: it.animation,
+          animationSpeed: it.animationSpeed,
+          animationMs: it.animationMs,
+          fontFamily: it.fontFamily,
+          fontWeight: it.fontWeight,
+          baseFontSize: Number(it.fontSize ?? it.rounded ?? 0) || null,
+          cornerRadius: Number(it.rounded ?? 16),
+          visibleSeconds:
+            Number(it.durationSeconds ?? it.visibleSeconds ?? 6),
+          alternateSeconds: Number(it.alternateSeconds || 4),
+          firstDelaySeconds: Number(it.firstDelaySeconds ?? 0),
+          imageAppearance: it.imageAppearance,
+          productNameMode: it.productNameMode,
+          productNameLimit: it.productNameLimit,
+        };
+
+        const daysWindow = Math.max(0, Number(it.orderDays || 0));
+        const wantsOrders = daysWindow > 0;
+        const limit = Math.max(1, Number(it.orderLimit || 30) || 30);
+
+        if (wantsOrders) {
+          try {
+            const url = `${ORDERS_ENDPOINT_BASE}?shop=${encodeURIComponent(
+              SHOP
+            )}&days=${daysWindow}&limit=${limit}`;
+            const payload = await fetchJson(
+              url,
+              `orders:${daysWindow}:${limit}`,
+              60000
+            );
+            const orders = Array.isArray(payload?.orders) ? payload.orders : [];
+
+            const locsArr = Array.isArray(locsArrRaw)
+              ? locsArrRaw.map(formatLocationEntry).filter(Boolean)
+              : [];
+
+            for (const o of orders) {
+              const when = o.processed_at || o.created_at;
+              if (!when || !withinDays(when, daysWindow)) continue;
+
+              const fn = safe(o?.customer?.first_name, "").trim();
+              const ln = safe(o?.customer?.last_name, "").trim();
+              const name = fn ? (ln ? `${fn} ${ln[0].toUpperCase()}.` : fn) : "Someone";
+
+              const s = o?.shipping_address || {};
+              const b = o?.billing_address || {};
+              const city = safe(s.city || b.city, "").trim();
+              const state = safe(s.province || b.province, "").trim();
+              const country = safe(s.country || b.country, "").trim();
+              const locJoin =
+                city || country || state
+                  ? [city, state, country].filter(Boolean).join(", ")
+                  : pickSmart(locsArr, 0, "");
+
+              const line =
+                (Array.isArray(o?.line_items) && o.line_items[0]) || null;
+              const pHandle = safe(line?.product_handle, "");
+              const pTitle = safe(line?.title, "Product");
+              const pImg = safe(line?.image, "");
+              const productUrl = pHandle ? `/products/${pHandle}` : "#";
+              const iconSrc = resolveIconForIndex(it, 0);
+
+              const cfg = {
+                productTitle: pTitle,
+                name,
+                city,
+                state,
+                country,
+                location: locJoin || "—",
+                message: msgTxt,
+                image: pImg,
+                productUrl,
+                uploadedImage: iconSrc,
+                createOrderTime: safe(o?.createOrderTime || it?.createOrderTime, ""),
+                timeText: relTime(when),
+                timeAbsolute: formatAbs(when),
+                mobilePosition: normMB(
+                  pickSmart(mbPosArr, 0, defaultMB),
+                  defaultMB
+                ),
+                durationSeconds: Number(it.durationSeconds || 0),
+
+                rawLocations: it.locationsJson,
+                ...hideFlags,
+                ...COMMON_RECENT,
+              };
+              recentConfigs.push(cfg);
+            }
+          } catch (e) {
+            console.warn("[FOMO][orders] fetch failed", e);
+          }
+          continue;
+        }
+
+        const n = Math.max(
+          handlesArr.length || 0,
+          titlesArr.length || 0,
+          locsArrRaw.length || 0,
+          mbPosArr.length || 0,
+          1
+        );
+        for (let i = 0; i < n; i++) {
+          const handle =
+            handlesArr.length ? handlesArr[i % handlesArr.length] : "";
+          try {
+            let p = null;
+            if (handle) {
+              p = await fetchJson(
+                `/products/${handle}.js`,
+                `prod:${handle}`,
+                600000
+              );
+            }
+            const iconSrc = resolveIconForIndex(it, i);
+            const nowAbs = formatAbs(new Date());
+            const locPartsI = parseLocationParts(
+              pickRaw(locsArrRaw, i, "")
+            );
+            recentConfigs.push({
+              productTitle: p?.title || handle || "Product",
+              name: pickSmart(titlesArr, i, "Someone"),
+              city: locPartsI.city,
+              state: locPartsI.state,
+              country: locPartsI.country,
+              location: formatLocationEntry(locPartsI),
+              message: msgTxt,
+              image: (p?.images && p.images[0]) || "",
+              productUrl: p?.url || (handle ? `/products/${handle}` : "#"),
+              uploadedImage: iconSrc,
+              createOrderTime: safe(it.createOrderTime, ""),
+              timeText: relTime(new Date().toISOString()),
+              timeAbsolute: nowAbs,
+              mobilePosition: normMB(
+                pickSmart(mbPosArr, i, defaultMB),
+                defaultMB
+              ),
+              durationSeconds: Number(it.durationSeconds || 0),
+
+              rawLocations: it.locationsJson,
+              ...hideFlags,
+              ...COMMON_RECENT,
+            });
+          } catch (e) {
+            console.warn("[FOMO] product fetch failed", handle, e);
+          }
+        }
+      }
+    }
+
+    const targetByType = {
+      visitor: visitorConfigs,
+      lowstock: lowStockConfigs,
+      addtocart: addToCartConfigs,
+      review: reviewConfigs,
+    };
+    const buildGenericPopups = async (rows, type, defaults) => {
+      const target = targetByType[type];
+      if (!target) return;
+      for (const row of rows) {
+        if (!(row?.enabled == 1 || row?.enabled === "1" || row?.enabled === true))
+          continue;
+        if (!matchesVisibility(row, pt)) continue;
+        if (!matchesScope(row)) continue;
+        if (isMobile() && toBool(row?.hideOnMobile, false)) continue;
+
+        const products = await collectProducts(row);
+        const pool = products.length
+          ? products
+          : [{ title: "Product", image: "", price: "", compareAt: "" }];
+
+        const baseCfg = {
+          popupType: type,
+          positionDesktop: row.position,
+          position: row.position,
+          mobilePosition: normMB(
+            row.mobilePosition || mobilePosFromDesktop(row.position),
+            "bottom"
+          ),
+          layout: row.layout,
+          template: row.template,
+          bgColor: row.bgColor,
+          bgAlt: row.bgAlt,
+          textColor: row.textColor,
+          timestampColor: row.timestampColor,
+          priceTagBg: row.priceTagBg,
+          priceTagAlt: row.priceTagAlt,
+          priceColor: row.priceColor,
+          starColor: row.starColor,
+          textSizeContent: row.textSizeContent,
+          textSizeCompareAt: row.textSizeCompareAt,
+          textSizePrice: row.textSizePrice,
+          size: row.size,
+          transparent: row.transparent,
+          fontFamily: row.fontFamily,
+          showProductImage: toBool(row.showProductImage, true),
+          showPriceTag: toBool(row.showPriceTag, true),
+          showRating: toBool(row.showRating, false),
+          showClose: toBool(row.showClose, true),
+          directProductPage: toBool(row.directProductPage, true),
+          durationSeconds: toNum(row.duration, 6),
+          firstDelaySeconds: toNum(row.delay, 0),
+          alternateSeconds: unitToSeconds(row.interval, row.intervalUnit),
+        };
+
+        for (let i = 0; i < pool.length; i++) {
+          const prod = pool[i] || {};
+          const productTitle = formatProductName(
+            prod.title || "Product",
+            row.productNameMode,
+            row.productNameLimit
+          );
+          const price = normalizePrice(prod.price);
+          const compareAt = normalizePrice(prod.compareAt);
+
+          const stockUnder = Math.max(1, toNum(row.stockUnder, 10));
+          const stockCount =
+            stockUnder > 1
+              ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
+              : stockUnder;
+
+          const tokens = {
+            ...baseTokens,
+            product_name: productTitle,
+            product_price: price,
+            price,
+            time: row.avgTime || "2",
+            unit: row.avgUnit || "mins",
+            stock_count: stockCount,
+            reviewer_country: baseTokens.reviewer_country,
+            reviewer_city: baseTokens.reviewer_city,
+            review_date: relDaysAgo(new Date().toISOString()) || "Just now",
+          };
+
+          const msgTpl = row.message || defaults.message;
+          const tsTpl = row.timestamp || defaults.timestamp || "";
+          const message = applyTokens(msgTpl, tokens).trim();
+          const timestamp = tsTpl ? applyTokens(tsTpl, tokens).trim() : "";
+
+          target.push({
+            ...baseCfg,
+            message,
+            timestamp,
+            productTitle,
+            productImage: prod.image,
+            price,
+            compareAt,
+            productUrl: prod.url,
+            rating: prod.rating || 4,
+          });
+        }
+      }
+    };
+
+    await buildGenericPopups(tableVisitor, "visitor", {
+      message: "{full_name} from {country} just viewed this {product_name}",
+      timestamp: "Just now",
+    });
+    await buildGenericPopups(tableLowStock, "lowstock", {
+      message: "{product_name} has only {stock_count} items left in stock",
+      timestamp: "",
+    });
+    await buildGenericPopups(tableAddToCart, "addtocart", {
+      message: "{full_name} from {country} added {product_name} to cart",
+      timestamp: "{time} {unit} ago",
+    });
+    await buildGenericPopups(tableReview, "review", {
+      message:
+        "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
+      timestamp: "{review_date}",
+    });
+
     // ==== BUILD & START STREAMS ====
     const clone = (a) => (Array.isArray(a) ? a.slice() : []);
 
@@ -1473,11 +2337,28 @@ document.addEventListener("DOMContentLoaded", async function () {
       window.FlashStream || createStream("flash", renderFlash);
     const RecentStream =
       window.RecentStream || createStream("recent", renderRecent);
+    const VisitorStream =
+      window.VisitorStream || createStream("visitor", renderProductPopup);
+    const LowStockStream =
+      window.LowStockStream || createStream("lowstock", renderProductPopup);
+    const AddToCartStream =
+      window.AddToCartStream || createStream("addtocart", renderProductPopup);
+    const ReviewStream =
+      window.ReviewStream || createStream("review", renderProductPopup);
+
     window.FlashStream = FlashStream;
     window.RecentStream = RecentStream;
+    window.VisitorStream = VisitorStream;
+    window.LowStockStream = LowStockStream;
+    window.AddToCartStream = AddToCartStream;
+    window.ReviewStream = ReviewStream;
 
-    FlashStream.seqDesktop = clone(flashConfigs);
-    FlashStream.seqMobile = clone(flashConfigs);
+    const setSeq = (stream, seq) => {
+      stream.seqDesktop = clone(seq);
+      stream.seqMobile = clone(seq);
+    };
+
+    setSeq(FlashStream, flashConfigs);
 
     // De-duplicate + shuffle for recent
     const seen = new Set();
@@ -1493,41 +2374,63 @@ document.addEventListener("DOMContentLoaded", async function () {
       seen.add(key);
       uniqRecent.push(c);
     }
-    RecentStream.seqDesktop = uniqRecent.slice();
-    RecentStream.seqMobile = uniqRecent.slice();
+    setSeq(RecentStream, uniqRecent);
 
-    // Decide behavior on mobile:
-    if (
-      isMobile() &&
-      hasMobileCollision(RecentStream.seqMobile, FlashStream.seqMobile)
-    ) {
-      Combined.seq = interleaveList(
-        RecentStream.seqMobile.map((cfg) => ({ type: "recent", cfg })),
-        FlashStream.seqMobile.map((cfg) => ({ type: "flash", cfg }))
+    setSeq(VisitorStream, visitorConfigs);
+    setSeq(LowStockStream, lowStockConfigs);
+    setSeq(AddToCartStream, addToCartConfigs);
+    setSeq(ReviewStream, reviewConfigs);
+
+    const streamDefs = [
+      { type: "flash", stream: FlashStream },
+      { type: "recent", stream: RecentStream },
+      { type: "visitor", stream: VisitorStream },
+      { type: "lowstock", stream: LowStockStream },
+      { type: "addtocart", stream: AddToCartStream },
+      { type: "review", stream: ReviewStream },
+    ];
+
+    const activeStreams = streamDefs.filter(
+      (s) => s.stream.seqDesktop.length || s.stream.seqMobile.length
+    );
+    const activeMobile = streamDefs.filter((s) => s.stream.seqMobile.length);
+
+    const buildCombinedSeq = () =>
+      interleaveMany(
+        activeMobile.map((s) =>
+          s.stream.seqMobile.map((cfg) => ({ type: s.type, cfg }))
+        )
       );
-      Combined.start(false);
-    } else {
-      if (FlashStream.seqDesktop.length || FlashStream.seqMobile.length) {
-        FlashStream.start(false);
-        window.addEventListener("resize", () => FlashStream.resize());
-        window.addEventListener("orientationchange", () =>
-          setTimeout(() => FlashStream.resize(), 0)
-        );
-      }
-      if (RecentStream.seqDesktop.length || RecentStream.seqMobile.length) {
-        RecentStream.start(false);
-        window.addEventListener("resize", () => RecentStream.resize());
-        window.addEventListener("orientationchange", () =>
-          setTimeout(() => RecentStream.resize(), 0)
-        );
+
+    const shouldCombine = () => isMobile() && activeMobile.length > 1;
+
+    function stopAll() {
+      try {
+        Combined.stop();
+      } catch { }
+      for (const s of activeStreams) {
+        try {
+          s.stream.stop();
+        } catch { }
       }
     }
 
-    // Re-evaluate on viewport and when collision status changes
+    function startAll(immediate = false) {
+      const combine = shouldCombine();
+      if (combine) {
+        Combined.seq = buildCombinedSeq();
+        Combined.start(immediate);
+        return;
+      }
+      for (const s of activeStreams) {
+        s.stream.start(immediate);
+      }
+    }
+
+    startAll(false);
+
     let lastIsMobile = isMobile();
-    let lastCollision =
-      isMobile() &&
-      hasMobileCollision(RecentStream.seqMobile, FlashStream.seqMobile);
+    let lastCombine = shouldCombine();
     window.addEventListener("resize", () => reevaluateMode());
     window.addEventListener("orientationchange", () =>
       setTimeout(() => reevaluateMode(), 0)
@@ -1535,38 +2438,25 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     function reevaluateMode() {
       const nowMobile = isMobile();
-      const nowCollision =
-        nowMobile &&
-        hasMobileCollision(RecentStream.seqMobile, FlashStream.seqMobile);
-      if (nowMobile !== lastIsMobile || nowCollision !== lastCollision) {
+      const nowCombine = shouldCombine();
+      if (nowMobile !== lastIsMobile || nowCombine !== lastCombine) {
         lastIsMobile = nowMobile;
-        lastCollision = nowCollision;
-
-        try {
-          Combined.stop();
-        } catch { }
-        try {
-          FlashStream.stop();
-        } catch { }
-        try {
-          RecentStream.stop();
-        } catch { }
-
-        if (nowMobile && nowCollision) {
-          Combined.seq = interleaveList(
-            RecentStream.seqMobile.map((cfg) => ({ type: "recent", cfg })),
-            FlashStream.seqMobile.map((cfg) => ({ type: "flash", cfg }))
-          );
-          Combined.start(true);
-        } else {
-          FlashStream.start(true);
-          RecentStream.start(true);
-        }
+        lastCombine = nowCombine;
+        stopAll();
+        startAll(true);
+        return;
+      }
+      if (!nowCombine) {
+        for (const s of activeStreams) s.stream.resize();
       }
     }
 
     console.info("[FOMO] Flash items:", FlashStream.seqDesktop);
     console.info("[FOMO] Recent items:", RecentStream.seqDesktop);
+    console.info("[FOMO] Visitor items:", VisitorStream.seqDesktop);
+    console.info("[FOMO] Low stock items:", LowStockStream.seqDesktop);
+    console.info("[FOMO] Add to cart items:", AddToCartStream.seqDesktop);
+    console.info("[FOMO] Review items:", ReviewStream.seqDesktop);
   } catch (err) {
     console.error("[FOMO] build error:", err);
   }
@@ -1579,6 +2469,16 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (i < a.length) out.push(a[i]);
       if (i < b.length) out.push(b[i]);
       i++;
+    }
+    return out;
+  }
+  function interleaveMany(lists) {
+    const seqs = Array.isArray(lists) ? lists.filter((l) => l && l.length) : [];
+    if (!seqs.length) return [];
+    if (seqs.length === 1) return seqs[0].slice();
+    let out = [];
+    for (const list of seqs) {
+      out = out.length ? interleaveList(out, list) : list.slice();
     }
     return out;
   }

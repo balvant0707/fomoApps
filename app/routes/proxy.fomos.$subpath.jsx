@@ -12,11 +12,37 @@ const norm = (s) =>
 const ok = (d, s = 200) => json(d, { status: s });
 const bad = (d, s = 400) => json(d, { status: s });
 const EVENTS = new Set(["view", "click", "order"]);
-const POPUPS = new Set(["recent", "flash", "orders"]);
+const POPUPS = new Set([
+  "recent",
+  "flash",
+  "orders",
+  "visitor",
+  "lowstock",
+  "addtocart",
+  "review",
+]);
 const analyticsModel = () =>
   prisma.popupanalyticsevent || prisma.popupAnalyticsEvent || null;
 const configModel = () =>
   prisma.notificationconfig || prisma.notificationConfig || null;
+const tableModel = (key) => {
+  switch (key) {
+    case "visitor":
+      return prisma.visitorpopupconfig || prisma.visitorPopupConfig || null;
+    case "lowstock":
+      return prisma.lowstockpopupconfig || prisma.lowStockPopupConfig || null;
+    case "addtocart":
+      return prisma.addtocartpopupconfig || prisma.addToCartPopupConfig || null;
+    case "review":
+      return prisma.reviewpopupconfig || prisma.reviewPopupConfig || null;
+    case "recent":
+      return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
+    case "flash":
+      return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
+    default:
+      return null;
+  }
+};
 
 const clean = (v, max = 255) => {
   const s = String(v || "").trim();
@@ -152,36 +178,63 @@ export const loader = async ({ request, params }) => {
         });
       }
 
-      // Fetch configs (adjust to your schema/table names)
-      const model = configModel();
-      if (!model) {
+      const wantTable = (url.searchParams.get("table") || "").toLowerCase();
+
+      // Base configs (legacy)
+      const legacyModel = configModel();
+      const legacyRecords = legacyModel
+        ? await legacyModel.findMany({
+            where: { shop },
+            orderBy: { id: "desc" },
+          })
+        : [];
+
+      // All popup tables
+      const keys = ["visitor", "lowstock", "addtocart", "review", "recent", "flash"];
+      const fetchTable = async (key) => {
+        const model = tableModel(key);
+        if (!model) return [];
+        return model.findMany({ where: { shop }, orderBy: { id: "desc" } });
+      };
+
+      if (wantTable) {
+        if (wantTable === "notification" || wantTable === "legacy") {
+          return ok({
+            showPopup: legacyRecords.length > 0,
+            sessionReady: true,
+            table: "notification",
+            records: legacyRecords,
+            shop,
+            timestamp,
+          });
+        }
+        if (!keys.includes(wantTable)) {
+          return bad({ error: "Unknown table" }, 404);
+        }
+        const rows = await fetchTable(wantTable);
         return ok({
-          showPopup: false,
+          showPopup: rows.length > 0,
           sessionReady: true,
+          table: wantTable,
+          records: rows,
           shop,
-          error: "Config model not found",
           timestamp,
         });
       }
 
-      const configs = await model.findMany({
-        where: { shop },
-        orderBy: { id: "desc" },
-      });
-
-      if (!configs || configs.length === 0) {
-        return ok({
-          showPopup: false,
-          sessionReady: true,
-          shop,
-          timestamp,
-        });
-      }
+      const tablePairs = await Promise.all(
+        keys.map(async (k) => [k, await fetchTable(k)])
+      );
+      const tables = Object.fromEntries(tablePairs);
+      const hasAny =
+        legacyRecords.length > 0 ||
+        tablePairs.some(([, rows]) => Array.isArray(rows) && rows.length > 0);
 
       return ok({
-        showPopup: true,
+        showPopup: hasAny,
         sessionReady: true,
-        records: configs,
+        records: legacyRecords,
+        tables,
         shop,
         timestamp,
       });
