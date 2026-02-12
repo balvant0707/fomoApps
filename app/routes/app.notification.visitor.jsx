@@ -613,7 +613,7 @@ export default function VisitorPopupPage() {
   const [design, setDesign] = useState({
     notiType: "visitor_list",
     layout: "landscape",
-    size: 60,
+    size: 30,
     transparent: 10,
     template: "solid",
     imageAppearance: "cover",

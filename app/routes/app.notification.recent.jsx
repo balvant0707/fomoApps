@@ -1199,6 +1199,15 @@ function Bubble({ form, order, isMobile = false }) {
     form.template === "gradient"
       ? `linear-gradient(135deg, ${form.bgColor} 0%, ${form.bgAlt} 100%)`
       : form.bgColor;
+  const orderDate = order?.createdAt ? new Date(order.createdAt) : null;
+  const daysDiffText = (() => {
+    if (!orderDate || Number.isNaN(orderDate.getTime())) return "";
+    const diffMs = Date.now() - orderDate.getTime();
+    const absDays = Math.floor(Math.abs(diffMs) / 86400000);
+    if (absDays === 0) return "today";
+    if (diffMs >= 0) return `${absDays} day${absDays === 1 ? "" : "s"} ago`;
+    return `in ${absDays} day${absDays === 1 ? "" : "s"}`;
+  })();
   return (
     <div
       style={{
@@ -1365,8 +1374,10 @@ function Bubble({ form, order, isMobile = false }) {
                 }}
               >
                 <small>
-                  {order?.createdAt
-                    ? new Date(order.createdAt).toLocaleString()
+                  {orderDate
+                    ? `${orderDate.toLocaleString()}${
+                        daysDiffText ? ` | ${daysDiffText}` : ""
+                      }`
                     : "Timing"}
                 </small>
               </span>
