@@ -1188,10 +1188,11 @@ function Bubble({ form, order, isMobile = false }) {
   const showImage = !!productImg;
   const imageOverflow =
     showImage && form.imageAppearance === "cover" && !isPortrait;
-  const avatarSize = isPortrait ? 56 : 60;
+  const avatarSize = isPortrait ? 56 : 64;
   const avatarOffset = Math.round(avatarSize * 0.45);
   const portraitImageSize = isMobile ? 120 : 160;
   const showPortraitBlock = isPortrait && !hide.has("productImage");
+  const pad = 16;
 
   const showTime = !hide.has("time");
   const background =
@@ -1211,10 +1212,10 @@ function Bubble({ form, order, isMobile = false }) {
             : form.fontFamily,
         background,
         color: form.textColor,
-        borderRadius: 14,
+        borderRadius: 18,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-        padding: 12,
-        paddingLeft: imageOverflow ? 12 + avatarOffset : 12,
+        padding: pad,
+        paddingLeft: imageOverflow ? pad + avatarOffset : pad,
         border: "1px solid rgba(17,24,39,0.06)",
         maxWidth: isMobile
           ? mobileSizeToWidth(form.mobileSize)
@@ -1266,7 +1267,7 @@ function Bubble({ form, order, isMobile = false }) {
         <div
           style={{
             position: "absolute",
-            left: 0,
+            left: pad,
             top: isPortrait ? 24 : "50%",
             transform: isPortrait
               ? "translate(-50%, 0)"
@@ -1395,7 +1396,7 @@ function DesktopPreview({ form, order }) {
         justifyContent: "center",
         padding: 18,
         boxSizing: "border-box",
-        alignItems: "start",
+        alignItems: "center",
       }}
     >
       <Bubble form={form} order={order} />
@@ -2026,7 +2027,7 @@ export default function RecentOrdersPopupPage() {
                       },
                       {
                         label: "Fit within container",
-                        value: "contain",
+                        value: "cover",
                       },
                     ]}
                     selected={[form.imageAppearance]}
