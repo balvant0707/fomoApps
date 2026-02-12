@@ -124,6 +124,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     String(tpl || "").replace(/\{(\w+)\}/g, (m, k) =>
       tokens[k] !== undefined && tokens[k] !== null ? String(tokens[k]) : m
     );
+  const gapSeconds = (cfg) => {
+    const base = Math.max(0, Number(cfg?.alternateSeconds ?? 0));
+    if (!base) return 0;
+    if (cfg?.randomize === true || String(cfg?.randomize) === "true") {
+      const jitter = 0.5 + Math.random(); // 0.5x .. 1.5x
+      return Math.max(1, Math.round(base * jitter));
+    }
+    return base;
+  };
   const currCollectionHandle = () => {
     const raw =
       (window.meta && window.meta.collection && window.meta.collection.handle) ||
@@ -163,6 +172,15 @@ document.addEventListener("DOMContentLoaded", async function () {
   const parseProductList = (raw) => {
     const arr = parseList(raw);
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
+  };
+  const formatMoney = (cents) => {
+    const n = Number(cents);
+    if (!Number.isFinite(n)) return String(cents || "");
+    if (window.Shopify && typeof window.Shopify.formatMoney === "function") {
+      const fmt = window.Shopify.money_format || "${{amount}}";
+      return window.Shopify.formatMoney(n, fmt);
+    }
+    return (n / 100).toFixed(2);
   };
 
   const cacheKey = (k) =>
@@ -979,11 +997,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
 
-    const sizeScale =
-      0.8 + (Math.max(0, Math.min(100, Number(cfg.size ?? 60))) / 100) * 0.4;
-    const opacity =
-      1 -
-      (Math.max(0, Math.min(100, Number(cfg.transparent ?? 0))) / 100) * 0.7;
+    const hasSize = cfg.size !== undefined && cfg.size !== null && cfg.size !== "";
+    const hasTransparency =
+      cfg.transparent !== undefined && cfg.transparent !== null && cfg.transparent !== "";
+    const sizeScale = hasSize
+      ? 0.8 + (Math.max(0, Math.min(100, Number(cfg.size))) / 100) * 0.4
+      : 1;
+    const opacity = hasTransparency
+      ? 1 -
+        (Math.max(0, Math.min(100, Number(cfg.transparent))) / 100) * 0.7
+      : 1;
     const isPortrait =
       String(cfg.layout || "landscape").toLowerCase() === "portrait";
 
@@ -994,10 +1017,22 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const baseFont = Number(cfg.textSizeContent) || (mode === "mobile" ? 13 : 14);
     const fontSize = Math.max(11, Math.round(baseFont));
-    const pad = Math.round(mode === "mobile" ? 12 : 16);
+    const pad = Math.round(
+      imageStyle === "offset"
+        ? mode === "mobile"
+          ? 14
+          : 16
+        : mode === "mobile"
+          ? 12
+          : 14
+    );
     const gap = Math.round(mode === "mobile" ? 10 : 12);
     const imgSize = Math.round((mode === "mobile" ? 56 : 64));
     const imgOffset = Math.round(imgSize * 0.45);
+    const imageStyle =
+      String(cfg.imageStyle || "inline").toLowerCase() === "offset"
+        ? "offset"
+        : "inline";
 
     const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
     const originX = posKey.includes("right") ? "right" : "left";
@@ -1008,43 +1043,66 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${mode === "mobile" ? "min(92vw,420px)" : ""};
-      overflow:hidden; cursor:pointer; opacity:${opacity};
-      border-radius:${Math.round(18 * sizeScale)}px;
-      background:${bg}; color:${cfg.textColor || "#111"};
-      box-shadow:0 10px 30px rgba(0,0,0,.12);
+      overflow:visible; cursor:pointer;
       font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
       animation:${inAnim} ${DUR.in}ms ease-out both;
-      transform:scale(${sizeScale});
       transform-origin:${transformOrigin};
     `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
 
+    const inner = document.createElement("div");
+    inner.style.cssText = `
+      overflow:hidden; opacity:${opacity};
+      border-radius:${Math.round(18 * sizeScale)}px;
+      background:${bg}; color:${cfg.textColor || "#111"};
+      box-shadow:0 10px 30px rgba(0,0,0,.12);
+      border:1px solid rgba(0,0,0,0.06);
+      transform:scale(${sizeScale});
+      transform-origin:${transformOrigin};
+      max-width:${isPortrait ? 320 : 460}px;
+    `;
+
     const card = document.createElement("div");
     const leftPad =
-      isPortrait || cfg.showProductImage === false ? pad : pad + imgOffset;
+      imageStyle === "offset" && !isPortrait && cfg.showProductImage !== false
+        ? pad + imgOffset
+        : pad;
+    const alignItems =
+      isPortrait ? "flex-start" : imageStyle === "offset" ? "flex-start" : "center";
     card.style.cssText = `
-      display:flex; gap:${gap}px; align-items:flex-start;
+      display:flex; gap:${gap}px; align-items:${alignItems};
       flex-direction:${isPortrait ? "column" : "row"};
       position:relative; padding:${pad}px;
       font-size:${fontSize}px; line-height:1.35;
       padding-left:${leftPad}px;
     `;
 
-    const imgWrap = document.createElement("div");
-    imgWrap.style.cssText = `
-      position:absolute;
-      left:${pad}px;
-      top:${isPortrait ? 28 : "50%"};
-      transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
-      width:${imgSize}px;height:${imgSize}px;
-      border-radius:${Math.round(imgSize * 0.22)}px;
-      overflow:hidden;background:#f3f4f6;
-      box-shadow:0 8px 18px rgba(0,0,0,0.18);
-      border:2px solid rgba(255,255,255,0.75);
-      display:${cfg.showProductImage === false ? "none" : "grid"};
-      place-items:center;
-      pointer-events:none;
-    `;
+    let imgWrap = null;
+    if (imageStyle === "offset") {
+      imgWrap = document.createElement("div");
+      imgWrap.style.cssText = `
+        position:absolute;
+        left:${pad}px;
+        top:${isPortrait ? 28 : "50%"};
+        transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
+        width:${imgSize}px;height:${imgSize}px;
+        border-radius:${Math.round(imgSize * 0.22)}px;
+        overflow:hidden;background:#f3f4f6;
+        box-shadow:0 8px 18px rgba(0,0,0,0.18);
+        border:2px solid rgba(255,255,255,0.75);
+        display:${cfg.showProductImage === false ? "none" : "grid"};
+        place-items:center;
+        pointer-events:none;
+      `;
+    } else {
+      imgWrap = document.createElement("div");
+      imgWrap.style.cssText = `
+        width:${isPortrait ? 56 : 64}px;height:${isPortrait ? 56 : 64}px;
+        border-radius:12px;overflow:hidden;background:#f3f4f6;
+        flex-shrink:0;display:${cfg.showProductImage === false ? "none" : "grid"};
+        place-items:center;pointer-events:none;
+      `;
+    }
 
     const img = document.createElement("img");
     img.src = cfg.productImage || cfg.image || "";
@@ -1082,21 +1140,34 @@ document.addEventListener("DOMContentLoaded", async function () {
       msg.style.cssText = `color:${cfg.textColor || "#111"};`;
       const messageText = String(cfg.message || "");
       const productName = String(cfg.productTitle || "").trim();
-      if (productName && messageText.includes(productName)) {
-        const idx = messageText.indexOf(productName);
-        const before = document.createTextNode(messageText.slice(0, idx));
-        const prod = document.createElement("span");
-        prod.textContent = productName;
-        prod.style.cssText = "font-weight:600;text-decoration:underline;";
-        const after = document.createTextNode(
-          messageText.slice(idx + productName.length)
-        );
-        msg.appendChild(before);
-        msg.appendChild(prod);
-        msg.appendChild(after);
-      } else {
-        msg.textContent = messageText;
-      }
+      const countValue = cfg.stockCountValue ? String(cfg.stockCountValue) : "";
+      let templ = messageText;
+      if (productName) templ = templ.replace(productName, "__FOMO_PROD__");
+      if (countValue) templ = templ.replace(countValue, "__FOMO_COUNT__");
+      const parts = templ.split(/(__FOMO_PROD__|__FOMO_COUNT__)/);
+      parts.forEach((part) => {
+        if (part === "__FOMO_PROD__") {
+          const span = document.createElement("span");
+          span.textContent = productName;
+          if (cfg.productHighlightStyle === "upper") {
+            span.style.cssText = "font-weight:700;text-transform:uppercase;";
+          } else {
+            span.style.cssText = "font-weight:600;text-decoration:underline;";
+          }
+          msg.appendChild(span);
+          return;
+        }
+        if (part === "__FOMO_COUNT__") {
+          const span = document.createElement("span");
+          span.textContent = countValue;
+          span.style.cssText = `font-weight:700;color:${
+            cfg.stockCountColor || cfg.textColor || "#111"
+          };`;
+          msg.appendChild(span);
+          return;
+        }
+        msg.appendChild(document.createTextNode(part));
+      });
       body.appendChild(msg);
     }
 
@@ -1146,14 +1217,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.appendChild(imgWrap);
     card.appendChild(body);
     card.appendChild(close);
-    wrap.appendChild(card);
+    inner.appendChild(card);
 
     const barWrap = document.createElement("div");
     barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
     const bar = document.createElement("div");
     bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || cfg.textColor || "#22c55e"};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
     barWrap.appendChild(bar);
-    wrap.appendChild(barWrap);
+    inner.appendChild(barWrap);
+    wrap.appendChild(inner);
 
     wrap.addEventListener("click", (e) => {
       if (e.target === close) return;
@@ -1228,7 +1300,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             if (!s.length) return;
             const cfg = s[this.idx % s.length];
             this.el = this.renderer(cfg, this.mode, () => {
-              const gap = Math.max(0, +cfg.alternateSeconds || 0);
+              const gap = gapSeconds(cfg);
               this.idx = (this.idx + 1) % s.length;
               showNext(gap);
             });
@@ -1275,7 +1347,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             const item = this.seq[this.idx % this.seq.length]; // {type, cfg}
             const renderer = rendererForType(item.type);
             this.el = renderer(item.cfg, "mobile", () => {
-              const gap = Math.max(0, +item.cfg.alternateSeconds || 0);
+              const gap = gapSeconds(item.cfg);
               this.idx = (this.idx + 1) % this.seq.length;
               showNext(gap);
             });
@@ -1832,9 +1904,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
     const normalizePrice = (v) => {
       if (v === undefined || v === null || v === "") return "";
-      if (typeof v === "number") return String(v);
-      if (typeof v === "object" && v?.amount) return String(v.amount);
-      return String(v);
+      if (typeof v === "string" && /[^\d.]/.test(v)) return v;
+      const n = Number(v?.amount ?? v);
+      if (!Number.isFinite(n)) return String(v);
+      if (Number.isInteger(n)) return formatMoney(n);
+      return String(n);
     };
     const normalizeProduct = (p) => {
       if (!p) return null;
@@ -1954,6 +2028,15 @@ document.addEventListener("DOMContentLoaded", async function () {
       for (const entry of list) {
         const p = await resolveProduct(entry);
         if (p) out.push(p);
+      }
+      const collectionList = parseList(row?.selectedCollectionsJson);
+      if (Array.isArray(collectionList)) {
+        for (const entry of collectionList) {
+          if (entry && typeof entry === "object" && entry.sampleProduct) {
+            const sp = normalizeProduct(entry.sampleProduct);
+            if (sp) out.push(sp);
+          }
+        }
       }
       if (!out.length && currentProduct) {
         const p = normalizeProduct(currentProduct);
@@ -2229,6 +2312,9 @@ document.addEventListener("DOMContentLoaded", async function () {
           ? products
           : [{ title: "Product", image: "", price: "", compareAt: "" }];
 
+        const imageStyle = type === "addtocart" ? "offset" : "inline";
+        const highlightStyle = type === "review" ? "upper" : "underline";
+
         const baseCfg = {
           popupType: type,
           positionDesktop: row.position,
@@ -2261,6 +2347,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           durationSeconds: toNum(row.duration, 6),
           firstDelaySeconds: toNum(row.delay, 0),
           alternateSeconds: unitToSeconds(row.interval, row.intervalUnit),
+          randomize: toBool(row.randomize, false),
+          imageStyle,
+          productHighlightStyle: highlightStyle,
+          stockCountColor: row.numberColor,
         };
 
         for (let i = 0; i < pool.length; i++) {
@@ -2287,12 +2377,20 @@ document.addEventListener("DOMContentLoaded", async function () {
             time: row.avgTime || "2",
             unit: row.avgUnit || "mins",
             stock_count: stockCount,
+            visitor_count: Math.max(3, Math.round(8 + Math.random() * 20)),
             reviewer_country: baseTokens.reviewer_country,
             reviewer_city: baseTokens.reviewer_city,
             review_date: relDaysAgo(new Date().toISOString()) || "Just now",
           };
 
-          const msgTpl = row.message || defaults.message;
+          const visitorCounter =
+            type === "visitor" &&
+            String(row.notiType || "").toLowerCase() === "visitor_counter";
+          const msgTpl =
+            row.message ||
+            (visitorCounter
+              ? "{visitor_count} people are viewing {product_name} right now"
+              : defaults.message);
           const tsTpl = row.timestamp || defaults.timestamp || "";
           const message = applyTokens(msgTpl, tokens).trim();
           const timestamp = tsTpl ? applyTokens(tsTpl, tokens).trim() : "";
@@ -2307,6 +2405,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             compareAt,
             productUrl: prod.url,
             rating: prod.rating || 4,
+            stockCountValue: type === "lowstock" ? stockCount : null,
           });
         }
       }

@@ -47,7 +47,9 @@ export async function action({ request }) {
     return json({ success: false, error: "Missing form" }, { status: 400 });
   }
 
+  console.log("[Review Popup] form payload:", JSON.stringify(form, null, 2));
   const saved = await saveReviewPopup(shop, form);
+  console.log("[Review Popup] saved id:", saved?.id);
   return json({ success: true, id: saved.id });
 }
 
