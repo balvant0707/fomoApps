@@ -728,6 +728,7 @@ export default function LowStockPopupPage() {
     return items.map((item) => ({
       id: item.id,
       title: item.title,
+      handle: item.handle || null,
       image: item.featuredImage || null,
       status: item.status,
       price: item.price || null,
