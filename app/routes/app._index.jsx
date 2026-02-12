@@ -246,7 +246,7 @@ export default function AppIndex() {
           </BlockStack>
         </Card>
 
-        <Card>
+        {/* <Card>
           <BlockStack gap="300">
             <Text as="h2" variant="headingLg">Preview - Popup Content</Text>
             <div style={previewOuter} aria-label="Preview area for Fomoify popups">
@@ -290,7 +290,7 @@ export default function AppIndex() {
             </div>
 
           </BlockStack>
-        </Card>
+        </Card> */}
 
         <Suspense
           fallback={
@@ -324,7 +324,7 @@ export default function AppIndex() {
           </Await>
         </Suspense>
 
-        <Card>
+        {/* <Card>
           <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h3" variant="headingMd">
@@ -378,7 +378,7 @@ export default function AppIndex() {
               </section>
             </Collapsible>
           </BlockStack>
-        </Card>
+        </Card> */}
       </BlockStack>
     </Page>
   );
