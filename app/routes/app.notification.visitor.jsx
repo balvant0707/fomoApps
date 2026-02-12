@@ -907,6 +907,7 @@ export default function VisitorPopupPage() {
       }
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
+        enabled: true,
         design,
         textSize,
         content,
@@ -921,6 +922,7 @@ export default function VisitorPopupPage() {
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ form }),
       });
       const raw = await res.text();
