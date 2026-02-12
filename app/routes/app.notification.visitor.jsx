@@ -23,14 +23,32 @@ import {
   Toast,
   Loading,
 } from "@shopify/polaris";
-import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
+import {
+  useNavigate,
+  useFetcher,
+  useLocation,
+  useLoaderData,
+} from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { saveVisitorPopup } from "../models/popup-config.server";
 
 export async function loader({ request }) {
-  await authenticate.admin(request);
-  return json({ title: "Visitor Popup" });
+  const { admin } = await authenticate.admin(request);
+  let customerCount = null;
+  try {
+    const resp = await admin.graphql(
+      "query { customers(first: 1) { totalCount } }"
+    );
+    const payload = await resp.json();
+    const count = payload?.data?.customers?.totalCount;
+    if (Number.isFinite(Number(count))) {
+      customerCount = Number(count);
+    }
+  } catch (e) {
+    console.warn("[Visitor Popup] customer count fetch failed:", e);
+  }
+  return json({ title: "Visitor Popup", customerCount });
 }
 
 export async function action({ request }) {
@@ -51,9 +69,20 @@ export async function action({ request }) {
   }
 
   console.log("[Visitor Popup] form payload:", JSON.stringify(form, null, 2));
-  const saved = await saveVisitorPopup(shop, form);
-  console.log("[Visitor Popup] saved id:", saved?.id);
-  return json({ success: true, id: saved.id });
+  try {
+    const saved = await saveVisitorPopup(shop, form);
+    console.log("[Visitor Popup] saved id:", saved?.id);
+    return json({ success: true, id: saved?.id });
+  } catch (e) {
+    console.error("[Visitor Popup] save failed:", e);
+    return json(
+      {
+        success: false,
+        error: e?.message || "Save failed",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 const NOTI_TYPES = [
@@ -637,6 +666,7 @@ function PreviewCard({
   );
 }
 export default function VisitorPopupPage() {
+  const { customerCount } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -796,14 +826,19 @@ export default function VisitorPopupPage() {
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
+  const preferredSelectedProduct = selectedProducts[0] || null;
   const scopedProduct =
-    visibility.productScope === "specific" ? selectedProducts[0] : null;
+    visibility.productScope === "specific" ? preferredSelectedProduct : null;
   const scopedCollectionProduct =
     visibility.collectionScope === "specific"
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+    preferredSelectedProduct ||
+    scopedProduct ||
+    scopedCollectionProduct ||
+    storeProducts[0] ||
+    null;
   const previewMessage = needsProductSelection
     ? "Select a product to preview."
     : needsCollectionSelection
@@ -848,10 +883,27 @@ export default function VisitorPopupPage() {
       timestamp: `${c.timestamp}${c.timestamp ? " " : ""}{${token}}`,
     }));
   };
+  const customerInfoText = Number.isFinite(customerCount)
+    ? `${customerCount} customer profile${
+        customerCount === 1 ? "" : "s"
+      } are imported automatically from Shopify.`
+    : "Customer profiles are imported automatically from Shopify.";
 
   const save = async () => {
     setSaving(true);
     try {
+      if (
+        visibility.productScope === "specific" &&
+        selectedProducts.length === 0
+      ) {
+        setToast({
+          active: true,
+          error: true,
+          msg: "Please select at least 1 product before saving.",
+        });
+        setSaving(false);
+        return;
+      }
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
         design,
@@ -1334,7 +1386,7 @@ export default function VisitorPopupPage() {
                         />
                         <div style={{ marginLeft: 28 }}>
                           <Text tone="subdued">
-                            Customer profiles are imported automatically from Shopify.
+                            {customerInfoText}
                           </Text>
                         </div>
                       </div>

@@ -34,6 +34,11 @@ async function upsertByShop(table, shop, data) {
 }
 
 export async function saveVisitorPopup(shop, form) {
+  const table =
+    prisma?.visitorpopupconfig || prisma?.visitorPopupConfig || null;
+  if (!table) {
+    throw new Error("Prisma model missing: visitorpopupconfig");
+  }
   const data = {
     enabled: toBool(form?.enabled, true),
 
@@ -92,7 +97,7 @@ export async function saveVisitorPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.visitorpopupconfig, shop, data);
+  return upsertByShop(table, shop, data);
 }
 
 export async function saveLowStockPopup(shop, form) {
