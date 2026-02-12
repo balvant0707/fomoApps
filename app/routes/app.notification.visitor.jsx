@@ -779,10 +779,13 @@ export default function VisitorPopupPage() {
         : null;
 
   const togglePick = (item) => {
+    const id = typeof item === "object" ? item?.id : item;
+    if (!id) return;
     setSelectedProducts((prev) => {
-      const exists = prev.some((p) => p.id === item.id);
-      if (exists) return prev.filter((p) => p.id !== item.id);
-      return [...prev, item];
+      const exists = prev.some((p) => p.id === id);
+      if (exists) return prev.filter((p) => p.id !== id);
+      if (typeof item === "object") return [...prev, item];
+      return prev;
     });
   };
 
