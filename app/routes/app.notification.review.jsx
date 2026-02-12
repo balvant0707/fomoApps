@@ -49,9 +49,21 @@ export async function action({ request }) {
   }
 
   console.log("[Review Popup] form payload:", JSON.stringify(form, null, 2));
-  const saved = await saveReviewPopup(shop, form);
-  console.log("[Review Popup] saved id:", saved?.id);
-  return json({ success: true, id: saved.id });
+  try {
+    const saved = await saveReviewPopup(shop, form);
+    console.log("[Review Popup] saved id:", saved?.id);
+    return json({ success: true, id: saved?.id });
+  } catch (e) {
+    console.error("[Review Popup] save failed:", e);
+    return json(
+      {
+        success: false,
+        error: e?.message || "Save failed",
+        code: e?.code || null,
+      },
+      { status: 500 }
+    );
+  }
 }
 
 const REVIEW_TYPES = [

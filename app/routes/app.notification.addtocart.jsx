@@ -49,9 +49,21 @@ export async function action({ request }) {
   }
 
   console.log("[AddToCart Popup] form payload:", JSON.stringify(form, null, 2));
-  const saved = await saveAddToCartPopup(shop, form);
-  console.log("[AddToCart Popup] saved id:", saved?.id);
-  return json({ success: true, id: saved.id });
+  try {
+    const saved = await saveAddToCartPopup(shop, form);
+    console.log("[AddToCart Popup] saved id:", saved?.id);
+    return json({ success: true, id: saved?.id });
+  } catch (e) {
+    console.error("[AddToCart Popup] save failed:", e);
+    return json(
+      {
+        success: false,
+        error: e?.message || "Save failed",
+        code: e?.code || null,
+      },
+      { status: 500 }
+    );
+  }
 }
 
 const LAYOUTS = [

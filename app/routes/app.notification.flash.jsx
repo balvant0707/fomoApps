@@ -362,6 +362,8 @@ export async function action({ request }) {
   const { form } = body || {};
   if (!form) return json({ success: false, error: "Missing form" }, { status: 400 });
 
+  console.log("[Flash Popup] form payload:", JSON.stringify(form, null, 2));
+
   const enabled = form?.enabled?.includes?.("enabled") ?? false;
 
   // Priority for icon: uploaded SVG > builtin key > default "reshot"

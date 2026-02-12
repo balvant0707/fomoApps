@@ -50,9 +50,21 @@ export async function action({ request }) {
   }
 
   console.log("[LowStock Popup] form payload:", JSON.stringify(form, null, 2));
-  const saved = await saveLowStockPopup(shop, form);
-  console.log("[LowStock Popup] saved id:", saved?.id);
-  return json({ success: true, id: saved.id });
+  try {
+    const saved = await saveLowStockPopup(shop, form);
+    console.log("[LowStock Popup] saved id:", saved?.id);
+    return json({ success: true, id: saved?.id });
+  } catch (e) {
+    console.error("[LowStock Popup] save failed:", e);
+    return json(
+      {
+        success: false,
+        error: e?.message || "Save failed",
+        code: e?.code || null,
+      },
+      { status: 500 }
+    );
+  }
 }
 
 const LAYOUTS = [

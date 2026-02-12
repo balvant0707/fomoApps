@@ -841,6 +841,7 @@ export async function action({ request }) {
     );
   }
   const { form } = body || {};
+  console.log("[Recent Popup] form payload:", JSON.stringify(form, null, 2));
 
   const intOrNull = (v, min = null, max = null) => {
     if (v === undefined || v === null || String(v).trim() === "") return null;
