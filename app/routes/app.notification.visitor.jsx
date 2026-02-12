@@ -907,7 +907,7 @@ export default function VisitorPopupPage() {
       }
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
-        enabled: flase,
+        enabled: false,
         design,
         textSize,
         content,
