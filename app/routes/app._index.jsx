@@ -19,14 +19,41 @@ import NotificationTable from "../components/dashboard/NotificationTable";
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
 
 async function fetchRows(shop) {
-  if (!prisma?.notificationconfig?.findMany) {
-    throw new Error("Prisma not initialized or model missing");
-  }
+  const tableModel = (key) => {
+    switch (key) {
+      case "recent":
+        return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
+      case "flash":
+        return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
+      default:
+        return null;
+    }
+  };
 
-  const rows = await prisma.notificationconfig.findMany({
-    where: { shop },
-    orderBy: { id: "desc" },
-  });
+  const keys = ["recent", "flash"];
+  const rows = [];
+  for (const key of keys) {
+    const model = tableModel(key);
+    if (!model?.findFirst) continue;
+    try {
+      const row = await model.findFirst({
+        where: { shop },
+        orderBy: { id: "desc" },
+      });
+      if (row) {
+        rows.push({
+          ...row,
+          key,
+          enabled:
+            row.enabled === true ||
+            row.enabled === 1 ||
+            row.enabled === "1",
+        });
+      }
+    } catch (e) {
+      console.error(`[home.loader] ${key} fetch failed:`, e);
+    }
+  }
 
   return { rows, total: rows.length };
 }
@@ -104,9 +131,16 @@ export async function action({ request }) {
 
   if (_action === "delete") {
     const id = Number(form.get("id"));
+    const key = String(form.get("key") || "").toLowerCase();
     try {
-      if (id && prisma?.notificationconfig?.deleteMany) {
-        await prisma.notificationconfig.deleteMany({ where: { id, shop } });
+      const model =
+        key === "recent"
+          ? prisma.recentpopupconfig || prisma.recentPopupConfig
+          : key === "flash"
+            ? prisma.flashpopupconfig || prisma.flashPopupConfig
+            : null;
+      if (id && model?.deleteMany) {
+        await model.deleteMany({ where: { id, shop } });
       }
       if (isFetch) return safeJson({ ok: true });
       search.set("deleted", "1");
@@ -123,13 +157,20 @@ export async function action({ request }) {
 
   if (_action === "update") {
     const id = Number(form.get("id"));
+    const key = String(form.get("key") || "").toLowerCase();
     const messageText = form.get("messageText")?.toString() ?? "";
     const showType = form.get("showType")?.toString() ?? "allpage";
     const enabled = form.get("enabled") === "on";
 
     try {
-      if (id && prisma?.notificationconfig?.updateMany) {
-        await prisma.notificationconfig.updateMany({
+      const model =
+        key === "recent"
+          ? prisma.recentpopupconfig || prisma.recentPopupConfig
+          : key === "flash"
+            ? prisma.flashpopupconfig || prisma.flashPopupConfig
+            : null;
+      if (id && model?.updateMany) {
+        await model.updateMany({
           where: { id, shop },
           data: { messageText, showType, enabled },
         });
@@ -149,10 +190,17 @@ export async function action({ request }) {
 
   if (_action === "toggle-enabled") {
     const id = Number(form.get("id"));
+    const key = String(form.get("key") || "").toLowerCase();
     const enabled = form.get("enabled") === "on";
     try {
-      if (id && prisma?.notificationconfig?.updateMany) {
-        await prisma.notificationconfig.updateMany({
+      const model =
+        key === "recent"
+          ? prisma.recentpopupconfig || prisma.recentPopupConfig
+          : key === "flash"
+            ? prisma.flashpopupconfig || prisma.flashPopupConfig
+            : null;
+      if (id && model?.updateMany) {
+        await model.updateMany({
           where: { id, shop },
           data: { enabled },
         });

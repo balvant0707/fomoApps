@@ -97,11 +97,57 @@ export async function loader({ request }) {
   const shop = session?.shop;
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
-  const logsPromise = prisma.notificationconfig.findMany({
-    where: { shop },
-    orderBy: { id: "desc" },
-    take: 30,
-  });
+  const tableModel = (key) => {
+    switch (key) {
+      case "recent":
+        return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
+      case "flash":
+        return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
+      case "visitor":
+        return prisma.visitorpopupconfig || prisma.visitorPopupConfig || null;
+      case "lowstock":
+        return prisma.lowstockpopupconfig || prisma.lowStockPopupConfig || null;
+      case "addtocart":
+        return prisma.addtocartpopupconfig || prisma.addToCartPopupConfig || null;
+      case "review":
+        return prisma.reviewpopupconfig || prisma.reviewPopupConfig || null;
+      default:
+        return null;
+    }
+  };
+
+  const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
+  const logsPromise = Promise.all(
+    keys.map(async (key) => {
+      const model = tableModel(key);
+      if (!model?.findFirst) return null;
+      try {
+        const row = await model.findFirst({
+          where: { shop },
+          orderBy: { id: "desc" },
+        });
+        if (!row) return null;
+        return {
+          ...row,
+          key,
+          enabled:
+            row.enabled === true ||
+            row.enabled === 1 ||
+            row.enabled === "1",
+          messageText:
+            row.messageText ||
+            row.message ||
+            row.name ||
+            row.title ||
+            "-",
+          showType: row.showType || "-",
+        };
+      } catch (e) {
+        console.error(`[dashboard.logs] ${key} fetch failed:`, e);
+        return null;
+      }
+    })
+  ).then((rows) => rows.filter(Boolean));
   const analyticsPromise = fetchAnalytics(shop, 30);
 
   return defer({ logs: logsPromise, analytics: analyticsPromise });

@@ -262,13 +262,92 @@ const NAV_ITEMS = [
   { id: "behavior", label: "Behavior", Icon: BehaviorIcon },
 ];
 
-/* ---------------- Loader (no DB prefill) ---------------- */
+/* ---------------- Loader (per-shop prefill) ---------------- */
 export async function loader({ request }) {
-  await authenticate.admin(request);
-  return json({ existing: null, key: KEY, title: "Flash Sale Bars" });
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop;
+  let last = null;
+
+  if (shop) {
+    try {
+      const model =
+        prisma?.flashpopupconfig || prisma?.flashPopupConfig || null;
+      if (model?.findFirst) {
+        last = await model.findFirst({
+          where: { shop },
+          orderBy: { id: "desc" },
+        });
+      }
+    } catch (e) {
+      console.error("[Flash loader] flashpopupconfig findFirst failed:", e);
+    }
+  }
+
+  const source = last;
+  const parseArr = (s) => {
+    if (Array.isArray(s)) return s;
+    try {
+      const a = JSON.parse(s || "[]");
+      return Array.isArray(a) ? a : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const messageTitlesJson = parseArr(source?.messageTitlesJson);
+  const locationsJson = parseArr(source?.locationsJson);
+  const namesJson = parseArr(source?.namesJson);
+  const mobilePosition = parseArr(source?.mobilePositionJson);
+  const selectedProductsJson = parseArr(source?.selectedProductsJson);
+
+  const enabledRaw = source?.enabled;
+  const enabled =
+    enabledRaw === undefined || enabledRaw === null
+      ? true
+      : enabledRaw === true || enabledRaw === 1 || enabledRaw === "1";
+
+  const saved = {
+    enabled,
+    showType: source?.showType ?? "allpage",
+    messageTitle: source?.messageTitle ?? messageTitlesJson[0] ?? "Flash Sale",
+    name: source?.name ?? locationsJson[0] ?? "Flash Sale: 20% OFF",
+    messageText: source?.messageText ?? namesJson[0] ?? "ends in 02:15 hours",
+    fontFamily: source?.fontFamily ?? "System",
+    fontWeight: source?.fontWeight ?? 600,
+    layout: source?.layout ?? "landscape",
+    imageAppearance: source?.imageAppearance ?? "cover",
+    template: source?.template ?? "solid",
+    position: source?.position ?? "top-right",
+    animation: source?.animation ?? "slide",
+    mobileSize: source?.mobileSize ?? "compact",
+    mobilePosition: mobilePosition.length ? mobilePosition : ["top"],
+    bgColor: source?.bgColor ?? "#FFFBD2",
+    bgAlt: source?.bgAlt ?? source?.ctaBgColor ?? "#FBCFCF",
+    textColor: source?.textColor ?? source?.msgColor ?? "#000000",
+    numberColor: source?.numberColor ?? source?.titleColor ?? "#000000",
+    priceTagBg: source?.priceTagBg ?? "#593E3F",
+    priceTagAlt: source?.priceTagAlt ?? "#E66465",
+    priceColor: source?.priceColor ?? "#FFFFFF",
+    starColor: source?.starColor ?? "#F06663",
+    rounded: source?.rounded ?? 14,
+    firstDelaySeconds: source?.firstDelaySeconds ?? 1,
+    durationSeconds: source?.durationSeconds ?? 1,
+    alternateSeconds: source?.alternateSeconds ?? 5,
+    intervalUnit:
+      source?.intervalUnit ??
+      intervalUnitFromSeconds(source?.alternateSeconds ?? 5),
+    iconKey: source?.iconKey ?? "reshot",
+    iconSvg: source?.iconSvg ?? "",
+    messageTitlesJson,
+    locationsJson,
+    namesJson,
+    selectedProductsJson,
+  };
+
+  return json({ saved, key: KEY, title: "Flash Sale Bars" });
 }
 
-/* ---------------- Action: ALWAYS CREATE NEW ROW ---------------- */
+/* ---------------- Action: Upsert Per Shop ---------------- */
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -284,11 +363,6 @@ export async function action({ request }) {
   if (!form) return json({ success: false, error: "Missing form" }, { status: 400 });
 
   const enabled = form?.enabled?.includes?.("enabled") ?? false;
-
-  const fontWeightNum =
-    form?.fontWeight !== undefined && form?.fontWeight !== null && form?.fontWeight !== ""
-      ? Number(form.fontWeight)
-      : null;
 
   // Priority for icon: uploaded SVG > builtin key > default "reshot"
   const incomingKey = form?.iconKey ?? null;
@@ -307,84 +381,35 @@ export async function action({ request }) {
   const namesArr     = Array.isArray(form?.namesJson) ? form.namesJson : [];
   const mobilePosArr = Array.isArray(form?.mobilePosition) ? form.mobilePosition : [];
 
-  // Optional selected products list as JSON string (nullable)
-  const selProdJson =
-    Array.isArray(form?.selectedProductsJson) && form.selectedProductsJson.length
-      ? JSON.stringify(form.selectedProductsJson)
-      : null;
-
-  const data = {
-    // keys
-    shop,
-    key: KEY,
-
-    // flags
-    enabled,
-    showType: form?.showType ?? null,
-
-    // JSON strings for DB
-    messageTitlesJson: JSON.stringify(titleArr),
-    locationsJson: JSON.stringify(locationArr),
-    namesJson: JSON.stringify(namesArr),
-    selectedProductsJson: selProdJson,
-    mobilePositionJson: JSON.stringify(mobilePosArr),
-
-    // Scalars
-    messageText: form?.messageText ?? (namesArr[0] ?? null),
-    fontFamily: form?.fontFamily ?? null,
-    fontWeight: isNaN(fontWeightNum) ? null : fontWeightNum,
-    position: form?.position ?? null,
-    animation: form?.animation ?? null,
-    mobileSize: form?.mobileSize ?? null,
-    titleColor: form?.numberColor ?? null,
-    bgColor: form?.bgColor ?? null,
-    msgColor: form?.textColor ?? null,
-    ctaBgColor: form?.bgAlt ?? null,
-
-    rounded: form?.rounded != null ? Number(form.rounded) : null,
-    firstDelaySeconds: form?.firstDelaySeconds != null ? Number(form.firstDelaySeconds) : null,
-    durationSeconds: form?.durationSeconds != null ? Number(form.durationSeconds) : null,
-    alternateSeconds: form?.alternateSeconds != null ? Number(form.alternateSeconds) : null,
-
-    // Persist icon
-    iconKey: usedIconKey,
-    iconSvg: usedIconSvg,
-  };
-
-  // remove explicit undefined (keep nulls)
-  Object.keys(data).forEach((k) => { if (data[k] === undefined) delete data[k]; });
-
   try {
-    // ALWAYS CREATE a NEW ENTRY (no upsert/search)
-    const created = await prisma.notificationconfig.create({ data });
-    try {
-      const flashForm = {
-        ...form,
-        messageTitlesJson: titleArr,
-        locationsJson: locationArr,
-        namesJson: namesArr,
-        selectedProductsJson: Array.isArray(form?.selectedProductsJson)
-          ? form.selectedProductsJson
-          : [],
-        mobilePosition: Array.isArray(form?.mobilePosition)
-          ? form.mobilePosition
-          : [],
-      };
-      await saveFlashPopup(shop, flashForm);
-    } catch (e) {
-      console.warn("[saveFlashPopup] failed:", e);
-    }
-    return json({ success: true, id: created.id });
+    const flashForm = {
+      ...form,
+      enabled: enabled ? ["enabled"] : [],
+      messageTitlesJson: titleArr,
+      locationsJson: locationArr,
+      namesJson: namesArr,
+      selectedProductsJson: Array.isArray(form?.selectedProductsJson)
+        ? form.selectedProductsJson
+        : [],
+      mobilePosition: Array.isArray(form?.mobilePosition)
+        ? form.mobilePosition
+        : [],
+      iconKey: usedIconKey,
+      iconSvg: usedIconSvg,
+    };
+    const saved = await saveFlashPopup(shop, flashForm);
+    return json({ success: true, id: saved?.id ?? null });
   } catch (e) {
-    console.error("[flash create failed]", e?.code, e?.meta, e);
-    return json({
-      success: false,
-      error: String(e?.message || e),
-      code: e?.code || null,
-      cause: e?.meta?.cause || null,
-      hint:
-        "Ensure Prisma model name is 'notificationconfig' with @@map('NotificationConfig'), and DB column nullability matches the optional fields.",
-    }, { status: 500 });
+    console.error("[flash save failed]", e?.code, e?.meta, e);
+    return json(
+      {
+        success: false,
+        error: String(e?.message || e),
+        code: e?.code || null,
+        cause: e?.meta?.cause || null,
+      },
+      { status: 500 }
+    );
   }
 }
 
@@ -727,55 +752,65 @@ export default function FlashConfigPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
-  const { title } = useLoaderData();
+  const { title, saved } = useLoaderData();
 
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState("layout");
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
   const [visibility, setVisibility] = useState(() =>
-    initVisibility("allpage")
+    initVisibility(saved?.showType || "allpage")
   );
 
-  // defaults ONLY (no DB prefill)
-  const defaultTitles = ["Flash Sale"];
-  const defaultLocations = ["Flash Sale: 20% OFF"];
-  const defaultNames = ["ends in 02:15 hours"];
+  const defaultTitles =
+    saved?.messageTitlesJson?.length
+      ? saved.messageTitlesJson
+      : [saved?.messageTitle || "Flash Sale"];
+  const defaultLocations =
+    saved?.locationsJson?.length
+      ? saved.locationsJson
+      : [saved?.name || "Flash Sale: 20% OFF"];
+  const defaultNames =
+    saved?.namesJson?.length
+      ? saved.namesJson
+      : [saved?.messageText || "ends in 02:15 hours"];
 
   const [titlesList, setTitlesList] = useState(defaultTitles);
   const [locationsList, setLocationsList] = useState(defaultLocations);
   const [namesList, setNamesList] = useState(defaultNames);
 
   const [form, setForm] = useState({
-    enabled: ["enabled"],
-    showType: "allpage",
+    enabled: saved?.enabled ? ["enabled"] : ["disabled"],
+    showType: saved?.showType ?? "allpage",
 
-    messageTitle: defaultTitles[0],
-    name: defaultLocations[0],
-    messageText: defaultNames[0],
-    fontFamily: "System",
-    fontWeight: "600",
-    layout: "landscape",
-    imageAppearance: "cover",
-    template: "solid",
-    position: "top-right",
-    animation: "slide",
-    mobileSize: "compact",
-    mobilePosition: ["top"],
-    bgColor: "#FFFBD2",
-    bgAlt: "#FBCFCF",
-    textColor: "#000000",
-    numberColor: "#000000",
-    priceTagBg: "#593E3F",
-    priceTagAlt: "#E66465",
-    priceColor: "#FFFFFF",
-    starColor: "#F06663",
-    rounded: 14,
-    firstDelaySeconds: 1,
-    durationSeconds: 1,
-    alternateSeconds: 5,
-    intervalUnit: intervalUnitFromSeconds(5),
-    iconKey: "reshot", // default builtin
-    iconSvg: "",       // uploaded svg string (optional)
+    messageTitle: saved?.messageTitle ?? defaultTitles[0] ?? "Flash Sale",
+    name: saved?.name ?? defaultLocations[0] ?? "Flash Sale: 20% OFF",
+    messageText: saved?.messageText ?? defaultNames[0] ?? "ends in 02:15 hours",
+    fontFamily: saved?.fontFamily ?? "System",
+    fontWeight: String(saved?.fontWeight ?? "600"),
+    layout: saved?.layout ?? "landscape",
+    imageAppearance: saved?.imageAppearance ?? "cover",
+    template: saved?.template ?? "solid",
+    position: saved?.position ?? "top-right",
+    animation: saved?.animation ?? "slide",
+    mobileSize: saved?.mobileSize ?? "compact",
+    mobilePosition:
+      saved?.mobilePosition?.length ? saved.mobilePosition : ["top"],
+    bgColor: saved?.bgColor ?? "#FFFBD2",
+    bgAlt: saved?.bgAlt ?? "#FBCFCF",
+    textColor: saved?.textColor ?? "#000000",
+    numberColor: saved?.numberColor ?? "#000000",
+    priceTagBg: saved?.priceTagBg ?? "#593E3F",
+    priceTagAlt: saved?.priceTagAlt ?? "#E66465",
+    priceColor: saved?.priceColor ?? "#FFFFFF",
+    starColor: saved?.starColor ?? "#F06663",
+    rounded: saved?.rounded ?? 14,
+    firstDelaySeconds: saved?.firstDelaySeconds ?? 1,
+    durationSeconds: saved?.durationSeconds ?? 1,
+    alternateSeconds: saved?.alternateSeconds ?? 5,
+    intervalUnit:
+      saved?.intervalUnit ?? intervalUnitFromSeconds(saved?.alternateSeconds ?? 5),
+    iconKey: saved?.iconKey ?? "reshot",
+    iconSvg: saved?.iconSvg ?? "",
   });
 
   const [svgName, setSvgName] = useState("");
@@ -897,7 +932,7 @@ export default function FlashConfigPage() {
         body: JSON.stringify({ form: payload }),
       });
       if (!res.ok) throw new Error((await res.text()) || "Failed to save");
-      setToast({ active: true, error: false, msg: "Saved as a new Flash Bar" });
+      setToast({ active: true, error: false, msg: "Saved." });
       setTimeout(() => navigate("/app"), 900);
     } catch (e) {
       setToast({ active: true, error: true, msg: e?.message || "Something went wrong" });
@@ -932,7 +967,7 @@ export default function FlashConfigPage() {
       <Page
         title="Configuration - Flash Sale Bars"
         backAction={{ content: "Back", onAction: () => navigate(notificationUrl) }}
-        primaryAction={{ content: "Save as New", onAction: save, loading: saving, disabled: saving }}
+        primaryAction={{ content: "Save", onAction: save, loading: saving, disabled: saving }}
       >
         <style>{FLASH_STYLES}</style>
 <div className="flash-shell">

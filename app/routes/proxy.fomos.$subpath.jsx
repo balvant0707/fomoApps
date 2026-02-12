@@ -23,8 +23,6 @@ const POPUPS = new Set([
 ]);
 const analyticsModel = () =>
   prisma.popupanalyticsevent || prisma.popupAnalyticsEvent || null;
-const configModel = () =>
-  prisma.notificationconfig || prisma.notificationConfig || null;
 const tableModel = (key) => {
   switch (key) {
     case "visitor":
@@ -239,34 +237,24 @@ export const loader = async ({ request, params }) => {
 
       const wantTable = (url.searchParams.get("table") || "").toLowerCase();
 
-      // Base configs (legacy)
-      const legacyModel = configModel();
-      const legacyRecords = legacyModel
-        ? await legacyModel.findMany({
-            where: { shop },
-            orderBy: { id: "desc" },
-          })
-        : [];
-
       // All popup tables
       const keys = ["visitor", "lowstock", "addtocart", "review", "recent", "flash"];
       const fetchTable = async (key) => {
         const model = tableModel(key);
         if (!model) return [];
-        return model.findMany({ where: { shop }, orderBy: { id: "desc" } });
+        try {
+          const row = await model.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+          });
+          return row ? [row] : [];
+        } catch (e) {
+          console.warn(`[FOMO popup] table read failed for ${key}:`, e);
+          return [];
+        }
       };
 
       if (wantTable) {
-        if (wantTable === "notification" || wantTable === "legacy") {
-          return ok({
-            showPopup: legacyRecords.length > 0,
-            sessionReady: true,
-            table: "notification",
-            records: legacyRecords,
-            shop,
-            timestamp,
-          });
-        }
         if (!keys.includes(wantTable)) {
           return bad({ error: "Unknown table" }, 404);
         }
@@ -285,14 +273,14 @@ export const loader = async ({ request, params }) => {
         keys.map(async (k) => [k, await fetchTable(k)])
       );
       const tables = Object.fromEntries(tablePairs);
-      const hasAny =
-        legacyRecords.length > 0 ||
-        tablePairs.some(([, rows]) => Array.isArray(rows) && rows.length > 0);
+      const hasAny = tablePairs.some(
+        ([, rows]) => Array.isArray(rows) && rows.length > 0
+      );
 
       return ok({
         showPopup: hasAny,
         sessionReady: true,
-        records: legacyRecords,
+        records: [],
         tables,
         shop,
         timestamp,

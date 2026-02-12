@@ -666,17 +666,21 @@ export async function loader({ request }) {
 
     let last = null;
     try {
-      if (prisma?.notificationconfig?.findFirst) {
-        last = await prisma.notificationconfig.findFirst({
-          where: { shop, key: KEY },
+      const recentModel =
+        prisma?.recentpopupconfig || prisma?.recentPopupConfig || null;
+      if (recentModel?.findFirst) {
+        last = await recentModel.findFirst({
+          where: { shop },
           orderBy: { id: "desc" },
         });
       }
     } catch (e) {
-      console.error("[Fomoify] prisma.findFirst failed (loader).", e);
+      console.error("[Fomoify] recentpopupconfig findFirst failed (loader).", e);
     }
+    const source = last;
 
     const parseArr = (s) => {
+      if (Array.isArray(s)) return s;
       try {
         const a = JSON.parse(s || "[]");
         return Array.isArray(a) ? a : [];
@@ -684,12 +688,13 @@ export async function loader({ request }) {
         return [];
       }
     };
-    const db_namesJson = parseArr(last?.namesJson);
-    const db_locationsJson = parseArr(last?.locationsJson);
-    const db_messageTitlesJson = parseArr(last?.messageTitlesJson);
+    const db_namesJson = parseArr(source?.namesJson);
+    const db_locationsJson = parseArr(source?.locationsJson);
+    const db_messageTitlesJson = parseArr(source?.messageTitlesJson);
+    const db_selectedProductsJson = parseArr(source?.selectedProductsJson);
 
-    const savedOrderDays = Number.isFinite(Number(last?.orderDays))
-      ? Number(last.orderDays)
+    const savedOrderDays = Number.isFinite(Number(source?.orderDays))
+      ? Number(source.orderDays)
       : 1;
     const urlDays = clampDaysParam(daysParam, null);
     const orderDays = urlDays ?? savedOrderDays;
@@ -735,7 +740,8 @@ export async function loader({ request }) {
     const allHandlesWindow = collectAllProductHandles(strictOrders);
     const hasUsableOrders = allHandlesWindow.length > 0;
 
-    const saved_selectedProductsJson = allHandlesWindow; // duplicates kept
+    const saved_selectedProductsJson =
+      db_selectedProductsJson.length ? db_selectedProductsJson : allHandlesWindow;
     const saved_locationsJson =
       db_locationsJson.length ? db_locationsJson : buckets.locations;
     const saved_messageTitlesJson = db_messageTitlesJson.length
@@ -747,31 +753,43 @@ export async function loader({ request }) {
       preview = DEFAULT_PREVIEW;
     }
 
+    const enabledRaw = source?.enabled;
+    const enabled =
+      enabledRaw === undefined || enabledRaw === null
+        ? true
+        : enabledRaw === true || enabledRaw === 1 || enabledRaw === "1";
+
     return json({
       key: KEY,
       title: "Recent Purchases",
       saved: {
-        enabled: last?.enabled ?? true,
-        showType: last?.showType ?? "allpage",
-        fontFamily: last?.fontFamily ?? "System",
-        position: last?.position ?? "bottom-left",
-        animation: last?.animation ?? "fade",
-        mobileSize: last?.mobileSize ?? "compact",
-        mobilePositionJson: last?.mobilePositionJson ?? '["bottom"]',
-        template: "solid",
-        bgColor: last?.bgColor ?? "#FFFBD2",
-        bgAlt: last?.ctaBgColor ?? "#FBCFCF",
-        textColor: last?.msgColor ?? "#000000",
-        numberColor: last?.titleColor ?? "#000000",
-        priceTagBg: "#593E3F",
-        priceTagAlt: "#E66465",
-        priceColor: "#FFFFFF",
-        starColor: "#F06663",
-        rounded: String(last?.rounded ?? 14),
-        firstDelaySeconds: Number(last?.firstDelaySeconds ?? 1),
-        durationSeconds: Number(last?.durationSeconds ?? 1),
-        alternateSeconds: Number(last?.alternateSeconds ?? 10),
-        fontWeight: String(last?.fontWeight ?? 600),
+        enabled,
+        showType: source?.showType ?? "allpage",
+        messageText: source?.messageText ?? "bought this product recently",
+        fontFamily: source?.fontFamily ?? "System",
+        position: source?.position ?? "bottom-left",
+        animation: source?.animation ?? "fade",
+        mobileSize: source?.mobileSize ?? "compact",
+        mobilePositionJson: source?.mobilePositionJson ?? '["bottom"]',
+        template: source?.template ?? "solid",
+        layout: source?.layout ?? "landscape",
+        imageAppearance: source?.imageAppearance ?? "cover",
+        bgColor: source?.bgColor ?? "#FFFBD2",
+        bgAlt: source?.bgAlt ?? source?.ctaBgColor ?? "#FBCFCF",
+        textColor: source?.textColor ?? source?.msgColor ?? "#000000",
+        numberColor: source?.numberColor ?? source?.titleColor ?? "#000000",
+        priceTagBg: source?.priceTagBg ?? "#593E3F",
+        priceTagAlt: source?.priceTagAlt ?? "#E66465",
+        priceColor: source?.priceColor ?? "#FFFFFF",
+        starColor: source?.starColor ?? "#F06663",
+        rounded: String(source?.rounded ?? 14),
+        firstDelaySeconds: Number(source?.firstDelaySeconds ?? 1),
+        durationSeconds: Number(source?.durationSeconds ?? 1),
+        alternateSeconds: Number(source?.alternateSeconds ?? 10),
+        intervalUnit: source?.intervalUnit ?? intervalUnitFromSeconds(source?.alternateSeconds ?? 10),
+        fontWeight: String(source?.fontWeight ?? 600),
+        productNameMode: source?.productNameMode ?? "full",
+        productNameLimit: source?.productNameLimit ?? DEFAULT_PRODUCT_NAME_LIMIT,
 
         namesJson: db_namesJson,
         selectedProductsJson: saved_selectedProductsJson,
@@ -779,7 +797,7 @@ export async function loader({ request }) {
         messageTitlesJson: saved_messageTitlesJson,
 
         orderDays: orderDays,
-        createOrderTime: last?.createOrderTime ?? newestCreatedAt ?? null,
+        createOrderTime: source?.createOrderTime ?? newestCreatedAt ?? null,
       },
       newestCreatedAt,
       preview,
@@ -824,10 +842,6 @@ export async function action({ request }) {
   }
   const { form } = body || {};
 
-  const nullIfBlank = (v) =>
-    v === undefined || v === null || String(v).trim() === ""
-      ? null
-      : String(v);
   const intOrNull = (v, min = null, max = null) => {
     if (v === undefined || v === null || String(v).trim() === "") return null;
     let n = Number(v);
@@ -885,96 +899,26 @@ export async function action({ request }) {
       ? trimIso(String(orders[0].createdAt))
       : null;
 
-  const selectedProductsJson = JSON.stringify(allHandlesWindow);
-  const locationsJson = JSON.stringify(locations || []);
-  const messageTitlesJson = JSON.stringify(customerNames || []);
-  const namesJson = JSON.stringify(
-    Array.isArray(form?.namesJson) ? form.namesJson : []
-  );
-  const mobilePositionJson = JSON.stringify(
-    Array.isArray(form?.mobilePosition)
+  const recentForm = {
+    ...form,
+    messageTitlesJson: customerNames || [],
+    locationsJson: locations || [],
+    namesJson: Array.isArray(form?.namesJson) ? form.namesJson : [],
+    selectedProductsJson: allHandlesWindow || [],
+    mobilePosition: Array.isArray(form?.mobilePosition)
       ? form.mobilePosition
-      : [form?.mobilePosition || "bottom"]
-  );
-
-  const data = {
-    shop,
-    key: KEY,
-
-    enabled: !!(form?.enabled?.includes?.("enabled")),
-    showType: nullIfBlank(form?.showType),
-    messageText: nullIfBlank(form?.messageText),
-    fontFamily: nullIfBlank(form?.fontFamily),
-    position: nullIfBlank(form?.position),
-    animation: nullIfBlank(form?.animation),
-    mobileSize: nullIfBlank(form?.mobileSize),
-    mobilePositionJson,
-    titleColor: nullIfBlank(form?.numberColor),
-    bgColor: nullIfBlank(form?.bgColor),
-    msgColor: nullIfBlank(form?.textColor),
-    ctaBgColor: nullIfBlank(form?.bgAlt),
-    rounded: intOrNull(form?.rounded, 10, 72),
-    firstDelaySeconds: intOrNull(form?.firstDelaySeconds, 0, 3600),
-    durationSeconds: intOrNull(form?.durationSeconds, 1, 60),
-    alternateSeconds: intOrNull(form?.alternateSeconds, 0, 3600),
-    fontWeight: intOrNull(form?.fontWeight, 100, 900),
-
-    namesJson,
-    selectedProductsJson,
-    locationsJson,
-    messageTitlesJson,
-
-    orderDays: Number(fetchDays),
+      : [form?.mobilePosition || "bottom"],
     createOrderTime: newestOrderCreatedAtISO ?? null,
+    orderDays: Number(fetchDays),
   };
 
-  Object.keys(data).forEach((k) => {
-    if (data[k] === undefined) delete data[k];
-  });
-
   try {
-    if (!prisma?.notificationconfig)
-      throw new Error("Prisma model missing: notificationconfig");
-
-    const existing = await prisma.notificationconfig.findFirst({
-      where: { shop, key: KEY },
-      orderBy: { id: "desc" },
-      select: { id: true },
-    });
-
-    let saved;
-    if (existing?.id) {
-      saved = await prisma.notificationconfig.update({
-        where: { id: existing.id },
-        data,
-      });
-    } else {
-      saved = await prisma.notificationconfig.create({ data });
-    }
-
-    try {
-      const recentForm = {
-        ...form,
-        messageTitlesJson: customerNames || [],
-        locationsJson: locations || [],
-        namesJson: Array.isArray(form?.namesJson) ? form.namesJson : [],
-        selectedProductsJson: allHandlesWindow || [],
-        mobilePosition: Array.isArray(form?.mobilePosition)
-          ? form.mobilePosition
-          : [form?.mobilePosition || "bottom"],
-        createOrderTime: newestOrderCreatedAtISO ?? null,
-        orderDays: Number(fetchDays),
-      };
-      await saveRecentPopup(shop, recentForm);
-    } catch (e) {
-      console.warn("[saveRecentPopup] failed:", e);
-    }
-
+    const saved = await saveRecentPopup(shop, recentForm);
     return json({
       success: true,
-      id: saved.id,
-      savedDays: data.orderDays,
-      savedCreateOrderTime: data.createOrderTime,
+      id: saved?.id ?? null,
+      savedDays: Number(fetchDays),
+      savedCreateOrderTime: newestOrderCreatedAtISO ?? null,
       counts: {
         products: allHandlesWindow.length,
         locations: (locations || []).length,
@@ -983,15 +927,13 @@ export async function action({ request }) {
       window: { startISO, endISO },
     });
   } catch (e) {
-    console.error("[NotificationConfig save failed]", e?.code, e?.meta, e);
+    console.error("[RecentPopup save failed]", e?.code, e?.meta, e);
     return json(
       {
         success: false,
         error: String(e?.message || e),
         code: e?.code || null,
         cause: e?.meta?.cause || null,
-        hint:
-          "If create() fails, check the DB for any legacy NOT NULL columns that are not in the Prisma model.",
       },
       { status: 500 }
     );
@@ -1539,7 +1481,7 @@ export default function RecentOrdersPopupPage() {
   const [form, setForm] = useState(() => ({
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
     showType: saved.showType,
-    messageText: "bought this product recently",
+    messageText: saved.messageText ?? "bought this product recently",
     fontFamily: saved.fontFamily,
     position: saved.position,
     animation: saved.animation,
@@ -1553,10 +1495,10 @@ export default function RecentOrdersPopupPage() {
       }
     })(),
     template: saved.template ?? "solid",
-    bgColor: saved.bgColor,
+    bgColor: saved.bgColor ?? "#FFFBD2",
     bgAlt: saved.bgAlt ?? "#FBCFCF",
-    textColor: saved.textColor ?? saved.msgColor ?? "#000000",
-    numberColor: saved.numberColor ?? saved.titleColor ?? "#000000",
+    textColor: saved.textColor ?? "#000000",
+    numberColor: saved.numberColor ?? "#000000",
     priceTagBg: saved.priceTagBg ?? "#593E3F",
     priceTagAlt: saved.priceTagAlt ?? "#E66465",
     priceColor: saved.priceColor ?? "#FFFFFF",
@@ -1565,7 +1507,8 @@ export default function RecentOrdersPopupPage() {
     firstDelaySeconds: saved.firstDelaySeconds ?? 1,
     durationSeconds: saved.durationSeconds,
     alternateSeconds: saved.alternateSeconds,
-    intervalUnit: intervalUnitFromSeconds(saved.alternateSeconds),
+    intervalUnit:
+      saved.intervalUnit ?? intervalUnitFromSeconds(saved.alternateSeconds),
     fontWeight: saved.fontWeight,
     layout: saved.layout ?? "landscape",
     imageAppearance: saved.imageAppearance ?? "cover",

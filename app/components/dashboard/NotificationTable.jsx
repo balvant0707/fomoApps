@@ -222,6 +222,7 @@ export default function NotificationTable({
   const confirmDelete = useCallback(() => {
     if (!delRow) return;
     const id = delRow.id;
+    const key = delRow.key;
     setDelRow(null);
     setShowDeleted(true);
     setDeletedIds((prev) => {
@@ -232,6 +233,7 @@ export default function NotificationTable({
     const fd = new FormData();
     fd.set("_action", "delete");
     fd.set("id", String(id));
+    if (key) fd.set("key", String(key));
     delFetcher.submit(fd, { method: "post" });
   }, [delRow, delFetcher]);
 
@@ -491,6 +493,7 @@ export default function NotificationTable({
                             value="toggle-enabled"
                           />
                           <input type="hidden" name="id" value={row.id} />
+                          <input type="hidden" name="key" value={row.key} />
                           <input
                             type="hidden"
                             name="enabled"
@@ -520,7 +523,7 @@ export default function NotificationTable({
                             onClick={() =>
                               navigate(
                                 appendQS(
-                                  `/app/notification/${row.key}/edit/${row.id}`
+                                  `/app/notification/${row.key}`
                                 )
                               )
                             }
