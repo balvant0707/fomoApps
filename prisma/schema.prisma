@@ -87,6 +87,7 @@ model visitorpopupconfig {
   size                   Int?
   transparent            Int?
   template               String?
+  imageAppearance        String?
   bgColor                String?
   bgAlt                  String?
   textColor              String?
@@ -149,6 +150,7 @@ model lowstockpopupconfig {
   size                   Int?
   transparent            Int?
   template               String?
+  imageAppearance        String?
   bgColor                String?
   bgAlt                  String?
   textColor              String?
@@ -266,6 +268,7 @@ model reviewpopupconfig {
 
   reviewType             String?
   template               String?
+  imageAppearance        String?
   bgColor                String?
   bgAlt                  String?
   textColor              String?

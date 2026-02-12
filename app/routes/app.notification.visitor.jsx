@@ -390,6 +390,7 @@ function PreviewCard({
   priceTagAlt,
   priceColor,
   starColor,
+  imageAppearance,
   textSizeContent,
   textSizeCompare,
   textSizePrice,
@@ -414,6 +415,9 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
+  const avatarSize = isPortrait ? 56 : 64;
+  const avatarOffset = Math.round(avatarSize * 0.45);
+  const pad = 16;
   const rawName = product?.title || "Your product will show here";
   const safeName = formatProductName(rawName, productNameMode, productNameLimit);
   const hasProductToken = /\{product_name\}/.test(String(contentText || ""));
@@ -456,15 +460,16 @@ function PreviewCard({
     opacity,
     background,
     color: textColor,
-    borderRadius: 16,
+    borderRadius: 18,
     boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
     border: "1px solid rgba(0,0,0,0.06)",
-    padding: 14,
+    padding: pad,
+    paddingLeft: showProductImage ? pad + avatarOffset : pad,
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
     gap: 12,
-    alignItems: isPortrait ? "flex-start" : "center",
+    alignItems: "flex-start",
     maxWidth: layout === "portrait" ? 320 : 460,
   };
 
@@ -496,21 +501,33 @@ function PreviewCard({
       {showProductImage && (
         <div
           style={{
-            width: isPortrait ? 56 : 64,
-            height: isPortrait ? 56 : 64,
-            borderRadius: 12,
+            position: "absolute",
+            left: pad,
+            top: isPortrait ? 28 : "50%",
+            transform: isPortrait
+              ? "translate(-50%, 0)"
+              : "translate(-50%, -50%)",
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: Math.round(avatarSize * 0.22),
             overflow: "hidden",
             background: "#f3f4f6",
             flexShrink: 0,
             display: "grid",
             placeItems: "center",
+            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+            border: "2px solid rgba(255,255,255,0.75)",
           }}
         >
           {product?.image ? (
             <img
               src={product.image}
               alt={product.title}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: imageAppearance || "cover",
+              }}
               loading="lazy"
               decoding="async"
             />
@@ -599,6 +616,7 @@ export default function VisitorPopupPage() {
     size: 60,
     transparent: 10,
     template: "solid",
+    imageAppearance: "cover",
     bgColor: "#FFFFFF",
     bgAlt: "#F3F4F6",
     textColor: "#111111",
@@ -1011,6 +1029,27 @@ export default function VisitorPopupPage() {
                         />
                       </Box>
                     </InlineStack>
+
+                    <ChoiceList
+                      title="Image appearance"
+                      choices={[
+                        {
+                          label: "Cover (Overflowing container)",
+                          value: "cover",
+                        },
+                        {
+                          label: "Fit within container",
+                          value: "contain",
+                        },
+                      ]}
+                      selected={[design.imageAppearance]}
+                      onChange={(v) =>
+                        setDesign((d) => ({
+                          ...d,
+                          imageAppearance: v[0] || "cover",
+                        }))
+                      }
+                    />
                   </BlockStack>
                 </Box>
                       </Card>
@@ -1254,22 +1293,14 @@ export default function VisitorPopupPage() {
                           onChange={() =>
                             setData((d) => ({ ...d, customerInfo: "shopify" }))
                           }
+                          disabled
                         />
                         <div style={{ marginLeft: 28 }}>
                           <Text tone="subdued">
-                            3 customer profiles are imported
+                            Customer profiles are imported automatically from Shopify.
                           </Text>
                         </div>
                       </div>
-                      <RadioButton
-                        id="customer-info-manual"
-                        name="customer_info"
-                        label="Set manually"
-                        checked={data.customerInfo === "manual"}
-                        onChange={() =>
-                          setData((d) => ({ ...d, customerInfo: "manual" }))
-                        }
-                      />
                     </BlockStack>
 
                     {selectedProducts.length > 0 && (
@@ -1586,6 +1617,7 @@ export default function VisitorPopupPage() {
                         )}
                         priceColor={normalizeHex(design.priceColor, "#FFFFFF")}
                         starColor={normalizeHex(design.starColor, "#FFD240")}
+                        imageAppearance={design.imageAppearance}
                         textSizeContent={Number(textSize.content) || 14}
                         textSizeCompare={Number(textSize.compareAt) || 13}
                         textSizePrice={Number(textSize.price) || 13}

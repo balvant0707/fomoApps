@@ -162,6 +162,65 @@ export const loader = async ({ request, params }) => {
       });
     }
 
+    if (subpath === "customers") {
+      const limitRaw = Number(url.searchParams.get("limit") || "100");
+      const limit = Number.isFinite(limitRaw)
+        ? Math.max(1, Math.min(250, limitRaw))
+        : 100;
+
+      const shopRecord =
+        (await prisma.shop.findUnique({ where: { shop } })) ||
+        (await ensureShopRow(shop));
+
+      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+        return ok({
+          customers: [],
+          sessionReady: false,
+          shop,
+          error: "Session not ready",
+          timestamp,
+        });
+      }
+
+      const endpoint = `https://${shop}/admin/api/2025-01/customers.json?limit=${limit}&fields=first_name,last_name,default_address`;
+      const resp = await fetch(endpoint, {
+        headers: {
+          "X-Shopify-Access-Token": shopRecord.accessToken,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!resp.ok) {
+        const body = await resp.text();
+        console.warn("[FOMO Customers API] non-OK:", resp.status, body);
+        return ok({
+          customers: [],
+          sessionReady: true,
+          shop,
+          error: `Customers API failed (${resp.status})`,
+          timestamp,
+        });
+      }
+
+      const payload = await resp.json();
+      const customers = Array.isArray(payload?.customers)
+        ? payload.customers.map((c) => ({
+            first_name: c?.first_name || "",
+            last_name: c?.last_name || "",
+            city: c?.default_address?.city || "",
+            state: c?.default_address?.province || "",
+            country: c?.default_address?.country || "",
+          }))
+        : [];
+
+      return ok({
+        customers,
+        sessionReady: true,
+        shop,
+        timestamp,
+      });
+    }
+
     if (subpath === "popup") {
       // Ensure/require session
       const shopRecord =

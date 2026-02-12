@@ -42,6 +42,7 @@ export async function saveVisitorPopup(shop, form) {
     size: toInt(form?.design?.size),
     transparent: toInt(form?.design?.transparent),
     template: toStr(form?.design?.template),
+    imageAppearance: toStr(form?.design?.imageAppearance),
     bgColor: toStr(form?.design?.bgColor),
     bgAlt: toStr(form?.design?.bgAlt),
     textColor: toStr(form?.design?.textColor),
@@ -102,6 +103,7 @@ export async function saveLowStockPopup(shop, form) {
     size: toInt(form?.design?.size),
     transparent: toInt(form?.design?.transparent),
     template: toStr(form?.design?.template),
+    imageAppearance: toStr(form?.design?.imageAppearance),
     bgColor: toStr(form?.design?.bgColor),
     bgAlt: toStr(form?.design?.bgAlt),
     textColor: toStr(form?.design?.textColor),
@@ -215,6 +217,7 @@ export async function saveReviewPopup(shop, form) {
 
     reviewType: toStr(form?.design?.reviewType),
     template: toStr(form?.design?.template),
+    imageAppearance: toStr(form?.design?.imageAppearance),
     bgColor: toStr(form?.design?.bgColor),
     bgAlt: toStr(form?.design?.bgAlt),
     textColor: toStr(form?.design?.textColor),

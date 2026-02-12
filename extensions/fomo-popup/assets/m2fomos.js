@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const res = await fetch(candidate, options);
         const isLast = i === candidates.length - 1;
         const contentType = res.headers?.get("content-type") || "";
-        const isProxyApi = /\/(session|popup|orders|track)(\?|$)/.test(candidate);
+        const isProxyApi = /\/(session|popup|orders|customers|track)(\?|$)/.test(candidate);
 
         if (!res.ok && !isLast) continue;
         if (res.ok && isProxyApi && !contentType.includes("application/json") && !isLast) {
@@ -60,6 +60,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ENDPOINT = `${PROXY_BASE}/popup?shop=${SHOP}`;
   const SESSION_ENDPOINT = `${PROXY_BASE}/session?shop=${SHOP}`;
   const ORDERS_ENDPOINT_BASE = `${PROXY_BASE}/orders`; // expects ?shop=&days=&limit=
+  const CUSTOMERS_ENDPOINT_BASE = `${PROXY_BASE}/customers`; // expects ?shop=&limit=
   const TRACK_ENDPOINT = `${PROXY_BASE}/track?shop=${SHOP}`;
   const ROOT = document.getElementById("fomo-embed-root");
   if (!ROOT) return;
@@ -395,6 +396,27 @@ document.addEventListener("DOMContentLoaded", async function () {
     const { city, state, country } = parseLocationParts(entry);
     return [city, state, country].filter(Boolean).join(", ");
   };
+
+  function normalizeCustomer(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    const first = safe(entry.first_name || entry.firstName, "").trim();
+    const last = safe(entry.last_name || entry.lastName, "").trim();
+    const full = first || last ? `${first} ${last}`.trim() : "";
+    const addr =
+      entry.default_address || entry.defaultAddress || entry.address || {};
+    const city = safe(addr.city, "").trim();
+    const state = safe(addr.province || addr.state, "").trim();
+    const country = safe(addr.country, "").trim();
+    if (!full && !city && !country) return null;
+    return { first_name: first, last_name: last, full_name: full, city, state, country };
+  }
+
+  function pickCustomer(pool, i) {
+    if (!Array.isArray(pool) || pool.length === 0) return null;
+    if (pool.length === 1) return pool[0];
+    const idx = typeof i === "number" ? i % pool.length : 0;
+    return pool[idx] || pool[Math.floor(Math.random() * pool.length)];
+  }
 
   // 🔹 central helper to derive city/state/country from multiple sources
   function deriveLocationParts(cfg) {
@@ -1525,6 +1547,20 @@ document.addEventListener("DOMContentLoaded", async function () {
       currentProduct = await fetchJson(`/products/${ch}.js`, `prod:${ch}`, 600000);
     }
 
+    let customerPool = [];
+    if (tableVisitor.length) {
+      try {
+        const limit = 100;
+        const payload = await fetchJson(
+          `${CUSTOMERS_ENDPOINT_BASE}?shop=${encodeURIComponent(SHOP)}&limit=${limit}`,
+          `customers:${limit}`,
+          600000
+        );
+        const customers = Array.isArray(payload?.customers) ? payload.customers : [];
+        customerPool = customers.map(normalizeCustomer).filter(Boolean);
+      } catch { }
+    }
+
     const flashConfigs = [],
       recentConfigs = [],
       visitorConfigs = [],
@@ -2325,6 +2361,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           ),
           layout: row.layout,
           template: row.template,
+          imageAppearance: row.imageAppearance,
           bgColor: row.bgColor,
           bgAlt: row.bgAlt,
           textColor: row.textColor,
@@ -2369,8 +2406,20 @@ document.addEventListener("DOMContentLoaded", async function () {
               ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
               : stockUnder;
 
+          const customer = pickCustomer(customerPool, i);
+          const customerTokens = customer
+            ? {
+              full_name: customer.full_name || baseTokens.full_name,
+              first_name: customer.first_name || baseTokens.first_name,
+              last_name: customer.last_name || baseTokens.last_name,
+              city: customer.city || baseTokens.city,
+              country: customer.country || baseTokens.country,
+            }
+            : null;
+
           const tokens = {
             ...baseTokens,
+            ...(customerTokens || {}),
             product_name: productTitle,
             product_price: price,
             price,

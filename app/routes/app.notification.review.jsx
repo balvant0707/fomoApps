@@ -6,6 +6,7 @@ import {
   Button,
   TextField,
   Select,
+  ChoiceList,
   Box,
   BlockStack,
   InlineStack,
@@ -347,6 +348,7 @@ function PreviewCard({
   bgColor,
   bgAlt,
   template,
+  imageAppearance,
   textColor,
   timestampColor,
   priceTagBg,
@@ -370,6 +372,9 @@ function PreviewCard({
     template === "gradient"
       ? `linear-gradient(135deg, ${bgColor} 0%, ${bgAlt} 100%)`
       : bgColor;
+  const avatarSize = 56;
+  const avatarOffset = Math.round(avatarSize * 0.45);
+  const pad = 16;
 
   const rawProductName = product?.title || "DREAMY BLUE BALL GOWN";
   const safeProductName = formatProductName(
@@ -416,12 +421,14 @@ function PreviewCard({
       style={{
         background,
         color: textColor,
-        borderRadius: 16,
+        borderRadius: 18,
         boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
-        padding: 16,
+        border: "1px solid rgba(0,0,0,0.06)",
+        padding: pad,
+        paddingLeft: showProductImage ? pad + avatarOffset : pad,
         display: "flex",
         gap: 14,
-        alignItems: "center",
+        alignItems: "flex-start",
         position: "relative",
         maxWidth: 460,
       }}
@@ -452,21 +459,31 @@ function PreviewCard({
       {showProductImage && (
         <div
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: 12,
+            position: "absolute",
+            left: pad,
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: Math.round(avatarSize * 0.22),
             overflow: "hidden",
             background: "#f3f4f6",
             flexShrink: 0,
             display: "grid",
             placeItems: "center",
+            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+            border: "2px solid rgba(255,255,255,0.75)",
           }}
         >
           {product?.image ? (
             <img
               src={product.image}
               alt={product.title}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: imageAppearance || "cover",
+              }}
               loading="lazy"
               decoding="async"
             />
@@ -550,6 +567,7 @@ export default function ReviewNotificationPage() {
   const [design, setDesign] = useState({
     reviewType: "new_review",
     template: "solid",
+    imageAppearance: "cover",
     bgColor: "#FFFFFF",
     bgAlt: "#F3F4F6",
     textColor: "#000000",
@@ -924,6 +942,23 @@ export default function ReviewNotificationPage() {
                                 />
                               </Box>
                             </InlineStack>
+                            <ChoiceList
+                              title="Image appearance"
+                              choices={[
+                                {
+                                  label: "Cover (Overflowing container)",
+                                  value: "cover",
+                                },
+                                { label: "Fit within container", value: "contain" },
+                              ]}
+                              selected={[design.imageAppearance]}
+                              onChange={(value) =>
+                                setDesign((d) => ({
+                                  ...d,
+                                  imageAppearance: value?.[0] || "cover",
+                                }))
+                              }
+                            />
                           </BlockStack>
                         </Box>
                       </Card>
@@ -1411,6 +1446,7 @@ export default function ReviewNotificationPage() {
                             bgColor={normalizeHex(design.bgColor, "#FFFFFF")}
                             bgAlt={normalizeHex(design.bgAlt, "#F3F4F6")}
                             template={design.template}
+                            imageAppearance={design.imageAppearance}
                             textColor={normalizeHex(design.textColor, "#000000")}
                             timestampColor={normalizeHex(
                               design.timestampColor,
