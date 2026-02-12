@@ -1203,10 +1203,28 @@ function Bubble({ form, order, isMobile = false }) {
   const daysDiffText = (() => {
     if (!orderDate || Number.isNaN(orderDate.getTime())) return "";
     const diffMs = Date.now() - orderDate.getTime();
-    const absDays = Math.floor(Math.abs(diffMs) / 86400000);
-    if (absDays === 0) return "today";
-    if (diffMs >= 0) return `${absDays} day${absDays === 1 ? "" : "s"} ago`;
-    return `in ${absDays} day${absDays === 1 ? "" : "s"}`;
+    const absMs = Math.abs(diffMs);
+    const direction = diffMs >= 0 ? "past" : "future";
+
+    if (absMs < 60000) {
+      return direction === "past" ? "Just now" : "In 1 Minute";
+    }
+    if (absMs < 3600000) {
+      const mins = Math.max(1, Math.floor(absMs / 60000));
+      return direction === "past"
+        ? `${mins} Minute${mins === 1 ? "" : "s"} Ago`
+        : `In ${mins} Minute${mins === 1 ? "" : "s"}`;
+    }
+    if (absMs < 86400000) {
+      const hrs = Math.max(1, Math.floor(absMs / 3600000));
+      return direction === "past"
+        ? `${hrs} Hour${hrs === 1 ? "" : "s"} Ago`
+        : `In ${hrs} Hour${hrs === 1 ? "" : "s"}`;
+    }
+    const days = Math.max(1, Math.floor(absMs / 86400000));
+    return direction === "past"
+      ? `${days} Day${days === 1 ? "" : "s"} Ago`
+      : `In ${days} Day${days === 1 ? "" : "s"}`;
   })();
   return (
     <div
@@ -1374,11 +1392,7 @@ function Bubble({ form, order, isMobile = false }) {
                 }}
               >
                 <small>
-                  {orderDate
-                    ? `${orderDate.toLocaleString()}${
-                        daysDiffText ? ` | ${daysDiffText}` : ""
-                      }`
-                    : "Timing"}
+                  {orderDate ? daysDiffText || "Today" : "Timing"}
                 </small>
               </span>
             </>
