@@ -96,6 +96,9 @@ export async function loader({ request }) {
 
     return json(payload);
   } catch (e) {
+    // Let Remix handle redirects/auth responses
+    if (e instanceof Response) throw e;
+    console.error("[collections-picker] loader failed:", e);
     return json(
       { items: [], error: e?.message || "Failed to load collections" },
       { status: 500 }
