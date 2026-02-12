@@ -21,14 +21,18 @@ const stripUndefined = (data) => {
 };
 
 async function upsertByShop(table, shop, data) {
+  const payload = stripUndefined({ ...data, shop });
   const existing = await table.findFirst({
     where: { shop },
     orderBy: { id: "desc" },
     select: { id: true },
   });
-  const payload = stripUndefined({ ...data, shop });
   if (existing?.id) {
-    return table.update({ where: { id: existing.id }, data: payload });
+    await table.updateMany({ where: { shop }, data: payload });
+    return table.findFirst({
+      where: { shop },
+      orderBy: { id: "desc" },
+    });
   }
   return table.create({ data: payload });
 }

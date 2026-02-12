@@ -79,6 +79,7 @@ export async function action({ request }) {
       {
         success: false,
         error: e?.message || "Save failed",
+        code: e?.code || null,
       },
       { status: 500 }
     );
@@ -922,9 +923,21 @@ export default function VisitorPopupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ form }),
       });
-      const out = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let out = {};
+      if (raw) {
+        try {
+          out = JSON.parse(raw);
+        } catch {
+          out = {};
+        }
+      }
       if (!res.ok || !out?.success) {
-        throw new Error(out?.error || "Save failed");
+        const msg =
+          out?.error ||
+          (raw && raw.length < 240 ? raw : "") ||
+          "Save failed";
+        throw new Error(msg);
       }
       setToast({ active: true, error: false, msg: "Saved." });
     } catch (e) {
