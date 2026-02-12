@@ -20,14 +20,38 @@ import {
   Badge,
   Checkbox,
   RadioButton,
+  Toast,
+  Loading,
 } from "@shopify/polaris";
 import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
+import { saveVisitorPopup } from "../models/popup-config.server";
 
 export async function loader({ request }) {
   await authenticate.admin(request);
   return json({ title: "Visitor Popup" });
+}
+
+export async function action({ request }) {
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop;
+  if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const { form } = body || {};
+  if (!form) {
+    return json({ success: false, error: "Missing form" }, { status: 400 });
+  }
+
+  const saved = await saveVisitorPopup(shop, form);
+  return json({ success: true, id: saved.id });
 }
 
 const NOTI_TYPES = [
@@ -564,6 +588,8 @@ export default function VisitorPopupPage() {
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
   const [activeSection, setActiveSection] = useState("layout");
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState({ active: false, error: false, msg: "" });
 
   const [design, setDesign] = useState({
     notiType: "visitor_list",
@@ -766,12 +792,49 @@ export default function VisitorPopupPage() {
     }));
   };
 
+  const save = async () => {
+    setSaving(true);
+    try {
+      const endpoint = `${location.pathname}${location.search || ""}`;
+      const form = {
+        design,
+        textSize,
+        content,
+        productNameMode,
+        productNameLimit,
+        data,
+        visibility,
+        behavior,
+        selectedProducts,
+        selectedCollections,
+      };
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ form }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || !out?.success) {
+        throw new Error(out?.error || "Save failed");
+      }
+      setToast({ active: true, error: false, msg: "Saved." });
+    } catch (e) {
+      setToast({
+        active: true,
+        error: true,
+        msg: e?.message || "Save failed",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Frame>
       <Page
         title="Update Visitor notification"
         backAction={{ content: "Back", onAction: () => navigate(notificationUrl) }}
-        primaryAction={{ content: "Save", onAction: () => {} }}
+        primaryAction={{ content: "Save", onAction: save, loading: saving }}
       >
         <style>{VISITOR_STYLES}</style>
         <div className="visitor-shell">
@@ -1749,6 +1812,15 @@ export default function VisitorPopupPage() {
           </BlockStack>
         </Modal.Section>
       </Modal>
+      {saving && <Loading />}
+      {toast.active && (
+        <Toast
+          content={toast.msg}
+          error={toast.error}
+          onDismiss={() => setToast((t) => ({ ...t, active: false }))}
+          duration={4000}
+        />
+      )}
     </Frame>
   );
 }

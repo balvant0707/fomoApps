@@ -31,6 +31,7 @@ import {
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { saveRecentPopup } from "../models/popup-config.server";
 
 /* ---------------- constants ---------------- */
 const KEY = "recent";
@@ -949,6 +950,24 @@ export async function action({ request }) {
       });
     } else {
       saved = await prisma.notificationconfig.create({ data });
+    }
+
+    try {
+      const recentForm = {
+        ...form,
+        messageTitlesJson: customerNames || [],
+        locationsJson: locations || [],
+        namesJson: Array.isArray(form?.namesJson) ? form.namesJson : [],
+        selectedProductsJson: allHandlesWindow || [],
+        mobilePosition: Array.isArray(form?.mobilePosition)
+          ? form.mobilePosition
+          : [form?.mobilePosition || "bottom"],
+        createOrderTime: newestOrderCreatedAtISO ?? null,
+        orderDays: Number(fetchDays),
+      };
+      await saveRecentPopup(shop, recentForm);
+    } catch (e) {
+      console.warn("[saveRecentPopup] failed:", e);
     }
 
     return json({

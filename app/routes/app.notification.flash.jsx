@@ -9,6 +9,7 @@ import { useLoaderData, useNavigate, useLocation } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { saveFlashPopup } from "../models/popup-config.server";
 
 /* ---------------- Constants ---------------- */
 const KEY = "flash";
@@ -356,6 +357,23 @@ export async function action({ request }) {
   try {
     // ALWAYS CREATE a NEW ENTRY (no upsert/search)
     const created = await prisma.notificationconfig.create({ data });
+    try {
+      const flashForm = {
+        ...form,
+        messageTitlesJson: titleArr,
+        locationsJson: locationArr,
+        namesJson: namesArr,
+        selectedProductsJson: Array.isArray(form?.selectedProductsJson)
+          ? form.selectedProductsJson
+          : [],
+        mobilePosition: Array.isArray(form?.mobilePosition)
+          ? form.mobilePosition
+          : [],
+      };
+      await saveFlashPopup(shop, flashForm);
+    } catch (e) {
+      console.warn("[saveFlashPopup] failed:", e);
+    }
     return json({ success: true, id: created.id });
   } catch (e) {
     console.error("[flash create failed]", e?.code, e?.meta, e);
