@@ -2027,7 +2027,7 @@ export default function RecentOrdersPopupPage() {
                       },
                       {
                         label: "Fit within container",
-                        value: "cover",
+                        value: "contain",
                       },
                     ]}
                     selected={[form.imageAppearance]}
