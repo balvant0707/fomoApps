@@ -25,22 +25,50 @@ async function fetchRows(shop) {
         return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
       case "flash":
         return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
+      case "visitor":
+        return prisma.visitorpopupconfig || prisma.visitorPopupConfig || null;
+      case "lowstock":
+        return prisma.lowstockpopupconfig || prisma.lowStockPopupConfig || null;
+      case "addtocart":
+        return prisma.addtocartpopupconfig || prisma.addToCartPopupConfig || null;
+      case "review":
+        return prisma.reviewpopupconfig || prisma.reviewPopupConfig || null;
       default:
         return null;
     }
   };
 
-  const keys = ["recent", "flash"];
+  const deriveShowType = (row) => {
+    if (!row) return "allpage";
+    const flags = [
+      row.showHome,
+      row.showProduct,
+      row.showCollection,
+      row.showCollectionList,
+      row.showCart,
+    ];
+    const enabledCount = flags.filter(Boolean).length;
+    if (enabledCount === 0) return "allpage";
+    if (enabledCount > 1) return "allpage";
+    if (row.showHome) return "home";
+    if (row.showProduct) return "product";
+    if (row.showCollection || row.showCollectionList) return "collection";
+    if (row.showCart) return "cart";
+    return "allpage";
+  };
+
+  const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
   const rows = [];
   for (const key of keys) {
     const model = tableModel(key);
-    if (!model?.findFirst) continue;
+    if (!model?.findMany) continue;
     try {
-      const row = await model.findFirst({
+      const records = await model.findMany({
         where: { shop },
         orderBy: { id: "desc" },
       });
-      if (row) {
+      if (!records?.length) continue;
+      for (const row of records) {
         rows.push({
           ...row,
           key,
@@ -48,6 +76,15 @@ async function fetchRows(shop) {
             row.enabled === true ||
             row.enabled === 1 ||
             row.enabled === "1",
+          showType: row.showType || deriveShowType(row),
+          messageText:
+            row.messageText ||
+            row.message ||
+            row.name ||
+            row.messageTitle ||
+            row.title ||
+            row.timestamp ||
+            "",
         });
       }
     } catch (e) {
@@ -136,9 +173,17 @@ export async function action({ request }) {
       const model =
         key === "recent"
           ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : null;
+        : key === "flash"
+          ? prisma.flashpopupconfig || prisma.flashPopupConfig
+        : key === "visitor"
+          ? prisma.visitorpopupconfig || prisma.visitorPopupConfig
+        : key === "lowstock"
+          ? prisma.lowstockpopupconfig || prisma.lowStockPopupConfig
+        : key === "addtocart"
+          ? prisma.addtocartpopupconfig || prisma.addToCartPopupConfig
+        : key === "review"
+          ? prisma.reviewpopupconfig || prisma.reviewPopupConfig
+        : null;
       if (id && model?.deleteMany) {
         await model.deleteMany({ where: { id, shop } });
       }
@@ -166,13 +211,25 @@ export async function action({ request }) {
       const model =
         key === "recent"
           ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : null;
+        : key === "flash"
+          ? prisma.flashpopupconfig || prisma.flashPopupConfig
+        : key === "visitor"
+          ? prisma.visitorpopupconfig || prisma.visitorPopupConfig
+        : key === "lowstock"
+          ? prisma.lowstockpopupconfig || prisma.lowStockPopupConfig
+        : key === "addtocart"
+          ? prisma.addtocartpopupconfig || prisma.addToCartPopupConfig
+        : key === "review"
+          ? prisma.reviewpopupconfig || prisma.reviewPopupConfig
+        : null;
+      const data =
+        key === "recent" || key === "flash"
+          ? { messageText, showType, enabled }
+          : { enabled };
       if (id && model?.updateMany) {
         await model.updateMany({
           where: { id, shop },
-          data: { messageText, showType, enabled },
+          data,
         });
       }
       if (isFetch) return safeJson({ ok: true, saved: true });
@@ -196,9 +253,17 @@ export async function action({ request }) {
       const model =
         key === "recent"
           ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : null;
+        : key === "flash"
+          ? prisma.flashpopupconfig || prisma.flashPopupConfig
+        : key === "visitor"
+          ? prisma.visitorpopupconfig || prisma.visitorPopupConfig
+        : key === "lowstock"
+          ? prisma.lowstockpopupconfig || prisma.lowStockPopupConfig
+        : key === "addtocart"
+          ? prisma.addtocartpopupconfig || prisma.addToCartPopupConfig
+        : key === "review"
+          ? prisma.reviewpopupconfig || prisma.reviewPopupConfig
+        : null;
       if (id && model?.updateMany) {
         await model.updateMany({
           where: { id, shop },

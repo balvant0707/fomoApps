@@ -691,7 +691,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.className = "fomo-flash";
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
-      width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
+      width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
       border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
@@ -771,7 +771,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
 
-    card.appendChild(img);
+    card.appendChild(imgWrap);
     card.appendChild(body);
     card.appendChild(close);
     wrap.appendChild(card);
@@ -846,10 +846,25 @@ document.addEventListener("DOMContentLoaded", async function () {
       return parts.slice(0, wordCount).join(" ") + "...";
     }
 
+    const isPortrait =
+      String(cfg.layout || "landscape").toLowerCase() === "portrait";
+    const imageFit =
+      String(cfg.imageAppearance || "cover").toLowerCase() === "contain"
+        ? "contain"
+        : "cover";
+    const showImage = !cfg.hideProductImage;
+    const imageOverflow = imageFit === "cover" && !isPortrait && showImage;
+    const pad = mode === "mobile" ? mt.pad : 12;
+    const rightPad = 44;
+    const iSize = mode === "mobile" ? mt.img : 50;
+    const iRad = Math.round(iSize * 0.18);
+    const iOffset = Math.round(iSize * 0.45);
+    const leftPad = imageOverflow ? pad + iOffset : pad;
+
     const wrap = document.createElement("div");
     wrap.style.cssText = `
     position:fixed; z-index:9999; box-sizing:border-box;
-    width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
+    width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
     border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
     background:${bgRecent}; color:${cfg.fontColor || "#111"};
     box-shadow:0 10px 30px rgba(0,0,0,.12);
@@ -861,20 +876,43 @@ document.addEventListener("DOMContentLoaded", async function () {
     const card = document.createElement("div");
     card.style.cssText = `
     display:flex; gap:12px; align-items:flex-start; position:relative;
-    padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12}px 12px;
+    padding:${pad}px ${rightPad}px ${pad}px ${leftPad}px;
     font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)}px; line-height:1.35;
   `;
 
     const img = document.createElement("img");
     img.src = cfg.uploadedImage || cfg.image || "";
     img.alt = safe(cfg.productTitle, "Product");
-    const iSize = mode === "mobile" ? mt.img : 50,
-      iRad = Math.round(iSize * 0.18);
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${cfg.imageAppearance || "cover"};border-radius:${iRad}px;background:#eee;flex:0 0 ${iSize}px;pointer-events:none;`;
+    img.style.cssText = `width:100%;height:100%;object-fit:${imageFit};`;
     img.onerror = () => {
-      img.style.display = "none";
+      imgWrap.style.display = "none";
     };
-    if (cfg.hideProductImage) img.style.display = "none";
+
+    const imgWrap = document.createElement("div");
+    if (imageOverflow) {
+      imgWrap.style.cssText = `
+        position:absolute;
+        left:${pad}px;
+        top:50%;
+        transform:translate(-50%, -50%);
+        width:${iSize}px;height:${iSize}px;
+        border-radius:${iRad}px;overflow:hidden;background:#f3f4f6;
+        box-shadow:0 8px 18px rgba(0,0,0,0.18);
+        border:2px solid rgba(255,255,255,0.75);
+        display:${showImage ? "grid" : "none"};
+        place-items:center;pointer-events:none;
+      `;
+    } else {
+      imgWrap.style.cssText = `
+        width:${iSize}px;height:${iSize}px;
+        border-radius:${iRad}px;overflow:hidden;background:#f3f4f6;
+        flex:0 0 ${iSize}px;display:${showImage ? "grid" : "none"};
+        place-items:center;pointer-events:none;
+        box-shadow:0 6px 14px rgba(0,0,0,0.12);
+        border:1px solid rgba(15,23,42,0.08);
+      `;
+    }
+    imgWrap.appendChild(img);
 
     const body = document.createElement("div");
     body.style.cssText = `flex:1;min-width:0;pointer-events:none;`;
@@ -964,7 +1002,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
 
-    card.appendChild(img);
+    card.appendChild(imgWrap);
     card.appendChild(body);
     card.appendChild(close);
     wrap.appendChild(card);
@@ -1039,8 +1077,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const baseFont = Number(cfg.textSizeContent) || (mode === "mobile" ? 13 : 14);
     const fontSize = Math.max(11, Math.round(baseFont));
+    const imageFit =
+      String(cfg.imageAppearance || "cover").toLowerCase() === "contain"
+        ? "contain"
+        : "cover";
+    const imageOverflow =
+      imageFit === "cover" && !isPortrait && cfg.showProductImage !== false;
     const pad = Math.round(
-      imageStyle === "offset"
+      imageOverflow
         ? mode === "mobile"
           ? 14
           : 16
@@ -1051,10 +1095,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const gap = Math.round(mode === "mobile" ? 10 : 12);
     const imgSize = Math.round((mode === "mobile" ? 56 : 64));
     const imgOffset = Math.round(imgSize * 0.45);
-    const imageStyle =
-      String(cfg.imageStyle || "inline").toLowerCase() === "offset"
-        ? "offset"
-        : "inline";
+    const inlineSize = isPortrait ? 56 : imgSize;
 
     const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
     const originX = posKey.includes("right") ? "right" : "left";
@@ -1074,7 +1115,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const inner = document.createElement("div");
     inner.style.cssText = `
-      overflow:hidden; opacity:${opacity};
+      overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${opacity};
       border-radius:${Math.round(18 * sizeScale)}px;
       background:${bg}; color:${cfg.textColor || "#111"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
@@ -1085,12 +1126,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     `;
 
     const card = document.createElement("div");
-    const leftPad =
-      imageStyle === "offset" && !isPortrait && cfg.showProductImage !== false
-        ? pad + imgOffset
-        : pad;
-    const alignItems =
-      isPortrait ? "flex-start" : imageStyle === "offset" ? "flex-start" : "center";
+    const leftPad = imageOverflow ? pad + imgOffset : pad;
+    const alignItems = isPortrait ? "flex-start" : imageOverflow ? "flex-start" : "center";
     card.style.cssText = `
       display:flex; gap:${gap}px; align-items:${alignItems};
       flex-direction:${isPortrait ? "column" : "row"};
@@ -1100,7 +1137,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     `;
 
     let imgWrap = null;
-    if (imageStyle === "offset") {
+    if (imageOverflow) {
       imgWrap = document.createElement("div");
       imgWrap.style.cssText = `
         position:absolute;
@@ -1119,10 +1156,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     } else {
       imgWrap = document.createElement("div");
       imgWrap.style.cssText = `
-        width:${isPortrait ? 56 : 64}px;height:${isPortrait ? 56 : 64}px;
-        border-radius:12px;overflow:hidden;background:#f3f4f6;
+        width:${inlineSize}px;height:${inlineSize}px;
+        border-radius:${Math.round(inlineSize * 0.22)}px;
+        overflow:hidden;background:#f3f4f6;
         flex-shrink:0;display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;pointer-events:none;
+        box-shadow:0 6px 14px rgba(0,0,0,0.12);
+        border:1px solid rgba(15,23,42,0.08);
       `;
     }
 
@@ -1130,7 +1170,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.src = cfg.productImage || cfg.image || "";
     img.alt = safe(cfg.productTitle, "Product");
     img.style.cssText = `
-      width:100%;height:100%;object-fit:${cfg.imageAppearance || "cover"};
+      width:100%;height:100%;object-fit:${imageFit};
     `;
     img.onerror = () => {
       imgWrap.style.display = "none";

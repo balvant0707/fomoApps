@@ -29,6 +29,10 @@ import { useIdle } from "../../utils/useIdle";
 const TITLES = {
   recent: "Recent Purchases",
   flash: "Flash Sale Bars",
+  visitor: "Visitor Popup",
+  lowstock: "Low Stock Popup",
+  addtocart: "Add to Cart Popup",
+  review: "Review Notification",
 };
 
 const pageOptions = [
@@ -118,11 +122,15 @@ function formatLines(val) {
 }
 
 function getTitleDisplay(row) {
-  return row.key === "recent"
-    ? "Recent Order Popup"
-    : (row.messageTitle && row.messageTitle.trim?.()) ||
-        row.messageTitlesJson ||
-        "";
+  if (row.key === "recent") return "Recent Order Popup";
+  if (row.key === "flash") {
+    return (
+      (row.messageTitle && row.messageTitle.trim?.()) ||
+      row.messageTitlesJson ||
+      TITLES.flash
+    );
+  }
+  return TITLES[row.key] || pretty(row.key);
 }
 
 function getMessageDisplay(row) {
@@ -136,6 +144,7 @@ function getMessageDisplay(row) {
 
   const nonFlashVal =
     (row.messageText && row.messageText.trim?.()) ||
+    (row.message && row.message.trim?.()) ||
     row.namesJson ||
     row.locationsJson ||
     "";

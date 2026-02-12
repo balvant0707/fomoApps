@@ -391,9 +391,12 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
+  const imageMode = imageAppearance || "cover";
+  const imageFit = imageMode === "contain" ? "contain" : "cover";
   const avatarSize = isPortrait ? 56 : 64;
   const avatarOffset = Math.round(avatarSize * 0.45);
   const pad = 16;
+  const imageOverflow = showProductImage && imageMode === "cover" && !isPortrait;
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -403,7 +406,7 @@ function PreviewCard({
     boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
     border: "1px solid rgba(0,0,0,0.06)",
     padding: pad,
-    paddingLeft: showProductImage ? pad + avatarOffset : pad,
+    paddingLeft: imageOverflow ? pad + avatarOffset : pad,
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
@@ -479,44 +482,75 @@ function PreviewCard({
           x
         </button>
       )}
-      {showProductImage && (
-        <div
-          style={{
-            position: "absolute",
-            left: pad,
-            top: isPortrait ? 28 : "50%",
-            transform: isPortrait
-              ? "translate(-50%, 0)"
-              : "translate(-50%, -50%)",
-            width: avatarSize,
-            height: avatarSize,
-            borderRadius: Math.round(avatarSize * 0.22),
-            overflow: "hidden",
-            background: "#f3f4f6",
-            flexShrink: 0,
-            display: "grid",
-            placeItems: "center",
-            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
-            border: "2px solid rgba(255,255,255,0.75)",
-          }}
-        >
-          {product?.image ? (
-            <img
-              src={product.image}
-              alt={product.title}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: imageAppearance || "cover",
-              }}
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
-          )}
-        </div>
-      )}
+      {showProductImage &&
+        (imageOverflow ? (
+          <div
+            style={{
+              position: "absolute",
+              left: pad,
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: Math.round(avatarSize * 0.22),
+              overflow: "hidden",
+              background: "#f3f4f6",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+              border: "2px solid rgba(255,255,255,0.75)",
+            }}
+          >
+            {product?.image ? (
+              <img
+                src={product.image}
+                alt={product.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: Math.round(avatarSize * 0.22),
+              overflow: "hidden",
+              background: "#f3f4f6",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
+              border: "1px solid rgba(15,23,42,0.08)",
+              alignSelf: isPortrait ? "center" : "flex-start",
+            }}
+          >
+            {product?.image ? (
+              <img
+                src={product.image}
+                alt={product.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: imageFit,
+                }}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
+            )}
+          </div>
+        ))}
 
       <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
         {showRating && (
