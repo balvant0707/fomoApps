@@ -20,21 +20,60 @@ const stripUndefined = (data) => {
   return data;
 };
 
-async function upsertByShop(table, shop, data) {
+async function upsertByShop(table, shop, data, modelName = "unknown") {
   const payload = stripUndefined({ ...data, shop });
-  const existing = await table.findFirst({
-    where: { shop },
-    orderBy: { id: "desc" },
-    select: { id: true },
-  });
-  if (existing?.id) {
-    await table.updateMany({ where: { shop }, data: payload });
-    return table.findFirst({
+  try {
+    console.log("[PopupConfig] upsert start:", {
+      model: modelName,
+      shop,
+      payload: payload,
+    });
+
+    const existing = await table.findFirst({
       where: { shop },
       orderBy: { id: "desc" },
+      select: { id: true },
     });
+
+    if (existing?.id) {
+      const result = await table.updateMany({
+        where: { shop },
+        data: payload,
+      });
+      console.log("[PopupConfig] updateMany result:", {
+        model: modelName,
+        shop,
+        updatedCount: result?.count ?? null,
+        id: existing.id,
+      });
+      const latest = await table.findFirst({
+        where: { shop },
+        orderBy: { id: "desc" },
+      });
+      console.log("[PopupConfig] updateMany latest:", {
+        model: modelName,
+        shop,
+        id: latest?.id ?? null,
+      });
+      return latest;
+    }
+
+    const created = await table.create({ data: payload });
+    console.log("[PopupConfig] create result:", {
+      model: modelName,
+      shop,
+      id: created?.id ?? null,
+    });
+    return created;
+  } catch (e) {
+    console.error("[PopupConfig] upsert failed:", {
+      model: modelName,
+      shop,
+      error: e?.message || e,
+      code: e?.code || null,
+    });
+    throw e;
   }
-  return table.create({ data: payload });
 }
 
 export async function saveVisitorPopup(shop, form) {
@@ -101,7 +140,7 @@ export async function saveVisitorPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(table, shop, data);
+  return upsertByShop(table, shop, data, "visitorpopupconfig");
 }
 
 export async function saveLowStockPopup(shop, form) {
@@ -159,7 +198,7 @@ export async function saveLowStockPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.lowstockpopupconfig, shop, data);
+  return upsertByShop(prisma.lowstockpopupconfig, shop, data, "lowstockpopupconfig");
 }
 
 export async function saveAddToCartPopup(shop, form) {
@@ -217,7 +256,7 @@ export async function saveAddToCartPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.addtocartpopupconfig, shop, data);
+  return upsertByShop(prisma.addtocartpopupconfig, shop, data, "addtocartpopupconfig");
 }
 
 export async function saveReviewPopup(shop, form) {
@@ -272,7 +311,7 @@ export async function saveReviewPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.reviewpopupconfig, shop, data);
+  return upsertByShop(prisma.reviewpopupconfig, shop, data, "reviewpopupconfig");
 }
 
 export async function saveRecentPopup(shop, form) {
@@ -317,7 +356,7 @@ export async function saveRecentPopup(shop, form) {
     selectedProductsJson: JSON.stringify(form?.selectedProductsJson ?? []),
   };
 
-  return upsertByShop(prisma.recentpopupconfig, shop, data);
+  return upsertByShop(prisma.recentpopupconfig, shop, data, "recentpopupconfig");
 }
 
 export async function saveFlashPopup(shop, form) {
@@ -363,5 +402,5 @@ export async function saveFlashPopup(shop, form) {
     selectedProductsJson: JSON.stringify(form?.selectedProductsJson ?? []),
   };
 
-  return upsertByShop(prisma.flashpopupconfig, shop, data);
+  return upsertByShop(prisma.flashpopupconfig, shop, data, "flashpopupconfig");
 }
