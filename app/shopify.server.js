@@ -11,7 +11,55 @@ import prisma from "./db.server";
 import { upsertInstalledShop } from "./utils/upsertShop.server";
 import { ensurePrismaSessionTable } from "./utils/ensureSessionTable.server";
 
-await ensurePrismaSessionTable(prisma);
+function createSessionStorage(prismaClient) {
+  let storagePromise;
+
+  const getStorage = async () => {
+    if (!storagePromise) {
+      storagePromise = (async () => {
+        await ensurePrismaSessionTable(prismaClient);
+        return new PrismaSessionStorage(prismaClient, {
+          connectionRetries: 6,
+          connectionRetryIntervalMs: 1500,
+        });
+      })();
+    }
+    return storagePromise;
+  };
+
+  return {
+    async storeSession(session) {
+      const storage = await getStorage();
+      return storage.storeSession(session);
+    },
+    async loadSession(id) {
+      const storage = await getStorage();
+      return storage.loadSession(id);
+    },
+    async deleteSession(id) {
+      const storage = await getStorage();
+      return storage.deleteSession(id);
+    },
+    async deleteSessions(ids) {
+      const storage = await getStorage();
+      return storage.deleteSessions(ids);
+    },
+    async findSessionsByShop(shop) {
+      const storage = await getStorage();
+      return storage.findSessionsByShop(shop);
+    },
+    async isReady() {
+      try {
+        const storage = await getStorage();
+        return storage.isReady();
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+const sessionStorage = createSessionStorage(prisma);
 
 export const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -21,10 +69,7 @@ export const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   distribution: AppDistribution.AppStore,
-  sessionStorage: new PrismaSessionStorage(prisma, {
-    connectionRetries: 6,
-    connectionRetryIntervalMs: 1500,
-  }),
+  sessionStorage,
   future: { unstable_newEmbeddedAuthStrategy: true, removeRest: true },
 
   // Register topics (handlers are in /webhooks routes via authenticate.webhook)
@@ -80,4 +125,4 @@ export const apiVersion = ApiVersion.January25;
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const login = shopify.login;
 export const registerWebhooks = shopify.registerWebhooks;
-export const sessionStorage = shopify.sessionStorage;
+export { sessionStorage };
