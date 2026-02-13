@@ -38,10 +38,11 @@ export async function loader({ request }) {
   let customerCount = null;
   try {
     const resp = await admin.graphql(
-      "query { customersCount }"
+      "query { customersCount { count } }"
     );
     const payload = await resp.json();
-    const count = payload?.data?.customersCount;
+    const count =
+      payload?.data?.customersCount?.count ?? payload?.data?.customersCount;
     if (Number.isFinite(Number(count))) {
       customerCount = Number(count);
     }
