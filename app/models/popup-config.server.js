@@ -528,12 +528,15 @@ export async function saveReviewPopup(shop, form) {
     selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
+  const preferredId = toInt(form?.editId ?? form?.id);
 
   return upsertByShopWithSplitFallback(
     table,
     shop,
     data,
-    "reviewpopupconfig"
+    "reviewpopupconfig",
+    SPLIT_SELECTION_COLUMNS,
+    preferredId
   );
 }
 

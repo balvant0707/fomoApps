@@ -63,6 +63,7 @@ export async function loader({ request }) {
 
     if (source) {
       saved = {
+        id: source.id,
         design: {
           reviewType: toStr(source.reviewType, "new_review"),
           template: toStr(source.template, "solid"),
@@ -920,7 +921,6 @@ function StyledPreviewCard({
           }}
         >
           <span>{resolvedTimestamp}</span>
-          <span style={{ fontSize: 11 }}>{"\u00A9"} WizzCommerce</span>
         </div>
       </div>
     </div>
@@ -943,8 +943,6 @@ export default function ReviewNotificationPage() {
   const [collectionSearch, setCollectionSearch] = useState("");
   const [page, setPage] = useState(1);
   const [collectionPage, setCollectionPage] = useState(1);
-  const [hasLoaded, setHasLoaded] = useState(false);
-  const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
 
   const [design, setDesign] = useState({
     reviewType: "new_review",
@@ -1006,6 +1004,7 @@ export default function ReviewNotificationPage() {
 
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     if (!saved) return;
@@ -1026,15 +1025,12 @@ export default function ReviewNotificationPage() {
     setSelectedCollections(
       Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
     );
+    setEditingId(
+      Number.isInteger(Number(saved.id)) && Number(saved.id) > 0
+        ? Number(saved.id)
+        : null
+    );
   }, [saved]);
-
-  useEffect(() => {
-    if (hasLoaded) return;
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    fetcher.load(`/app/products-picker?${params.toString()}`);
-    setHasLoaded(true);
-  }, [hasLoaded, fetcher]);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -1043,14 +1039,6 @@ export default function ReviewNotificationPage() {
     params.set("page", String(page));
     fetcher.load(`/app/products-picker?${params.toString()}`);
   }, [pickerOpen, search, page, fetcher]);
-
-  useEffect(() => {
-    if (hasLoadedCollections) return;
-    const params = new URLSearchParams();
-    params.set("page", "1");
-    collectionFetcher.load(`/app/collections-picker?${params.toString()}`);
-    setHasLoadedCollections(true);
-  }, [hasLoadedCollections, collectionFetcher]);
 
   useEffect(() => {
     if (!collectionPickerOpen) return;
@@ -1142,6 +1130,7 @@ export default function ReviewNotificationPage() {
     try {
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
+        editId: editingId,
         design,
         textSize,
         content,
