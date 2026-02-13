@@ -84,7 +84,7 @@ export async function loader({ request }) {
         content: {
           message: toStr(
             source.message,
-            "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}"
+            '{reviewer_name} - "{review_title}: {review_body}"'
           ),
           timestamp: toStr(source.timestamp, "{review_date}"),
         },
@@ -195,7 +195,6 @@ const CONTENT_TOKENS = [
   "review_body",
   "reviewer_country",
   "reviewer_city",
-  "product_name",
 ];
 const TIME_TOKENS = ["review_date"];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
@@ -506,8 +505,8 @@ function PreviewCard({
   );
   const tokenValues = {
     reviewer_name: "Jane B.",
-    review_title: "Beautiful and elegant",
-    review_body: "Absolutely stunning and elegant.",
+    review_title: "Great product!",
+    review_body: "This product is amazing! I love it!!!",
     reviewer_country: "abroad",
     reviewer_city: "London",
     product_name: safeProductName,
@@ -515,28 +514,14 @@ function PreviewCard({
   };
 
   const resolvedContent = resolveTemplate(
-    contentText ||
-      "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
+    contentText || '{reviewer_name} - "{review_title}: {review_body}"',
     tokenValues
   );
   const resolvedTimestamp = resolveTemplate(
     timestampText || "{review_date}",
     tokenValues
   );
-
-  const productIndex = resolvedContent.indexOf(safeProductName);
-  const contentNode =
-    productIndex >= 0 ? (
-      <>
-        {resolvedContent.slice(0, productIndex)}
-        <span style={{ fontWeight: 700, textTransform: "uppercase" }}>
-          {safeProductName}
-        </span>
-        {resolvedContent.slice(productIndex + safeProductName.length)}
-      </>
-    ) : (
-      resolvedContent
-    );
+  const contentNode = resolvedContent;
 
   return (
     <div
@@ -700,6 +685,248 @@ function PreviewCard({
   );
 }
 
+function StyledPreviewCard({
+  bgColor,
+  bgAlt,
+  template,
+  imageAppearance,
+  textColor,
+  timestampColor,
+  priceTagBg,
+  priceTagAlt,
+  priceColor,
+  starColor,
+  textSizeContent,
+  textSizeCompare,
+  textSizePrice,
+  contentText,
+  timestampText,
+  showProductImage,
+  showPriceTag,
+  showRating,
+  showClose,
+  product,
+  productNameMode,
+  productNameLimit,
+}) {
+  const background =
+    template === "gradient"
+      ? `linear-gradient(135deg, ${bgColor} 0%, ${bgAlt} 100%)`
+      : bgColor;
+  const imageMode = imageAppearance || "cover";
+  const imageFit = imageMode === "contain" ? "contain" : "cover";
+  const avatarSize = 56;
+  const avatarOffset = Math.round(avatarSize * 0.45);
+  const pad = 16;
+  const imageOverflow = showProductImage && imageMode === "cover";
+
+  const rawProductName = product?.title || "DREAMY BLUE BALL GOWN";
+  const safeProductName = formatProductName(
+    rawProductName,
+    productNameMode,
+    productNameLimit
+  );
+  const tokenValues = {
+    reviewer_name: "Jane B.",
+    review_title: "Great product!",
+    review_body: "This product is amazing! I love it!!!",
+    reviewer_country: "abroad",
+    reviewer_city: "London",
+    product_name: safeProductName,
+    review_date: "2 days ago",
+  };
+
+  const resolvedContent = resolveTemplate(
+    contentText || '{reviewer_name} - "{review_title}: {review_body}"',
+    tokenValues
+  );
+  const resolvedTimestamp = resolveTemplate(
+    timestampText || "{review_date}",
+    tokenValues
+  );
+
+  const rating = Math.max(0, Math.min(5, Number(product?.rating || 4)));
+  const filledStars = "\u2605".repeat(rating);
+  const emptyStars = "\u2605".repeat(5 - rating);
+
+  return (
+    <div
+      style={{
+        background,
+        color: textColor,
+        borderRadius: 18,
+        boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
+        border: "1px solid rgba(0,0,0,0.06)",
+        padding: pad,
+        paddingLeft: imageOverflow ? pad + avatarOffset : pad,
+        display: "flex",
+        gap: 14,
+        alignItems: "flex-start",
+        position: "relative",
+        maxWidth: 460,
+      }}
+    >
+      {showClose && (
+        <button
+          type="button"
+          aria-label="Close"
+          style={{
+            position: "absolute",
+            top: -12,
+            right: -12,
+            width: 30,
+            height: 30,
+            borderRadius: "50%",
+            border: "1px solid #e5e7eb",
+            background: "#ffffff",
+            color: "#111827",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 16,
+            cursor: "pointer",
+          }}
+        >
+          x
+        </button>
+      )}
+      {showProductImage &&
+        (imageOverflow ? (
+          <div
+            style={{
+              position: "absolute",
+              left: "8px",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: Math.round(avatarSize * 0.22),
+              overflow: "hidden",
+              background: "#f3f4f6",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+              border: "2px solid rgba(255,255,255,0.75)",
+            }}
+          >
+            {product?.image ? (
+              <img
+                src={product.image}
+                alt={product.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
+            )}
+          </div>
+        ) : (
+          <div
+            style={{
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: Math.round(avatarSize * 0.22),
+              overflow: "hidden",
+              background: "#f3f4f6",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
+              border: "1px solid rgba(15,23,42,0.08)",
+            }}
+          >
+            {product?.image ? (
+              <img
+                src={product.image}
+                alt={product.title}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: imageFit,
+                }}
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
+            )}
+          </div>
+        ))}
+      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
+        {showRating && (
+          <div style={{ color: starColor, fontSize: 20, letterSpacing: 1 }}>
+            {filledStars}
+            <span style={{ color: "#d1d5db" }}>{emptyStars}</span>
+          </div>
+        )}
+        <div
+          style={{
+            fontWeight: 800,
+            fontSize: 34,
+            lineHeight: 1.05,
+            letterSpacing: 0.1,
+            textTransform: "uppercase",
+          }}
+        >
+          {safeProductName}
+        </div>
+        {showPriceTag && (
+          <InlineStack gap="200" blockAlign="center">
+            <span
+              style={{
+                background: priceTagBg,
+                color: priceColor,
+                fontSize: textSizePrice,
+                padding: "2px 8px",
+                borderRadius: 6,
+                fontWeight: 600,
+              }}
+            >
+              {product?.price || "Rs. 14,099.00"}
+            </span>
+            <span
+              style={{
+                color: priceTagAlt,
+                fontSize: textSizeCompare,
+                textDecoration: "line-through",
+              }}
+            >
+              {product?.compareAt || "Rs. 24,099.00"}
+            </span>
+          </InlineStack>
+        )}
+        <div
+          style={{
+            fontSize: textSizeContent,
+            lineHeight: 1.35,
+            fontStyle: "italic",
+          }}
+        >
+          {resolvedContent}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            fontSize: 12,
+            color: timestampColor,
+          }}
+        >
+          <span>{resolvedTimestamp}</span>
+          <span style={{ fontSize: 11 }}>{"\u00A9"} WizzCommerce</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ReviewNotificationPage() {
   const { saved, judgeMeConnected } = useLoaderData();
   const navigate = useNavigate();
@@ -740,8 +967,7 @@ export default function ReviewNotificationPage() {
   });
 
   const [content, setContent] = useState({
-    message:
-      "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}",
+    message: '{reviewer_name} - "{review_title}: {review_body}"',
     timestamp: "{review_date}",
   });
   const [productNameMode, setProductNameMode] = useState("full");
@@ -949,6 +1175,7 @@ export default function ReviewNotificationPage() {
   };
 
   const items = allProducts;
+  const ActivePreviewCard = StyledPreviewCard || PreviewCard;
 
   return (
     <Frame>
@@ -1222,38 +1449,6 @@ export default function ReviewNotificationPage() {
                                 </button>
                               ))}
                             </InlineStack>
-                            <BlockStack gap="200">
-                              <Text as="p" variant="bodySm">
-                                Product name display
-                              </Text>
-                              <InlineStack gap="400">
-                                <RadioButton
-                                  id="product-name-full"
-                                  name="product_name_mode"
-                                  label="Show full product name"
-                                  checked={productNameMode === "full"}
-                                  onChange={() => setProductNameMode("full")}
-                                />
-                                <RadioButton
-                                  id="product-name-half"
-                                  name="product_name_mode"
-                                  label="Show half product name"
-                                  checked={productNameMode === "half"}
-                                  onChange={() => setProductNameMode("half")}
-                                />
-                              </InlineStack>
-                              {productNameMode === "half" && (
-                                <Box width="50%">
-                                  <TextField
-                                    label="Character limit"
-                                    type="number"
-                                    value={productNameLimit}
-                                    onChange={setProductNameLimit}
-                                    autoComplete="off"
-                                  />
-                                </Box>
-                              )}
-                            </BlockStack>
                             <TextField
                               label="Timestamp"
                               value={content.timestamp}
@@ -1261,7 +1456,7 @@ export default function ReviewNotificationPage() {
                                 setContent((c) => ({ ...c, timestamp: v }))
                               }
                               autoComplete="off"
-                              helpText={`${content.timestamp.length}/50`}
+                              helpText={`${content.timestamp.length}/30`}
                             />
                             <InlineStack gap="150" wrap>
                               {TIME_TOKENS.map((token) => (
@@ -1278,114 +1473,112 @@ export default function ReviewNotificationPage() {
                           </BlockStack>
                         </Box>
                       </Card>
-
-                      <Card>
-                        <Box padding="4">
-                          <BlockStack gap="300">
-                            <Text as="h3" variant="headingMd">
-                              Data
-                            </Text>
-                            <InlineStack gap="400">
-                              <RadioButton
-                                id="data-judge"
-                                name="data_source"
-                                label="Sync Judge.me Review"
-                                checked={data.dataSource === "judge_me"}
-                                onChange={() =>
-                                  setData((d) => ({
-                                    ...d,
-                                    dataSource: "judge_me",
-                                  }))
-                                }
-                              />
-                              <RadioButton
-                                id="data-csv"
-                                name="data_source"
-                                label="Import CSV"
-                                checked={data.dataSource === "csv"}
-                                onChange={() =>
-                                  setData((d) => ({
-                                    ...d,
-                                    dataSource: "csv",
-                                  }))
-                                }
-                              />
-                            </InlineStack>
-                            {data.dataSource === "judge_me" && (
-                              judgeMeConnected ? (
-                                <Text
-                                  as="span"
-                                  style={{
-                                    background: "#b7f5cb",
-                                    color: "#095236",
-                                    borderRadius: 10,
-                                    padding: "6px 10px",
-                                    fontWeight: 600,
-                                    display: "inline-block",
-                                  }}
-                                >
-                                  Connected with Judge.me
-                                </Text>
-                              ) : (
-                                <Button
-                                  onClick={() =>
-                                    navigate(`/app/integrations${location.search || ""}`)
-                                  }
-                                >
-                                  Connect with Judge.me
-                                </Button>
-                              )
-                            )}
-                            {data.dataSource === "csv" && (
-                              <Button>Import CSV</Button>
-                            )}
-                          </BlockStack>
-                        </Box>
-                      </Card>
-
-                      <Card>
-                        <Box padding="4">
-                          <BlockStack gap="150">
-                            <Checkbox
-                              label="Notification direct to specific product page"
-                              checked={data.directProductPage}
-                              onChange={(v) =>
-                                setData((d) => ({
-                                  ...d,
-                                  directProductPage: v,
-                                }))
-                              }
-                            />
-                            <Checkbox
-                              label="Show product/avatar image"
-                              checked={data.showProductImage}
-                              onChange={(v) =>
-                                setData((d) => ({
-                                  ...d,
-                                  showProductImage: v,
-                                }))
-                              }
-                            />
-                            <Checkbox
-                              label="Show price tag"
-                              checked={data.showPriceTag}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, showPriceTag: v }))
-                              }
-                            />
-                            <Checkbox
-                              label="Show rating"
-                              checked={data.showRating}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, showRating: v }))
-                              }
-                            />
-                          </BlockStack>
-                        </Box>
-                      </Card>
                     </>
                   )}
                   {activeSection === "display" && (
+                    <>
+                    <Card>
+                      <Box padding="4">
+                        <BlockStack gap="300">
+                          <Text as="h3" variant="headingMd">
+                            Data
+                          </Text>
+                          <InlineStack gap="400">
+                            <RadioButton
+                              id="data-judge"
+                              name="data_source"
+                              label="Sync Judge.me Review"
+                              checked={data.dataSource === "judge_me"}
+                              onChange={() =>
+                                setData((d) => ({
+                                  ...d,
+                                  dataSource: "judge_me",
+                                }))
+                              }
+                            />
+                            <RadioButton
+                              id="data-csv"
+                              name="data_source"
+                              label="Import CSV"
+                              checked={data.dataSource === "csv"}
+                              onChange={() =>
+                                setData((d) => ({
+                                  ...d,
+                                  dataSource: "csv",
+                                }))
+                              }
+                            />
+                          </InlineStack>
+                          {data.dataSource === "judge_me" &&
+                            (judgeMeConnected ? (
+                              <Text
+                                as="span"
+                                style={{
+                                  background: "#b7f5cb",
+                                  color: "#095236",
+                                  borderRadius: 10,
+                                  padding: "6px 10px",
+                                  fontWeight: 600,
+                                  display: "inline-block",
+                                }}
+                              >
+                                Connected with Judge.me
+                              </Text>
+                            ) : (
+                              <Button
+                                onClick={() =>
+                                  navigate(`/app/integrations${location.search || ""}`)
+                                }
+                              >
+                                Connect with Judge.me
+                              </Button>
+                            ))}
+                          {data.dataSource === "csv" && <Button>Import CSV</Button>}
+                        </BlockStack>
+                      </Box>
+                    </Card>
+
+                    <Card>
+                      <Box padding="4">
+                        <BlockStack gap="150">
+                          <Checkbox
+                            label="Notification direct to specific product page"
+                            checked={data.directProductPage}
+                            onChange={(v) =>
+                              setData((d) => ({
+                                ...d,
+                                directProductPage: v,
+                              }))
+                            }
+                          />
+                          <Checkbox
+                            label="Show product/avatar image"
+                            checked={data.showProductImage}
+                            onChange={(v) =>
+                              setData((d) => ({
+                                ...d,
+                                showProductImage: v,
+                              }))
+                            }
+                          />
+                          <Checkbox
+                            label="Show price tag"
+                            checked={data.showPriceTag}
+                            onChange={(v) =>
+                              setData((d) => ({ ...d, showPriceTag: v }))
+                            }
+                          />
+                          <Checkbox
+                            label="Show rating"
+                            checked={data.showRating}
+                            onChange={(v) =>
+                              setData((d) => ({ ...d, showRating: v }))
+                            }
+                          />
+                        </BlockStack>
+                      </Box>
+                    </Card>
+
                     <Card>
                       <Box padding="4">
                         <BlockStack gap="300">
@@ -1532,6 +1725,7 @@ export default function ReviewNotificationPage() {
                         </BlockStack>
                       </Box>
                     </Card>
+                    </>
                   )}
                   {activeSection === "behavior" && (
                     <>
@@ -1641,7 +1835,7 @@ export default function ReviewNotificationPage() {
                             </Text>
                           </div>
                         ) : (
-                          <PreviewCard
+                          <ActivePreviewCard
                             bgColor={normalizeHex(design.bgColor, "#FFFFFF")}
                             bgAlt={normalizeHex(design.bgAlt, "#F3F4F6")}
                             template={design.template}
