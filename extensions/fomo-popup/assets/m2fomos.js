@@ -2600,7 +2600,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
                 : stockUnder;
 
-          const customer = pickCustomer(customerPool, i);
+          const useShopifyCustomerData =
+            type !== "addtocart" ||
+            String(row.customerInfo || "shopify").toLowerCase() !== "manual";
+          const customer = useShopifyCustomerData
+            ? pickCustomer(customerPool, i)
+            : null;
           const customerTokens = customer
             ? {
               full_name: customer.full_name || baseTokens.full_name,

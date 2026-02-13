@@ -96,6 +96,7 @@ export async function loader({ request }) {
         productNameLimit: toStr(source.productNameLimit, DEFAULT_PRODUCT_NAME_LIMIT),
         data: {
           dataSource: toStr(source.dataSource, "shopify"),
+          customerInfo: toStr(source.customerInfo, "shopify"),
           stockUnder: toStr(source.stockUnder, "10"),
           hideOutOfStock: toBool(source.hideOutOfStock, true),
           directProductPage: toBool(source.directProductPage, true),
@@ -717,6 +718,7 @@ export default function AddToCartPopupPage() {
 
   const [data, setData] = useState({
     dataSource: "shopify",
+    customerInfo: "shopify",
     stockUnder: "10",
     hideOutOfStock: true,
     directProductPage: true,
@@ -851,11 +853,14 @@ export default function AddToCartPopupPage() {
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
   const needsProductSelection =
-    visibility.productScope === "specific" && selectedProducts.length === 0;
+    (visibility.productScope === "specific" || data.dataSource === "shopify") &&
+    selectedProducts.length === 0;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
+  const dataScopedProduct =
+    data.dataSource === "shopify" ? selectedProducts[0] : null;
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -863,7 +868,7 @@ export default function AddToCartPopupPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+    dataScopedProduct || scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
   const previewMessage = needsProductSelection
     ? "Select a product to preview."
     : needsCollectionSelection
@@ -1309,7 +1314,7 @@ export default function AddToCartPopupPage() {
                               <RadioButton
                                 id="data-shopify"
                                 name="data_source"
-                                label="Data from Shopify"
+                                label="Import data from Shopify"
                                 checked={data.dataSource === "shopify"}
                                 onChange={() =>
                                   setData((d) => ({
@@ -1331,24 +1336,66 @@ export default function AddToCartPopupPage() {
                                 }
                               />
                             </InlineStack>
+                            <BlockStack gap="200">
+                              <Text as="p" variant="headingSm">
+                                Product info
+                              </Text>
+                              <InlineStack gap="200" blockAlign="center" wrap>
+                                <Button onClick={() => setPickerOpen(true)}>
+                                  Select product
+                                </Button>
+                                <Text tone="subdued">
+                                  {selectedProducts.length} products selected
+                                </Text>
+                              </InlineStack>
+                              {selectedProducts.length === 0 && (
+                                <Text as="p" tone="critical">
+                                  Please choose at least 1 product
+                                </Text>
+                              )}
+                            </BlockStack>
 
-                            <TextField
-                              label="Show notification for product with stock under"
-                              type="number"
-                              value={data.stockUnder}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, stockUnder: v }))
-                              }
-                              autoComplete="off"
-                            />
-
-                            <Checkbox
-                              label="Don't show notification when out of stock"
-                              checked={data.hideOutOfStock}
-                              onChange={(v) =>
-                                setData((d) => ({ ...d, hideOutOfStock: v }))
-                              }
-                            />
+                            <div
+                              style={{
+                                borderTop: "1px solid #e5e7eb",
+                                paddingTop: 16,
+                              }}
+                            >
+                              <BlockStack gap="200">
+                                <Text as="p" variant="headingSm">
+                                  Customer info
+                                </Text>
+                                <RadioButton
+                                  id="customer-info-shopify"
+                                  name="customer_info"
+                                  label="Data from Shopify"
+                                  checked={data.customerInfo === "shopify"}
+                                  onChange={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      customerInfo: "shopify",
+                                    }))
+                                  }
+                                />
+                                {data.customerInfo === "shopify" && (
+                                  <Text tone="subdued">
+                                    Customer profiles are imported from Shopify.
+                                  </Text>
+                                )}
+                                <RadioButton
+                                  id="customer-info-manual"
+                                  name="customer_info"
+                                  label="Set manually"
+                                  checked={data.customerInfo === "manual"}
+                                  onChange={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      customerInfo: "manual",
+                                    }))
+                                  }
+                                />
+                              </BlockStack>
+                            </div>
                           </BlockStack>
                         </Box>
                       </Card>

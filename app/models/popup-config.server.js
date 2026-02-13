@@ -23,7 +23,7 @@ const SPLIT_SELECTION_COLUMNS = [
   "selectedDataProductsJson",
   "selectedVisibilityProductsJson",
 ];
-const ADD_TO_CART_TIME_COLUMNS = ["avgTime", "avgUnit"];
+const ADD_TO_CART_EXTRA_COLUMNS = ["avgTime", "avgUnit", "customerInfo"];
 const withoutKeys = (obj, keys) => {
   const out = { ...obj };
   for (const key of keys) delete out[key];
@@ -304,6 +304,7 @@ export async function saveAddToCartPopup(shop, form) {
     productNameLimit: toInt(form?.productNameLimit),
 
     dataSource: toStr(form?.data?.dataSource),
+    customerInfo: toStr(form?.data?.customerInfo),
     stockUnder: toInt(form?.data?.stockUnder),
     hideOutOfStock: toBool(form?.data?.hideOutOfStock),
     directProductPage: toBool(form?.data?.directProductPage),
@@ -340,7 +341,7 @@ export async function saveAddToCartPopup(shop, form) {
     shop,
     data,
     "addtocartpopupconfig",
-    [...SPLIT_SELECTION_COLUMNS, ...ADD_TO_CART_TIME_COLUMNS]
+    [...SPLIT_SELECTION_COLUMNS, ...ADD_TO_CART_EXTRA_COLUMNS]
   );
 }
 

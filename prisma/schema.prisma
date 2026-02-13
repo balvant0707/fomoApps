@@ -235,6 +235,7 @@ model addtocartpopupconfig {
   productNameLimit       Int?
 
   dataSource             String?
+  customerInfo           String?
   stockUnder             Int?
   hideOutOfStock         Boolean?
   directProductPage      Boolean?
