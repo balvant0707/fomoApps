@@ -19,6 +19,16 @@ import NotificationTable from "../components/dashboard/NotificationTable";
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
 
 async function fetchRows(shop) {
+  const hasMissingColumnError = (error) => {
+    const code = String(error?.code || "").toUpperCase();
+    const msg = String(error?.message || "").toLowerCase();
+    return (
+      code === "P2022" ||
+      msg.includes("unknown column") ||
+      (msg.includes("column") && msg.includes("does not exist"))
+    );
+  };
+
   const tableModel = (key) => {
     switch (key) {
       case "recent":
@@ -58,12 +68,83 @@ async function fetchRows(shop) {
   };
 
   const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
+  const legacySelectByKey = {
+    recent: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showType: true,
+      messageText: true,
+    },
+    flash: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showType: true,
+      messageTitle: true,
+      name: true,
+      messageText: true,
+    },
+    visitor: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+    lowstock: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+    },
+    addtocart: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+    review: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+  };
   const rows = [];
   for (const key of keys) {
     const model = tableModel(key);
     if (!model?.findMany) continue;
     try {
-      const records = await model.findMany({
+      let records = await model.findMany({
         where: { shop },
         orderBy: { id: "desc" },
       });
@@ -88,7 +169,42 @@ async function fetchRows(shop) {
         });
       }
     } catch (e) {
-      console.error(`[home.loader] ${key} fetch failed:`, e);
+      if (!hasMissingColumnError(e)) {
+        console.error(`[home.loader] ${key} fetch failed:`, e);
+        continue;
+      }
+
+      try {
+        const select = legacySelectByKey[key];
+        if (!select) continue;
+        const records = await model.findMany({
+          where: { shop },
+          orderBy: { id: "desc" },
+          select,
+        });
+        if (!records?.length) continue;
+        for (const row of records) {
+          rows.push({
+            ...row,
+            key,
+            enabled:
+              row.enabled === true ||
+              row.enabled === 1 ||
+              row.enabled === "1",
+            showType: row.showType || deriveShowType(row),
+            messageText:
+              row.messageText ||
+              row.message ||
+              row.name ||
+              row.messageTitle ||
+              row.title ||
+              row.timestamp ||
+              "",
+          });
+        }
+      } catch (retryError) {
+        console.error(`[home.loader] ${key} legacy fetch failed:`, retryError);
+      }
     }
   }
 

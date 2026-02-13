@@ -96,6 +96,15 @@ export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
   if (!shop) throw new Response("Unauthorized", { status: 401 });
+  const hasMissingColumnError = (error) => {
+    const code = String(error?.code || "").toUpperCase();
+    const msg = String(error?.message || "").toLowerCase();
+    return (
+      code === "P2022" ||
+      msg.includes("unknown column") ||
+      (msg.includes("column") && msg.includes("does not exist"))
+    );
+  };
 
   const tableModel = (key) => {
     switch (key) {
@@ -117,6 +126,21 @@ export async function loader({ request }) {
   };
 
   const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
+  const legacySelectByKey = {
+    recent: { id: true, enabled: true, showType: true, messageText: true },
+    flash: {
+      id: true,
+      enabled: true,
+      showType: true,
+      messageTitle: true,
+      name: true,
+      messageText: true,
+    },
+    visitor: { id: true, enabled: true, message: true },
+    lowstock: { id: true, enabled: true, message: true },
+    addtocart: { id: true, enabled: true, message: true, timestamp: true },
+    review: { id: true, enabled: true, message: true, timestamp: true },
+  };
   const logsPromise = Promise.all(
     keys.map(async (key) => {
       const model = tableModel(key);
@@ -143,8 +167,38 @@ export async function loader({ request }) {
           showType: row.showType || "-",
         };
       } catch (e) {
-        console.error(`[dashboard.logs] ${key} fetch failed:`, e);
-        return null;
+        if (!hasMissingColumnError(e)) {
+          console.error(`[dashboard.logs] ${key} fetch failed:`, e);
+          return null;
+        }
+        try {
+          const select = legacySelectByKey[key];
+          if (!select) return null;
+          const row = await model.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+            select,
+          });
+          if (!row) return null;
+          return {
+            ...row,
+            key,
+            enabled:
+              row.enabled === true ||
+              row.enabled === 1 ||
+              row.enabled === "1",
+            messageText:
+              row.messageText ||
+              row.message ||
+              row.name ||
+              row.title ||
+              "-",
+            showType: row.showType || "-",
+          };
+        } catch (retryError) {
+          console.error(`[dashboard.logs] ${key} legacy fetch failed:`, retryError);
+          return null;
+        }
       }
     })
   ).then((rows) => rows.filter(Boolean));

@@ -35,6 +35,16 @@ function buildStats(rows, analytics = EMPTY_ANALYTICS) {
 }
 
 async function fetchRows(shop) {
+  const hasMissingColumnError = (error) => {
+    const code = String(error?.code || "").toUpperCase();
+    const msg = String(error?.message || "").toLowerCase();
+    return (
+      code === "P2022" ||
+      msg.includes("unknown column") ||
+      (msg.includes("column") && msg.includes("does not exist"))
+    );
+  };
+
   const tableModel = (key) => {
     switch (key) {
       case "recent":
@@ -55,6 +65,60 @@ async function fetchRows(shop) {
   };
 
   const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
+  const legacySelectByKey = {
+    recent: { id: true, enabled: true, showType: true, messageText: true },
+    flash: {
+      id: true,
+      enabled: true,
+      showType: true,
+      messageTitle: true,
+      name: true,
+      messageText: true,
+    },
+    visitor: {
+      id: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+    lowstock: {
+      id: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+    },
+    addtocart: {
+      id: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+    review: {
+      id: true,
+      enabled: true,
+      showHome: true,
+      showProduct: true,
+      showCollectionList: true,
+      showCollection: true,
+      showCart: true,
+      message: true,
+      timestamp: true,
+    },
+  };
   const rows = [];
   for (const key of keys) {
     const model = tableModel(key);
@@ -75,7 +139,30 @@ async function fetchRows(shop) {
         });
       }
     } catch (e) {
-      console.error(`[dashboard.loader] ${key} fetch failed:`, e);
+      if (!hasMissingColumnError(e)) {
+        console.error(`[dashboard.loader] ${key} fetch failed:`, e);
+        continue;
+      }
+      try {
+        const select = legacySelectByKey[key];
+        if (!select) continue;
+        const row = await model.findFirst({
+          where: { shop },
+          orderBy: { id: "desc" },
+          select,
+        });
+        if (!row) continue;
+        rows.push({
+          ...row,
+          key,
+          enabled:
+            row.enabled === true ||
+            row.enabled === 1 ||
+            row.enabled === "1",
+        });
+      } catch (retryError) {
+        console.error(`[dashboard.loader] ${key} legacy fetch failed:`, retryError);
+      }
     }
   }
 
