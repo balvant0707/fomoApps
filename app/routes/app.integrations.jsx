@@ -2,7 +2,6 @@ import { json } from "@remix-run/node";
 import { useFetcher, useLoaderData } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import {
-  Badge,
   BlockStack,
   Box,
   Button,
@@ -24,7 +23,7 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop || "";
 
-  let connected = false;
+  let apiKey = "";
   try {
     const model = prisma?.notificationconfig || null;
     if (shop && model?.findFirst) {
@@ -32,7 +31,7 @@ export const loader = async ({ request }) => {
         where: { shop, key: INTEGRATION_KEY },
         orderBy: { id: "desc" },
       });
-      connected = Boolean(row?.messageText);
+      apiKey = row?.messageText ? String(row.messageText) : "";
     }
   } catch (error) {
     console.warn("[Integrations] loader fetch failed:", error);
@@ -40,7 +39,7 @@ export const loader = async ({ request }) => {
 
   return json({
     shop,
-    connected,
+    apiKey,
   });
 };
 
@@ -52,14 +51,8 @@ export const action = async ({ request }) => {
   }
 
   const form = await request.formData();
+  const intent = String(form.get("_action") || "connect");
   const apiKey = String(form.get("apiKey") || "").trim();
-
-  if (!apiKey) {
-    return json(
-      { ok: false, error: "Private API Key is required." },
-      { status: 400 }
-    );
-  }
 
   try {
     const model = prisma?.notificationconfig || null;
@@ -71,6 +64,23 @@ export const action = async ({ request }) => {
       where: { shop, key: INTEGRATION_KEY },
       orderBy: { id: "desc" },
     });
+
+    if (intent === "disconnect") {
+      if (existing?.id && model?.update) {
+        await model.update({
+          where: { id: existing.id },
+          data: { enabled: false, messageText: "" },
+        });
+      }
+      return json({ ok: true, disconnected: true, message: "Disconnected." });
+    }
+
+    if (!apiKey) {
+      return json(
+        { ok: false, error: "Private API Key is required." },
+        { status: 400 }
+      );
+    }
 
     if (existing?.id && model?.update) {
       await model.update({
@@ -89,7 +99,12 @@ export const action = async ({ request }) => {
       });
     }
 
-    return json({ ok: true, message: "Judge.me connected successfully." });
+    return json({
+      ok: true,
+      connected: true,
+      apiKey,
+      message: "Connect successfully",
+    });
   } catch (error) {
     console.error("[Integrations] save failed:", error);
     return json(
@@ -121,22 +136,28 @@ function JudgeMeBadge() {
 }
 
 export default function IntegrationsPage() {
-  const { shop, connected } = useLoaderData();
+  const { shop, apiKey: savedApiKey } = useLoaderData();
   const fetcher = useFetcher();
-  const [apiKey, setApiKey] = useState("");
+  const [apiKey, setApiKey] = useState(savedApiKey || "");
+  const [isConnected, setIsConnected] = useState(Boolean(savedApiKey));
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
 
   const saving = fetcher.state !== "idle";
-  const isConnected = connected || Boolean(apiKey);
 
   useEffect(() => {
     if (!fetcher.data) return;
     if (fetcher.data.ok) {
-      setToast({
-        active: true,
-        error: false,
-        msg: fetcher.data.message || "Integration saved.",
-      });
+      if (fetcher.data.disconnected) {
+        setIsConnected(false);
+        setApiKey("");
+        return;
+      }
+      if (fetcher.data.connected) {
+        setIsConnected(true);
+        if (typeof fetcher.data.apiKey === "string") {
+          setApiKey(fetcher.data.apiKey);
+        }
+      }
       return;
     }
     setToast({
@@ -157,12 +178,9 @@ export default function IntegrationsPage() {
                   <InlineStack gap="400" blockAlign="center">
                     <JudgeMeBadge />
                     <BlockStack gap="100">
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text as="h2" variant="headingLg">
-                          Judge.me Product Reviews
-                        </Text>
-                        {isConnected ? <Badge tone="success">Connected</Badge> : null}
-                      </InlineStack>
+                      <Text as="h2" variant="headingLg">
+                        Judge.me Product Reviews
+                      </Text>
                       <Text tone="subdued" as="p">
                         Build trust with unlimited product reviews, photos and
                         videos.
@@ -200,11 +218,44 @@ export default function IntegrationsPage() {
                   />
                 </BlockStack>
 
-                <InlineStack align="end">
-                  <Button submit variant="primary" loading={saving}>
-                    Connect
-                  </Button>
-                </InlineStack>
+                {isConnected ? (
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text
+                      as="span"
+                      style={{
+                        background: "#b7f5cb",
+                        color: "#095236",
+                        borderRadius: 10,
+                        padding: "8px 12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Connect successfully
+                    </Text>
+                    <Button
+                      name="_action"
+                      value="disconnect"
+                      submit
+                      tone="critical"
+                      variant="secondary"
+                      loading={saving}
+                    >
+                      Disconnect
+                    </Button>
+                  </InlineStack>
+                ) : (
+                  <InlineStack align="end">
+                    <Button
+                      name="_action"
+                      value="connect"
+                      submit
+                      variant="primary"
+                      loading={saving}
+                    >
+                      Connect
+                    </Button>
+                  </InlineStack>
+                )}
               </BlockStack>
             </fetcher.Form>
           </Box>
