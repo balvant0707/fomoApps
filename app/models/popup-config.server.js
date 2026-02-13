@@ -104,6 +104,18 @@ async function upsertByShop(
         data: payload,
         select: { id: true },
       });
+      try {
+        await table.deleteMany({
+          where: { shop, id: { not: existing.id } },
+        });
+      } catch (cleanupError) {
+        console.warn("[PopupConfig] singleton cleanup failed:", {
+          model: modelName,
+          shop,
+          keepId: existing.id,
+          error: cleanupError?.message || cleanupError,
+        });
+      }
       console.log("[PopupConfig] update result:", {
         model: modelName,
         shop,
@@ -117,6 +129,20 @@ async function upsertByShop(
       data: payload,
       select: { id: true },
     });
+    try {
+      if (created?.id) {
+        await table.deleteMany({
+          where: { shop, id: { not: created.id } },
+        });
+      }
+    } catch (cleanupError) {
+      console.warn("[PopupConfig] singleton cleanup failed:", {
+        model: modelName,
+        shop,
+        keepId: created?.id ?? null,
+        error: cleanupError?.message || cleanupError,
+      });
+    }
     console.log("[PopupConfig] create result:", {
       model: modelName,
       shop,

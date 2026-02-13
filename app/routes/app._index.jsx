@@ -142,14 +142,45 @@ async function fetchRows(shop) {
   const rows = [];
   for (const key of keys) {
     const model = tableModel(key);
-    if (!model?.findMany) continue;
+    if (!model?.findFirst) continue;
     try {
-      let records = await model.findMany({
+      const row = await model.findFirst({
         where: { shop },
         orderBy: { id: "desc" },
       });
-      if (!records?.length) continue;
-      for (const row of records) {
+      if (!row) continue;
+      rows.push({
+        ...row,
+        key,
+        enabled:
+          row.enabled === true ||
+          row.enabled === 1 ||
+          row.enabled === "1",
+        showType: row.showType || deriveShowType(row),
+        messageText:
+          row.messageText ||
+          row.message ||
+          row.name ||
+          row.messageTitle ||
+          row.title ||
+          row.timestamp ||
+          "",
+      });
+    } catch (e) {
+      if (!hasMissingColumnError(e)) {
+        console.error(`[home.loader] ${key} fetch failed:`, e);
+        continue;
+      }
+
+      try {
+        const select = legacySelectByKey[key];
+        if (!select) continue;
+        const row = await model.findFirst({
+          where: { shop },
+          orderBy: { id: "desc" },
+          select,
+        });
+        if (!row) continue;
         rows.push({
           ...row,
           key,
@@ -167,41 +198,6 @@ async function fetchRows(shop) {
             row.timestamp ||
             "",
         });
-      }
-    } catch (e) {
-      if (!hasMissingColumnError(e)) {
-        console.error(`[home.loader] ${key} fetch failed:`, e);
-        continue;
-      }
-
-      try {
-        const select = legacySelectByKey[key];
-        if (!select) continue;
-        const records = await model.findMany({
-          where: { shop },
-          orderBy: { id: "desc" },
-          select,
-        });
-        if (!records?.length) continue;
-        for (const row of records) {
-          rows.push({
-            ...row,
-            key,
-            enabled:
-              row.enabled === true ||
-              row.enabled === 1 ||
-              row.enabled === "1",
-            showType: row.showType || deriveShowType(row),
-            messageText:
-              row.messageText ||
-              row.message ||
-              row.name ||
-              row.messageTitle ||
-              row.title ||
-              row.timestamp ||
-              "",
-          });
-        }
       } catch (retryError) {
         console.error(`[home.loader] ${key} legacy fetch failed:`, retryError);
       }
