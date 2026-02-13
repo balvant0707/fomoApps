@@ -2458,6 +2458,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const daysWindow = Math.max(0, Number(it.orderDays || 0));
         const wantsOrders = daysWindow > 0;
         const limit = Math.max(1, Number(it.orderLimit || 30) || 30);
+        let addedFromOrders = 0;
 
         if (wantsOrders) {
           try {
@@ -2526,11 +2527,13 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ...COMMON_RECENT,
               };
               recentConfigs.push(cfg);
+              addedFromOrders += 1;
             }
           } catch (e) {
             console.warn("[FOMO][orders] fetch failed", e);
           }
-          continue;
+          // If no order data is available, fallback to selected/static product records.
+          if (addedFromOrders > 0) continue;
         }
 
         const n = Math.max(
