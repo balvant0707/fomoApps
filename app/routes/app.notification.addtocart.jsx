@@ -974,8 +974,21 @@ export default function AddToCartPopupPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ form }),
       });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.success) {
+      const raw = await res.text();
+      let out = null;
+      try {
+        out = raw ? JSON.parse(raw) : null;
+      } catch {
+        out = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          out?.error || out?.message || `Save failed (HTTP ${res.status})`
+        );
+      }
+
+      if (out && out.success === false) {
         throw new Error(out?.error || "Save failed");
       }
       setToast({ active: true, error: false, msg: "Saved." });
