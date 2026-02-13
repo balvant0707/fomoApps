@@ -229,6 +229,8 @@ model addtocartpopupconfig {
 
   message                String?  @db.LongText
   timestamp              String?
+  avgTime                String?
+  avgUnit                String?
   productNameMode        String?
   productNameLimit       Int?
 

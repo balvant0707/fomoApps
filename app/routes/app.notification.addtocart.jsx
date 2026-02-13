@@ -89,6 +89,8 @@ export async function loader({ request }) {
             "{full_name} from {country} added {product_name} to cart"
           ),
           timestamp: toStr(source.timestamp, "{time} {unit} ago"),
+          avgTime: toStr(source.avgTime, "3"),
+          avgUnit: toStr(source.avgUnit, "mins"),
         },
         productNameMode: toStr(source.productNameMode, "full"),
         productNameLimit: toStr(source.productNameLimit, DEFAULT_PRODUCT_NAME_LIMIT),
@@ -479,6 +481,8 @@ function PreviewCard({
   textSizePrice,
   contentText,
   timestampText,
+  avgTime,
+  avgUnit,
   showProductImage,
   showPriceTag,
   showRating,
@@ -526,8 +530,8 @@ function PreviewCard({
     city: "New York",
     product_name: safeName,
     product_price: product?.price || "Rs. 29.99",
-    time: "3",
-    unit: "minutes",
+    time: String(avgTime || "3"),
+    unit: String(avgUnit || "mins"),
   };
 
   const resolveTemplate = (value) =>
@@ -703,6 +707,8 @@ export default function AddToCartPopupPage() {
   const [content, setContent] = useState({
     message: "{full_name} from {country} added {product_name} to cart",
     timestamp: "{time} {unit} ago",
+    avgTime: "3",
+    avgUnit: "mins",
   });
   const [productNameMode, setProductNameMode] = useState("full");
   const [productNameLimit, setProductNameLimit] = useState(
@@ -1262,6 +1268,33 @@ export default function AddToCartPopupPage() {
                                 </button>
                               ))}
                             </InlineStack>
+                            <InlineStack gap="400" wrap={false}>
+                              <Box width="50%">
+                                <TextField
+                                  label="Average time"
+                                  type="number"
+                                  value={content.avgTime}
+                                  onChange={(v) =>
+                                    setContent((c) => ({ ...c, avgTime: v }))
+                                  }
+                                  autoComplete="off"
+                                />
+                              </Box>
+                              <Box width="50%">
+                                <Select
+                                  label=" "
+                                  labelHidden
+                                  options={TIME_UNITS}
+                                  value={content.avgUnit}
+                                  onChange={(v) =>
+                                    setContent((c) => ({ ...c, avgUnit: v }))
+                                  }
+                                />
+                              </Box>
+                            </InlineStack>
+                            <Text variant="bodySm" tone="subdued">
+                              Time will be randomized around this time.
+                            </Text>
                           </BlockStack>
                         </Box>
                       </Card>
@@ -1650,6 +1683,8 @@ export default function AddToCartPopupPage() {
                             textSizePrice={Number(textSize.price) || 12}
                             contentText={content.message}
                             timestampText={content.timestamp}
+                            avgTime={content.avgTime}
+                            avgUnit={content.avgUnit}
                             showProductImage={data.showProductImage}
                             showPriceTag={data.showPriceTag}
                             showRating={data.showRating}

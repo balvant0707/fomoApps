@@ -23,16 +23,19 @@ const SPLIT_SELECTION_COLUMNS = [
   "selectedDataProductsJson",
   "selectedVisibilityProductsJson",
 ];
+const ADD_TO_CART_TIME_COLUMNS = ["avgTime", "avgUnit"];
 const withoutKeys = (obj, keys) => {
   const out = { ...obj };
   for (const key of keys) delete out[key];
   return out;
 };
-const hasMissingSplitColumnError = (err) => {
+const hasMissingColumnError = (err, columns) => {
+  const cols = Array.isArray(columns) ? columns : [];
+  if (!cols.length) return false;
   const code = String(err?.code || "").toUpperCase();
   const msg = String(err?.message || "").toLowerCase();
   const metaColumn = String(err?.meta?.column || "").toLowerCase();
-  const targetColumn = SPLIT_SELECTION_COLUMNS.some(
+  const targetColumn = cols.some(
     (col) => msg.includes(col.toLowerCase()) || metaColumn.includes(col.toLowerCase())
   );
   if (code === "P2022" && targetColumn) return true;
@@ -86,17 +89,23 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
   }
 }
 
-async function upsertByShopWithSplitFallback(table, shop, data, modelName = "unknown") {
+async function upsertByShopWithSplitFallback(
+  table,
+  shop,
+  data,
+  modelName = "unknown",
+  fallbackColumns = SPLIT_SELECTION_COLUMNS
+) {
   try {
     return await upsertByShop(table, shop, data, modelName);
   } catch (e) {
-    if (!hasMissingSplitColumnError(e)) throw e;
+    if (!hasMissingColumnError(e, fallbackColumns)) throw e;
 
-    const legacyData = withoutKeys(data, SPLIT_SELECTION_COLUMNS);
-    console.warn("[PopupConfig] split columns missing; retrying legacy payload:", {
+    const legacyData = withoutKeys(data, fallbackColumns);
+    console.warn("[PopupConfig] columns missing; retrying legacy payload:", {
       model: modelName,
       shop,
-      columns: SPLIT_SELECTION_COLUMNS,
+      columns: fallbackColumns,
     });
     return upsertByShop(table, shop, legacyData, `${modelName}:legacy`);
   }
@@ -289,6 +298,8 @@ export async function saveAddToCartPopup(shop, form) {
 
     message: toStr(form?.content?.message),
     timestamp: toStr(form?.content?.timestamp),
+    avgTime: toStr(form?.content?.avgTime),
+    avgUnit: toStr(form?.content?.avgUnit),
     productNameMode: toStr(form?.productNameMode),
     productNameLimit: toInt(form?.productNameLimit),
 
@@ -328,7 +339,8 @@ export async function saveAddToCartPopup(shop, form) {
     prisma.addtocartpopupconfig,
     shop,
     data,
-    "addtocartpopupconfig"
+    "addtocartpopupconfig",
+    [...SPLIT_SELECTION_COLUMNS, ...ADD_TO_CART_TIME_COLUMNS]
   );
 }
 
