@@ -1576,7 +1576,14 @@ export default function VisitorPopupPage() {
                             setData((d) => ({ ...d, ratingSource: v }))
                           }
                         />
-                        <Button variant="primary">Connect with Judge.me</Button>
+                        <Button
+                          variant="primary"
+                          onClick={() =>
+                            navigate(`/app/integrations${location.search || ""}`)
+                          }
+                        >
+                          Connect with Judge.me
+                        </Button>
                       </BlockStack>
                     )}
 

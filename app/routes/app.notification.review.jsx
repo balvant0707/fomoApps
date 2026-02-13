@@ -571,7 +571,7 @@ function PreviewCard({
           <div
             style={{
               position: "absolute",
-              left: pad,
+              left: "8px",
               top: "50%",
               transform: "translate(-50%, -50%)",
               width: avatarSize,
@@ -1300,7 +1300,13 @@ export default function ReviewNotificationPage() {
                               />
                             </InlineStack>
                             {data.dataSource === "judge_me" && (
-                              <Button>Connect with Judge.me</Button>
+                              <Button
+                                onClick={() =>
+                                  navigate(`/app/integrations${location.search || ""}`)
+                                }
+                              >
+                                Connect with Judge.me
+                              </Button>
                             )}
                             {data.dataSource === "csv" && (
                               <Button>Import CSV</Button>

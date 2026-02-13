@@ -54,6 +54,7 @@ export default function App() {
         <Link to={`/app${search}`} rel="home" prefetch="intent">Home</Link>
         <Link to={`/app/notification${search}`} prefetch="intent">Notification</Link>
         <Link to={`/app/dashboard${search}`} prefetch="intent">Analytics</Link>
+        <Link to={`/app/integrations${search}`} prefetch="intent">Integrations</Link>
         <Link to={`/app/documents${search}`} prefetch="intent">Documents</Link>
         <Link to={`/app/help${search}`} prefetch="intent">Help</Link>
       </NavMenu>
