@@ -82,6 +82,16 @@ export async function saveVisitorPopup(shop, form) {
   if (!table) {
     throw new Error("Prisma model missing: visitorpopupconfig");
   }
+
+  const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
+    ? form.selectedDataProducts
+    : Array.isArray(form?.selectedProducts)
+      ? form.selectedProducts
+      : [];
+  const selectedVisibilityProducts = Array.isArray(form?.selectedVisibilityProducts)
+    ? form.selectedVisibilityProducts
+    : selectedDataProducts;
+
   const data = {
     enabled: toBool(form?.enabled, true),
 
@@ -136,7 +146,10 @@ export async function saveVisitorPopup(shop, form) {
     intervalUnit: toStr(form?.behavior?.intervalUnit),
     randomize: toBool(form?.behavior?.randomize),
 
-    selectedProductsJson: toJson(form?.selectedProducts),
+    selectedDataProductsJson: toJson(selectedDataProducts),
+    selectedVisibilityProductsJson: toJson(selectedVisibilityProducts),
+    // Keep legacy field populated for backward compatibility.
+    selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 

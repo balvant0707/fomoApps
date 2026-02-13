@@ -133,6 +133,8 @@ model visitorpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  selectedDataProductsJson String?  @db.LongText
+  selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText
 

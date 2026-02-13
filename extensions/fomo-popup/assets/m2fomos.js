@@ -174,6 +174,57 @@ document.addEventListener("DOMContentLoaded", async function () {
     const arr = parseList(raw);
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
   };
+  const parseProductBuckets = (rawOrRow) => {
+    // New schema: dedicated columns for data and visibility selections.
+    if (
+      rawOrRow &&
+      typeof rawOrRow === "object" &&
+      !Array.isArray(rawOrRow) &&
+      ("selectedDataProductsJson" in rawOrRow ||
+        "selectedVisibilityProductsJson" in rawOrRow ||
+        "selectedProductsJson" in rawOrRow)
+    ) {
+      const dataProducts = parseProductList(
+        rawOrRow.selectedDataProductsJson ?? rawOrRow.selectedProductsJson
+      );
+      const visibilityProducts = parseProductList(
+        rawOrRow.selectedVisibilityProductsJson ?? rawOrRow.selectedProductsJson
+      );
+      return {
+        dataProducts,
+        visibilityProducts: visibilityProducts.length
+          ? visibilityProducts
+          : dataProducts,
+      };
+    }
+
+    let decoded = rawOrRow;
+    if (typeof rawOrRow === "string") {
+      try {
+        decoded = JSON.parse(rawOrRow);
+      } catch {
+        decoded = rawOrRow;
+      }
+    }
+
+    if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
+      const dataProducts = parseProductList(
+        decoded.dataProducts ?? decoded.products ?? decoded.selectedProducts
+      );
+      const visibilityProducts = parseProductList(
+        decoded.visibilityProducts ?? decoded.visibility ?? decoded.showOnProducts
+      );
+      return {
+        dataProducts,
+        visibilityProducts: visibilityProducts.length
+          ? visibilityProducts
+          : dataProducts,
+      };
+    }
+
+    const list = parseProductList(decoded);
+    return { dataProducts: list, visibilityProducts: list };
+  };
   const formatMoney = (cents) => {
     const n = Number(cents);
     if (!Number.isFinite(n)) return String(cents || "");
@@ -2038,7 +2089,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const matchesScope = (row) => {
       const pScope = String(row?.productScope || "").toLowerCase();
       if (pt === "product" && pScope === "specific") {
-        const list = parseProductList(row?.selectedProductsJson);
+        const { visibilityProducts: list } = parseProductBuckets(row);
         if (!list.length || !ch) return false;
         const hit = list.some((entry) => {
           const h = productHandleFromEntry(entry);
@@ -2099,7 +2150,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       return null;
     };
     const collectProducts = async (row) => {
-      const list = parseProductList(row?.selectedProductsJson);
+      const { dataProducts: list } = parseProductBuckets(row);
       const out = [];
       for (const entry of list) {
         const p = await resolveProduct(entry);

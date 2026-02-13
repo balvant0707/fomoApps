@@ -752,8 +752,10 @@ export default function VisitorPopupPage() {
   const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
   const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
 
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedDataProducts, setSelectedDataProducts] = useState([]);
+  const [selectedVisibilityProducts, setSelectedVisibilityProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+  const [pickerMode, setPickerMode] = useState("data");
 
   useEffect(() => {
     if (hasLoadedProducts) return;
@@ -824,20 +826,22 @@ export default function VisitorPopupPage() {
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
   const needsProductSelection =
-    visibility.productScope === "specific" && selectedProducts.length === 0;
+    visibility.productScope === "specific" &&
+    selectedVisibilityProducts.length === 0;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
-  const preferredSelectedProduct = selectedProducts[0] || null;
+  const preferredDataProduct = selectedDataProducts[0] || null;
+  const preferredVisibilityProduct = selectedVisibilityProducts[0] || null;
   const scopedProduct =
-    visibility.productScope === "specific" ? preferredSelectedProduct : null;
+    visibility.productScope === "specific" ? preferredVisibilityProduct : null;
   const scopedCollectionProduct =
     visibility.collectionScope === "specific"
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    preferredSelectedProduct ||
+    preferredDataProduct ||
     scopedProduct ||
     scopedCollectionProduct ||
     storeProducts[0] ||
@@ -850,16 +854,27 @@ export default function VisitorPopupPage() {
         ? "Preview will appear once a product is available."
         : null;
 
-  const togglePick = (item) => {
+  const togglePick = (item, mode = pickerMode) => {
     const id = typeof item === "object" ? item?.id : item;
     if (!id) return;
-    setSelectedProducts((prev) => {
+    const setSelection =
+      mode === "visibility" ? setSelectedVisibilityProducts : setSelectedDataProducts;
+    setSelection((prev) => {
       const exists = prev.some((p) => p.id === id);
       if (exists) return prev.filter((p) => p.id !== id);
       if (typeof item === "object") return [...prev, item];
       return prev;
     });
   };
+
+  const openProductPicker = (mode) => {
+    setPickerMode(mode === "visibility" ? "visibility" : "data");
+    setPickerOpen(true);
+  };
+
+  const activeProductSelection =
+    pickerMode === "visibility" ? selectedVisibilityProducts : selectedDataProducts;
+  const selectedProductCount = activeProductSelection.length;
 
   const toggleCollection = (item) => {
     setSelectedCollections((prev) => {
@@ -897,12 +912,12 @@ export default function VisitorPopupPage() {
     try {
       if (
         visibility.productScope === "specific" &&
-        selectedProducts.length === 0
+        selectedVisibilityProducts.length === 0
       ) {
         setToast({
           active: true,
           error: true,
-          msg: "Please select at least 1 product before saving.",
+          msg: "Please select at least 1 visibility product before saving.",
         });
         setSaving(false);
         return;
@@ -918,7 +933,9 @@ export default function VisitorPopupPage() {
         data,
         visibility,
         behavior,
-        selectedProducts,
+        selectedDataProducts,
+        selectedVisibilityProducts,
+        selectedProducts: selectedDataProducts,
         selectedCollections,
       };
       const res = await fetch(endpoint, {
@@ -1331,11 +1348,11 @@ export default function VisitorPopupPage() {
                       Data (maximum 250 entries)
                     </Text>
                     <InlineStack align="space-between" blockAlign="center" wrap>
-                      <Button onClick={() => setPickerOpen(true)}>
+                      <Button onClick={() => openProductPicker("data")}>
                         Browse products
                       </Button>
                       <Text tone="subdued">
-                        {selectedProducts.length} products selected
+                        {selectedDataProducts.length} products selected
                       </Text>
                     </InlineStack>
                     <BlockStack gap="150">
@@ -1410,7 +1427,7 @@ export default function VisitorPopupPage() {
                       </div>
                     </BlockStack>
 
-                    {selectedProducts.length > 0 && (
+                    {selectedDataProducts.length > 0 && (
                       <BlockStack gap="200">
                         <Text as="h4" variant="headingSm">
                           Selected products
@@ -1425,7 +1442,7 @@ export default function VisitorPopupPage() {
                           }}
                         >
                           <BlockStack gap="200">
-                            {selectedProducts.map((item) => (
+                            {selectedDataProducts.map((item) => (
                               <InlineStack
                                 key={item.id}
                                 align="space-between"
@@ -1442,7 +1459,7 @@ export default function VisitorPopupPage() {
                                 <Button
                                   tone="critical"
                                   variant="plain"
-                                  onClick={() => togglePick(item.id)}
+                                  onClick={() => togglePick(item.id, "data")}
                                 >
                                   Remove
                                 </Button>
@@ -1514,11 +1531,11 @@ export default function VisitorPopupPage() {
                             wrap
                             style={{ marginTop: 6 }}
                           >
-                            <Button onClick={() => setPickerOpen(true)}>
+                            <Button onClick={() => openProductPicker("visibility")}>
                               Select Product
                             </Button>
                             <Text tone="subdued">
-                              {selectedProducts.length} products selected
+                              {selectedVisibilityProducts.length} products selected
                             </Text>
                           </InlineStack>
                         )}
@@ -1758,7 +1775,11 @@ export default function VisitorPopupPage() {
       <Modal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Select products"
+        title={
+          pickerMode === "visibility"
+            ? "Select products for visibility"
+            : "Select products for popup data"
+        }
         primaryAction={{ content: "Select", onAction: () => setPickerOpen(false) }}
         secondaryActions={[
           { content: "Cancel", onAction: () => setPickerOpen(false) },
@@ -1803,14 +1824,14 @@ export default function VisitorPopupPage() {
               ]}
             >
               {products.map((item, index) => {
-                const checked = selectedProducts.some((p) => p.id === item.id);
+                const checked = activeProductSelection.some((p) => p.id === item.id);
                 return (
                   <IndexTable.Row id={item.id} key={item.id} position={index}>
                     <IndexTable.Cell>
                       <Checkbox
                         label=""
                         checked={checked}
-                        onChange={() => togglePick(item)}
+                        onChange={() => togglePick(item, pickerMode)}
                       />
                     </IndexTable.Cell>
                     <IndexTable.Cell>
@@ -1833,7 +1854,7 @@ export default function VisitorPopupPage() {
 
             <InlineStack gap="200" align="space-between" blockAlign="center">
               <Text tone="subdued">
-                {selectedProducts.length} products selected
+                {selectedProductCount} products selected
               </Text>
               <InlineStack gap="200">
                 <Button
