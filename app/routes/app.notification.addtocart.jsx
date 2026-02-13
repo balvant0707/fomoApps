@@ -57,6 +57,16 @@ const isTransientDbError = (error) => {
   );
 };
 
+const isMissingColumnError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const msg = String(error?.message || "").toLowerCase();
+  return (
+    code === "P2022" ||
+    msg.includes("unknown column") ||
+    (msg.includes("column") && msg.includes("does not exist"))
+  );
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function saveWithRetry(shop, form, retries = 2) {
@@ -89,6 +99,23 @@ export async function loader({ request }) {
     } catch {
       return [];
     }
+  };
+  const parseSelectedProducts = (source) => {
+    const split = parseArr(source?.selectedDataProductsJson);
+    if (split.length) return split;
+
+    const raw = source?.selectedProductsJson;
+    if (Array.isArray(raw)) return raw;
+    try {
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object") {
+        const nested =
+          parsed.dataProducts ?? parsed.selectedProducts ?? parsed.products;
+        return Array.isArray(nested) ? nested : [];
+      }
+    } catch {}
+    return [];
   };
   const toBool = (v, fallback = false) => {
     if (v === undefined || v === null) return fallback;
@@ -153,19 +180,71 @@ export async function loader({ request }) {
     }
 
     const model = prisma?.addtocartpopupconfig || prisma?.addToCartPopupConfig || null;
-    const source =
-      shop && model?.findFirst
-        ? await model.findFirst(
-            editId
-              ? {
-                  where: { id: editId, shop },
-                }
-              : {
-                  where: { shop },
-                  orderBy: { id: "desc" },
-                }
-          )
-        : null;
+    let source = null;
+    if (shop && model?.findFirst) {
+      const findArgs = editId
+        ? {
+            where: { id: editId, shop },
+          }
+        : {
+            where: { shop },
+            orderBy: { id: "desc" },
+          };
+      try {
+        source = await model.findFirst(findArgs);
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+        source = await model.findFirst({
+          ...findArgs,
+          select: {
+            id: true,
+            layout: true,
+            size: true,
+            transparent: true,
+            template: true,
+            bgColor: true,
+            bgAlt: true,
+            textColor: true,
+            timestampColor: true,
+            priceTagBg: true,
+            priceTagAlt: true,
+            priceColor: true,
+            starColor: true,
+            textSizeContent: true,
+            textSizeCompareAt: true,
+            textSizePrice: true,
+            message: true,
+            timestamp: true,
+            productNameMode: true,
+            productNameLimit: true,
+            dataSource: true,
+            stockUnder: true,
+            hideOutOfStock: true,
+            directProductPage: true,
+            showProductImage: true,
+            showPriceTag: true,
+            showRating: true,
+            showHome: true,
+            showProduct: true,
+            productScope: true,
+            showCollectionList: true,
+            showCollection: true,
+            collectionScope: true,
+            showCart: true,
+            position: true,
+            showClose: true,
+            hideOnMobile: true,
+            delay: true,
+            duration: true,
+            interval: true,
+            intervalUnit: true,
+            randomize: true,
+            selectedProductsJson: true,
+            selectedCollectionsJson: true,
+          },
+        });
+      }
+    }
 
     if (source) {
       saved = {
@@ -229,9 +308,7 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseArr(
-          source.selectedDataProductsJson ?? source.selectedProductsJson
-        ),
+        selectedProducts: parseSelectedProducts(source),
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
