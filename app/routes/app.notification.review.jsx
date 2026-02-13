@@ -27,6 +27,8 @@ import { authenticate } from "../shopify.server";
 import { saveReviewPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
+const JUDGE_ME_INTEGRATION_KEY = "integration_judge_me";
+
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -48,6 +50,7 @@ export async function loader({ request }) {
     v === undefined || v === null ? fallback : String(v);
 
   let saved = null;
+  let judgeMeConnected = false;
   try {
     const model = prisma?.reviewpopupconfig || prisma?.reviewPopupConfig || null;
     const source =
@@ -119,11 +122,20 @@ export async function loader({ request }) {
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
+
+    const integrationModel = prisma?.notificationconfig || null;
+    if (shop && integrationModel?.findFirst) {
+      const integration = await integrationModel.findFirst({
+        where: { shop, key: JUDGE_ME_INTEGRATION_KEY },
+        orderBy: { id: "desc" },
+      });
+      judgeMeConnected = Boolean(integration?.messageText);
+    }
   } catch (e) {
     console.warn("[Review Popup] saved config fetch failed:", e);
   }
 
-  return json({ title: "Review Notification", saved });
+  return json({ title: "Review Notification", saved, judgeMeConnected });
 }
 
 export async function action({ request }) {
@@ -689,7 +701,7 @@ function PreviewCard({
 }
 
 export default function ReviewNotificationPage() {
-  const { saved } = useLoaderData();
+  const { saved, judgeMeConnected } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -1300,13 +1312,29 @@ export default function ReviewNotificationPage() {
                               />
                             </InlineStack>
                             {data.dataSource === "judge_me" && (
-                              <Button
-                                onClick={() =>
-                                  navigate(`/app/integrations${location.search || ""}`)
-                                }
-                              >
-                                Connect with Judge.me
-                              </Button>
+                              judgeMeConnected ? (
+                                <Text
+                                  as="span"
+                                  style={{
+                                    background: "#b7f5cb",
+                                    color: "#095236",
+                                    borderRadius: 10,
+                                    padding: "6px 10px",
+                                    fontWeight: 600,
+                                    display: "inline-block",
+                                  }}
+                                >
+                                  Connected with Judge.me
+                                </Text>
+                              ) : (
+                                <Button
+                                  onClick={() =>
+                                    navigate(`/app/integrations${location.search || ""}`)
+                                  }
+                                >
+                                  Connect with Judge.me
+                                </Button>
+                              )
                             )}
                             {data.dataSource === "csv" && (
                               <Button>Import CSV</Button>
