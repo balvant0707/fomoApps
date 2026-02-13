@@ -583,7 +583,7 @@ function PreviewCard({
         <div
           style={{
             position: "absolute",
-            left: 16,
+            left: "8px",
             top: isPortrait ? 28 : "50%",
             transform: isPortrait
               ? "translate(-50%, 0)"
@@ -679,7 +679,7 @@ export default function AddToCartPopupPage() {
 
   const [design, setDesign] = useState({
     layout: "landscape",
-    size: 60,
+    size: 25,
     transparent: 10,
     template: "gradient",
     bgColor: "#CCC01E",

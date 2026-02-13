@@ -599,7 +599,7 @@ function PreviewCard({
           <div
             style={{
               position: "absolute",
-              left: pad,
+              left: "8px",
               top: "50%",
               transform: "translate(-50%, -50%)",
               width: avatarSize,
@@ -717,7 +717,7 @@ export default function LowStockPopupPage() {
 
   const [design, setDesign] = useState({
     layout: "landscape",
-    size: 60,
+    size: 25,
     transparent: 10,
     template: "gradient",
     imageAppearance: "cover",

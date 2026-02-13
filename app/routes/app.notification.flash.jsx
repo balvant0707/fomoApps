@@ -632,7 +632,7 @@ function NotificationPreview({ form, isMobile = false }) {
           <div
             style={{
               position: "absolute",
-              left: 0,
+              left: "8px",
               top: isPortrait ? 24 : "50%",
               transform: isPortrait
                 ? "translate(-50%, 0)"
