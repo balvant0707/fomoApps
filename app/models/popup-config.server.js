@@ -55,26 +55,17 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
     });
 
     if (existing?.id) {
-      const result = await table.updateMany({
-        where: { shop },
+      const updated = await table.update({
+        where: { id: existing.id },
         data: payload,
       });
-      console.log("[PopupConfig] updateMany result:", {
+      console.log("[PopupConfig] update result:", {
         model: modelName,
         shop,
-        updatedCount: result?.count ?? null,
+        updatedCount: updated?.id ? 1 : 0,
         id: existing.id,
       });
-      const latest = await table.findFirst({
-        where: { shop },
-        orderBy: { id: "desc" },
-      });
-      console.log("[PopupConfig] updateMany latest:", {
-        model: modelName,
-        shop,
-        id: latest?.id ?? null,
-      });
-      return latest;
+      return updated;
     }
 
     const created = await table.create({ data: payload });
