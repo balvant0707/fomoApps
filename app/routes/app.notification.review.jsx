@@ -867,7 +867,7 @@ function StyledPreviewCard({
         <div
           style={{
             fontWeight: 800,
-            fontSize: 34,
+            fontSize: 16,
             lineHeight: 1.05,
             letterSpacing: 0.1,
             textTransform: "uppercase",
@@ -1470,6 +1470,116 @@ export default function ReviewNotificationPage() {
                                 </button>
                               ))}
                             </InlineStack>
+
+                            <Text as="h3" variant="headingMd">
+                              Data
+                            </Text>
+                            <BlockStack gap="200">
+                              <Text as="p" variant="bodyMd">
+                                Data source
+                              </Text>
+                              <div>
+                                <RadioButton
+                                  id="data-judge"
+                                  name="data_source"
+                                  label="Sync Judge.me Review"
+                                  checked={data.dataSource === "judge_me"}
+                                  onChange={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      dataSource: "judge_me",
+                                    }))
+                                  }
+                                />
+                                <div style={{ marginLeft: 36, marginTop: 6 }}>
+                                  {judgeMeConnected ? (
+                                    <Text
+                                      as="span"
+                                      style={{
+                                        background: "#b7f5cb",
+                                        color: "#095236",
+                                        borderRadius: 10,
+                                        padding: "6px 10px",
+                                        fontWeight: 600,
+                                        display: "inline-block",
+                                      }}
+                                    >
+                                      Connected with Judge.me
+                                    </Text>
+                                  ) : (
+                                    <Button
+                                      onClick={() =>
+                                        navigate(
+                                          `/app/integrations${location.search || ""}`
+                                        )
+                                      }
+                                    >
+                                      Connect with Judge.me
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div>
+                                <RadioButton
+                                  id="data-csv"
+                                  name="data_source"
+                                  label="Import CSV"
+                                  checked={data.dataSource === "csv"}
+                                  onChange={() =>
+                                    setData((d) => ({
+                                      ...d,
+                                      dataSource: "csv",
+                                    }))
+                                  }
+                                />
+                                <div style={{ marginLeft: 36, marginTop: 6 }}>
+                                  <Text tone="subdued">
+                                    Select a CSV file to import your review data
+                                  </Text>
+                                </div>
+                              </div>
+                            </BlockStack>
+
+                            <BlockStack gap="150">
+                              <Text as="p" variant="bodyMd">
+                                Options
+                              </Text>
+                              <Checkbox
+                                label="Notification direct to specific product page"
+                                checked={data.directProductPage}
+                                onChange={(v) =>
+                                  setData((d) => ({
+                                    ...d,
+                                    directProductPage: v,
+                                  }))
+                                }
+                              />
+                              <Checkbox
+                                label="Show product/avatar image"
+                                checked={data.showProductImage}
+                                onChange={(v) =>
+                                  setData((d) => ({
+                                    ...d,
+                                    showProductImage: v,
+                                  }))
+                                }
+                              />
+                              <Checkbox
+                                label="Show price tag"
+                                checked={data.showPriceTag}
+                                onChange={(v) =>
+                                  setData((d) => ({ ...d, showPriceTag: v }))
+                                }
+                              />
+                              <Checkbox
+                                label="Show rating"
+                                checked={data.showRating}
+                                onChange={(v) =>
+                                  setData((d) => ({ ...d, showRating: v }))
+                                }
+                              />
+                            </BlockStack>
                           </BlockStack>
                         </Box>
                       </Card>
@@ -1477,108 +1587,6 @@ export default function ReviewNotificationPage() {
                   )}
                   {activeSection === "display" && (
                     <>
-                    <Card>
-                      <Box padding="4">
-                        <BlockStack gap="300">
-                          <Text as="h3" variant="headingMd">
-                            Data
-                          </Text>
-                          <InlineStack gap="400">
-                            <RadioButton
-                              id="data-judge"
-                              name="data_source"
-                              label="Sync Judge.me Review"
-                              checked={data.dataSource === "judge_me"}
-                              onChange={() =>
-                                setData((d) => ({
-                                  ...d,
-                                  dataSource: "judge_me",
-                                }))
-                              }
-                            />
-                            <RadioButton
-                              id="data-csv"
-                              name="data_source"
-                              label="Import CSV"
-                              checked={data.dataSource === "csv"}
-                              onChange={() =>
-                                setData((d) => ({
-                                  ...d,
-                                  dataSource: "csv",
-                                }))
-                              }
-                            />
-                          </InlineStack>
-                          {data.dataSource === "judge_me" &&
-                            (judgeMeConnected ? (
-                              <Text
-                                as="span"
-                                style={{
-                                  background: "#b7f5cb",
-                                  color: "#095236",
-                                  borderRadius: 10,
-                                  padding: "6px 10px",
-                                  fontWeight: 600,
-                                  display: "inline-block",
-                                }}
-                              >
-                                Connected with Judge.me
-                              </Text>
-                            ) : (
-                              <Button
-                                onClick={() =>
-                                  navigate(`/app/integrations${location.search || ""}`)
-                                }
-                              >
-                                Connect with Judge.me
-                              </Button>
-                            ))}
-                          {data.dataSource === "csv" && <Button>Import CSV</Button>}
-                        </BlockStack>
-                      </Box>
-                    </Card>
-
-                    <Card>
-                      <Box padding="4">
-                        <BlockStack gap="150">
-                          <Checkbox
-                            label="Notification direct to specific product page"
-                            checked={data.directProductPage}
-                            onChange={(v) =>
-                              setData((d) => ({
-                                ...d,
-                                directProductPage: v,
-                              }))
-                            }
-                          />
-                          <Checkbox
-                            label="Show product/avatar image"
-                            checked={data.showProductImage}
-                            onChange={(v) =>
-                              setData((d) => ({
-                                ...d,
-                                showProductImage: v,
-                              }))
-                            }
-                          />
-                          <Checkbox
-                            label="Show price tag"
-                            checked={data.showPriceTag}
-                            onChange={(v) =>
-                              setData((d) => ({ ...d, showPriceTag: v }))
-                            }
-                          />
-                          <Checkbox
-                            label="Show rating"
-                            checked={data.showRating}
-                            onChange={(v) =>
-                              setData((d) => ({ ...d, showRating: v }))
-                            }
-                          />
-                        </BlockStack>
-                      </Box>
-                    </Card>
-
                     <Card>
                       <Box padding="4">
                         <BlockStack gap="300">
