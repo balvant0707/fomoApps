@@ -451,8 +451,6 @@ export default function NotificationTable({
                 headings={[
                   { title: "No" },
                   { title: "Popup Title" },
-                  { title: "Notification Message" },
-                  { title: "Popup Type" },
                   { title: "Show On Pages" },
                   { title: "Status" },
                   { title: "Actions" },
@@ -480,7 +478,7 @@ export default function NotificationTable({
                         </Text>
                       </IndexTable.Cell>
 
-                      <IndexTable.Cell className="col-text">
+                      {/* <IndexTable.Cell className="col-text">
                         <Text as="p" breakWord>
                           {formatLines(textDisplay)}
                         </Text>
@@ -488,7 +486,7 @@ export default function NotificationTable({
 
                       <IndexTable.Cell>
                         {TITLES[row.key] || pretty(row.key)}
-                      </IndexTable.Cell>
+                      </IndexTable.Cell> */}
 
                       <IndexTable.Cell>
                         {showTypeLabel(row.showType)}
