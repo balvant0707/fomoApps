@@ -53,18 +53,53 @@ export async function loader({ request }) {
 
   let saved = null;
   let customerCount = null;
+  let firstProduct = null;
+
   try {
     if (admin?.graphql) {
       const countRes = await admin.graphql(`
-        query AddToCartCustomerCount {
+        query AddToCartLoaderMeta {
           customersCount {
             count
+          }
+          products(first: 1, sortKey: TITLE) {
+            edges {
+              node {
+                id
+                title
+                handle
+                status
+                featuredImage { url altText }
+                variants(first: 1) {
+                  edges {
+                    node {
+                      price
+                      compareAtPrice
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       `);
       const countJson = await countRes.json();
       const count = Number(countJson?.data?.customersCount?.count);
       customerCount = Number.isFinite(count) ? count : null;
+      const node = countJson?.data?.products?.edges?.[0]?.node;
+      if (node) {
+        const variant = node?.variants?.edges?.[0]?.node || null;
+        firstProduct = {
+          id: node.id,
+          title: node.title,
+          handle: node.handle || null,
+          image: node.featuredImage?.url || null,
+          status: node.status || "ACTIVE",
+          price: variant?.price || null,
+          compareAt: variant?.compareAtPrice || null,
+          rating: 4,
+        };
+      }
     }
 
     const model = prisma?.addtocartpopupconfig || prisma?.addToCartPopupConfig || null;
@@ -147,7 +182,7 @@ export async function loader({ request }) {
     console.warn("[AddToCart Popup] saved config fetch failed:", e);
   }
 
-  return json({ title: "Add to cart Popup", saved, customerCount });
+  return json({ title: "Add to cart Popup", saved, customerCount, firstProduct });
 }
 
 export async function action({ request }) {
@@ -690,7 +725,7 @@ function PreviewCard({
 }
 
 export default function AddToCartPopupPage() {
-  const { saved, customerCount } = useLoaderData();
+  const { saved, customerCount, firstProduct } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -865,16 +900,16 @@ export default function AddToCartPopupPage() {
   }, [search]);
 
   const products = storeProducts.length ? storeProducts : fallbackProducts;
+  const defaultStoreProduct = storeProducts[0] || firstProduct || null;
 
   const needsProductSelection =
-    (visibility.productScope === "specific" || data.dataSource === "shopify") &&
-    selectedProducts.length === 0;
+    data.dataSource === "manual" && selectedProducts.length === 0;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
   const dataScopedProduct =
-    data.dataSource === "shopify" ? selectedProducts[0] : null;
+    data.dataSource === "shopify" ? selectedProducts[0] || defaultStoreProduct : null;
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -882,7 +917,7 @@ export default function AddToCartPopupPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    dataScopedProduct || scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+    dataScopedProduct || scopedProduct || scopedCollectionProduct || defaultStoreProduct || null;
   const previewMessage = needsProductSelection
     ? "Select a product to preview."
     : needsCollectionSelection
@@ -1337,7 +1372,7 @@ export default function AddToCartPopupPage() {
                                   }))
                                 }
                               />
-                              <RadioButton
+                              {/* <RadioButton
                                 id="data-manual"
                                 name="data_source"
                                 label="Set manually"
@@ -1348,7 +1383,7 @@ export default function AddToCartPopupPage() {
                                     dataSource: "manual",
                                   }))
                                 }
-                              />
+                              /> */}
                             </InlineStack>
                             <BlockStack gap="200">
                               <Text as="p" variant="headingSm">
