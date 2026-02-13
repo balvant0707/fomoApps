@@ -2456,31 +2456,58 @@ document.addEventListener("DOMContentLoaded", async function () {
         );
         const hideFlags = flagsFromNamesJson(it.namesJson);
         const msgTxt = safe(it.messageText, "recently bought");
+        const RECENT_ROW_FIELDS = {
+          shop: safe(it.shop, SHOP),
+          enabled: toBool(it.enabled),
+          showType: safe(it.showType, "allpage"),
+          messageText: msgTxt,
+          fontFamily: safe(it.fontFamily, "System"),
+          position: safe(it.position, "bottom-left"),
+          animation: safe(it.animation, "fade"),
+          mobileSize: safe(it.mobileSize, "compact"),
+          mobilePositionJson: it.mobilePositionJson ?? "[]",
+          template: safe(it.template, "solid"),
+          layout: safe(it.layout, "landscape"),
+          imageAppearance: safe(it.imageAppearance, "cover"),
+          bgColor: safe(it.bgColor, "#ffffff"),
+          bgAlt: safe(it.bgAlt, "#ffffff"),
+          textColor: safe(it.textColor, "#111"),
+          numberColor: safe(it.numberColor, "#6C63FF"),
+          priceTagBg: safe(it.priceTagBg, "#111"),
+          priceTagAlt: safe(it.priceTagAlt, "#666"),
+          priceColor: safe(it.priceColor, "#fff"),
+          starColor: safe(it.starColor, "#f5a623"),
+          rounded: Number(it.rounded ?? 16),
+          firstDelaySeconds: Number(it.firstDelaySeconds ?? 0),
+          durationSeconds: Number(it.durationSeconds ?? 6),
+          alternateSeconds: Number(it.alternateSeconds ?? 4),
+          intervalUnit: safe(it.intervalUnit, "seconds"),
+          fontWeight: Number.isFinite(Number(it.fontWeight))
+            ? Number(it.fontWeight)
+            : 600,
+          productNameMode: safe(it.productNameMode, "full"),
+          productNameLimit: Number(it.productNameLimit ?? 15),
+          orderDays: Number(it.orderDays ?? 0),
+          createOrderTime: safe(it.createOrderTime, ""),
+          messageTitlesJson: it.messageTitlesJson ?? "[]",
+          locationsJson: it.locationsJson ?? "[]",
+          namesJson: it.namesJson ?? "[]",
+          selectedProductsJson: it.selectedProductsJson ?? "[]",
+        };
 
         const COMMON_RECENT = {
-          bgColor: it.bgColor || "#ffffff",
-          bgAlt: it.bgAlt || "#ffffff",
-          template: it.template || "solid",
-          fontColor: it.textColor || "#111",
-          titleColor: it.numberColor || "#6C63FF",
-          accentColor: it.numberColor || "#6C63FF",
-          progressColor: it.numberColor || "#6C63FF",
-          positionDesktop: it.position,
-          mobileSize: it.mobileSize,
-          animation: it.animation,
+          ...RECENT_ROW_FIELDS,
+          message: msgTxt,
+          fontColor: RECENT_ROW_FIELDS.textColor,
+          titleColor: RECENT_ROW_FIELDS.numberColor,
+          accentColor: RECENT_ROW_FIELDS.numberColor,
+          progressColor: RECENT_ROW_FIELDS.numberColor,
+          positionDesktop: RECENT_ROW_FIELDS.position,
           animationSpeed: it.animationSpeed,
           animationMs: it.animationMs,
-          fontFamily: it.fontFamily,
-          fontWeight: it.fontWeight,
           baseFontSize: Number(it.fontSize ?? it.rounded ?? 0) || null,
-          cornerRadius: Number(it.rounded ?? 16),
-          visibleSeconds:
-            Number(it.durationSeconds ?? it.visibleSeconds ?? 6),
-          alternateSeconds: Number(it.alternateSeconds || 4),
-          firstDelaySeconds: Number(it.firstDelaySeconds ?? 0),
-          imageAppearance: it.imageAppearance,
-          productNameMode: it.productNameMode,
-          productNameLimit: it.productNameLimit,
+          cornerRadius: RECENT_ROW_FIELDS.rounded,
+          visibleSeconds: RECENT_ROW_FIELDS.durationSeconds,
         };
 
         const daysWindow = Math.max(0, Number(it.orderDays || 0));
@@ -2567,6 +2594,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               const iconSrc = resolveIconForIndex(it, 0);
 
               const cfg = {
+                ...COMMON_RECENT,
                 productTitle: pTitle,
                 name,
                 city,
@@ -2577,7 +2605,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 image: pImg,
                 productUrl,
                 uploadedImage: iconSrc,
-                createOrderTime: safe(o?.createOrderTime || it?.createOrderTime, ""),
+                createOrderTime: safe(when || o?.createOrderTime || it?.createOrderTime, ""),
                 timeText: relTime(when),
                 timeAbsolute: formatAbs(when),
                 mobilePosition: normMB(
@@ -2588,7 +2616,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
                 rawLocations: it.locationsJson,
                 ...hideFlags,
-                ...COMMON_RECENT,
               };
               recentConfigs.push(cfg);
               addedFromOrders += 1;
@@ -2625,6 +2652,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               pickRaw(locsArrRaw, i, "")
             );
             recentConfigs.push({
+              ...COMMON_RECENT,
               productTitle: p?.title || handle || "Product",
               name: pickSmart(titlesArr, i, "Someone"),
               city: locPartsI.city,
@@ -2646,7 +2674,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
               rawLocations: it.locationsJson,
               ...hideFlags,
-              ...COMMON_RECENT,
             });
           } catch (e) {
             console.warn("[FOMO] product fetch failed", handle, e);

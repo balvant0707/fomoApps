@@ -244,6 +244,7 @@ const TABLE_SELECTS = {
   },
   recent: {
     id: true,
+    shop: true,
     enabled: true,
     showType: true,
     messageText: true,
