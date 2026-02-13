@@ -42,6 +42,352 @@ const tableModel = (key) => {
   }
 };
 
+const TABLE_SELECTS = {
+  visitor: {
+    id: true,
+    enabled: true,
+    notiType: true,
+    layout: true,
+    size: true,
+    transparent: true,
+    template: true,
+    imageAppearance: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    timestampColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    textSizeContent: true,
+    textSizeCompareAt: true,
+    textSizePrice: true,
+    message: true,
+    timestamp: true,
+    avgTime: true,
+    avgUnit: true,
+    productNameMode: true,
+    productNameLimit: true,
+    directProductPage: true,
+    showProductImage: true,
+    showPriceTag: true,
+    showRating: true,
+    ratingSource: true,
+    customerInfo: true,
+    showHome: true,
+    showProduct: true,
+    productScope: true,
+    showCollectionList: true,
+    showCollection: true,
+    collectionScope: true,
+    showCart: true,
+    position: true,
+    showClose: true,
+    hideOnMobile: true,
+    delay: true,
+    duration: true,
+    interval: true,
+    intervalUnit: true,
+    randomize: true,
+    selectedDataProductsJson: true,
+    selectedVisibilityProductsJson: true,
+    selectedProductsJson: true,
+    selectedCollectionsJson: true,
+  },
+  lowstock: {
+    id: true,
+    enabled: true,
+    layout: true,
+    size: true,
+    transparent: true,
+    template: true,
+    imageAppearance: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    numberColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    textSizeContent: true,
+    textSizeCompareAt: true,
+    textSizePrice: true,
+    message: true,
+    productNameMode: true,
+    productNameLimit: true,
+    dataSource: true,
+    stockUnder: true,
+    hideOutOfStock: true,
+    directProductPage: true,
+    showProductImage: true,
+    showPriceTag: true,
+    showRating: true,
+    showHome: true,
+    showProduct: true,
+    productScope: true,
+    showCollectionList: true,
+    showCollection: true,
+    collectionScope: true,
+    showCart: true,
+    position: true,
+    showClose: true,
+    hideOnMobile: true,
+    delay: true,
+    duration: true,
+    interval: true,
+    intervalUnit: true,
+    randomize: true,
+    selectedDataProductsJson: true,
+    selectedVisibilityProductsJson: true,
+    selectedProductsJson: true,
+    selectedCollectionsJson: true,
+  },
+  addtocart: {
+    id: true,
+    enabled: true,
+    layout: true,
+    size: true,
+    transparent: true,
+    template: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    timestampColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    textSizeContent: true,
+    textSizeCompareAt: true,
+    textSizePrice: true,
+    message: true,
+    timestamp: true,
+    avgTime: true,
+    avgUnit: true,
+    productNameMode: true,
+    productNameLimit: true,
+    dataSource: true,
+    customerInfo: true,
+    stockUnder: true,
+    hideOutOfStock: true,
+    directProductPage: true,
+    showProductImage: true,
+    showPriceTag: true,
+    showRating: true,
+    showHome: true,
+    showProduct: true,
+    productScope: true,
+    showCollectionList: true,
+    showCollection: true,
+    collectionScope: true,
+    showCart: true,
+    position: true,
+    showClose: true,
+    hideOnMobile: true,
+    delay: true,
+    duration: true,
+    interval: true,
+    intervalUnit: true,
+    randomize: true,
+    selectedDataProductsJson: true,
+    selectedVisibilityProductsJson: true,
+    selectedProductsJson: true,
+    selectedCollectionsJson: true,
+  },
+  review: {
+    id: true,
+    enabled: true,
+    reviewType: true,
+    template: true,
+    imageAppearance: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    timestampColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    textSizeContent: true,
+    textSizeCompareAt: true,
+    textSizePrice: true,
+    message: true,
+    timestamp: true,
+    productNameMode: true,
+    productNameLimit: true,
+    dataSource: true,
+    directProductPage: true,
+    showProductImage: true,
+    showPriceTag: true,
+    showRating: true,
+    showHome: true,
+    showProduct: true,
+    productScope: true,
+    showCollectionList: true,
+    showCollection: true,
+    collectionScope: true,
+    showCart: true,
+    position: true,
+    showClose: true,
+    hideOnMobile: true,
+    delay: true,
+    duration: true,
+    interval: true,
+    intervalUnit: true,
+    randomize: true,
+    selectedDataProductsJson: true,
+    selectedVisibilityProductsJson: true,
+    selectedProductsJson: true,
+    selectedCollectionsJson: true,
+  },
+  recent: {
+    id: true,
+    enabled: true,
+    showType: true,
+    messageText: true,
+    fontFamily: true,
+    position: true,
+    animation: true,
+    mobileSize: true,
+    mobilePositionJson: true,
+    template: true,
+    layout: true,
+    imageAppearance: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    numberColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    rounded: true,
+    firstDelaySeconds: true,
+    durationSeconds: true,
+    alternateSeconds: true,
+    intervalUnit: true,
+    fontWeight: true,
+    productNameMode: true,
+    productNameLimit: true,
+    orderDays: true,
+    createOrderTime: true,
+    messageTitlesJson: true,
+    locationsJson: true,
+    namesJson: true,
+    selectedProductsJson: true,
+  },
+  flash: {
+    id: true,
+    enabled: true,
+    showType: true,
+    messageTitle: true,
+    name: true,
+    messageText: true,
+    fontFamily: true,
+    fontWeight: true,
+    layout: true,
+    imageAppearance: true,
+    template: true,
+    position: true,
+    animation: true,
+    mobileSize: true,
+    mobilePositionJson: true,
+    bgColor: true,
+    bgAlt: true,
+    textColor: true,
+    numberColor: true,
+    priceTagBg: true,
+    priceTagAlt: true,
+    priceColor: true,
+    starColor: true,
+    rounded: true,
+    firstDelaySeconds: true,
+    durationSeconds: true,
+    alternateSeconds: true,
+    intervalUnit: true,
+    iconKey: true,
+    iconSvg: true,
+    messageTitlesJson: true,
+    locationsJson: true,
+    namesJson: true,
+    selectedProductsJson: true,
+  },
+};
+
+const missingColumnError = (err) => {
+  const code = String(err?.code || "").toUpperCase();
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    code === "P2022" ||
+    msg.includes("unknown column") ||
+    (msg.includes("column") && msg.includes("does not exist"))
+  );
+};
+
+const extractColumnName = (err) => {
+  const rawMeta = String(err?.meta?.column || "").trim();
+  if (rawMeta) {
+    const parts = rawMeta.split(".");
+    return parts[parts.length - 1] || "";
+  }
+  const msg = String(err?.message || "");
+  const match =
+    msg.match(/unknown column ['`"]([^'`"]+)['`"]/i) ||
+    msg.match(/column ['`"]([^'`"]+)['`"] does not exist/i);
+  if (!match?.[1]) return "";
+  const parts = String(match[1]).split(".");
+  return parts[parts.length - 1] || "";
+};
+
+const removeSelectKey = (select, column) => {
+  if (!column) return false;
+  if (Object.prototype.hasOwnProperty.call(select, column)) {
+    delete select[column];
+    return true;
+  }
+  return false;
+};
+
+async function safeFindLatest(model, key, shop) {
+  const baseSelect = { ...(TABLE_SELECTS[key] || {}) };
+  let select = Object.keys(baseSelect).length ? { ...baseSelect } : null;
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      if (select && Object.keys(select).length) {
+        return await model.findFirst({
+          where: { shop },
+          orderBy: { id: "desc" },
+          select,
+        });
+      }
+      return await model.findFirst({
+        where: { shop },
+        orderBy: { id: "desc" },
+      });
+    } catch (e) {
+      if (!missingColumnError(e)) throw e;
+      if (!select) throw e;
+
+      const column = extractColumnName(e);
+      const removed = removeSelectKey(select, column);
+      if (!removed) {
+        // Fallback to minimal row if parser couldn't isolate a column name.
+        select = { id: true, enabled: true };
+      }
+      console.warn("[FOMO popup] missing column fallback:", {
+        key,
+        shop,
+        removedColumn: column || null,
+      });
+    }
+  }
+
+  return null;
+}
+
 const clean = (v, max = 255) => {
   const s = String(v || "").trim();
   if (!s) return null;
@@ -243,10 +589,7 @@ export const loader = async ({ request, params }) => {
         const model = tableModel(key);
         if (!model) return [];
         try {
-          const row = await model.findFirst({
-            where: { shop },
-            orderBy: { id: "desc" },
-          });
+          const row = await safeFindLatest(model, key, shop);
           return row ? [row] : [];
         } catch (e) {
           console.warn(`[FOMO popup] table read failed for ${key}:`, e);

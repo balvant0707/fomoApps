@@ -2151,6 +2151,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     const productCache = new Map();
+    const judgeMeReviewCountCache = new Map();
     let storeProductsCache = null;
     const dedupeProducts = (list) => {
       const out = [];
@@ -2165,6 +2166,105 @@ document.addEventListener("DOMContentLoaded", async function () {
         out.push(prod);
       }
       return out;
+    };
+    const parseJudgeMeCount = (raw) => {
+      const text = String(raw || "");
+      if (!text) return 0;
+
+      const attrMatch = text.match(/data-number-of-reviews=["'](\d+)["']/i);
+      if (attrMatch?.[1]) return Math.max(0, Number(attrMatch[1]) || 0);
+
+      const badgeMatch = text.match(/(\d+)\s+review/i);
+      if (badgeMatch?.[1]) return Math.max(0, Number(badgeMatch[1]) || 0);
+
+      const quotedCount = text.match(/"number_of_reviews"\s*:\s*(\d+)/i);
+      if (quotedCount?.[1]) return Math.max(0, Number(quotedCount[1]) || 0);
+
+      return 0;
+    };
+    const judgeMeCountFromDom = () => {
+      try {
+        const withAttr = document.querySelectorAll(
+          ".jdgm-prev-badge[data-number-of-reviews], [data-number-of-reviews]"
+        );
+        for (const el of withAttr) {
+          const count = Number(el.getAttribute("data-number-of-reviews"));
+          if (Number.isFinite(count) && count > 0) return Math.round(count);
+        }
+
+        const badgeTextEls = document.querySelectorAll(
+          ".jdgm-prev-badge__text, .jdgm-rev-widg__summary-text"
+        );
+        for (const el of badgeTextEls) {
+          const count = parseJudgeMeCount(el?.textContent || "");
+          if (count > 0) return count;
+        }
+      } catch {}
+      return 0;
+    };
+    const productHandleOf = (prod) => {
+      const direct = String(prod?.handle || "").trim();
+      if (direct) return direct.toLowerCase();
+      const fromUrl = productHandleFromUrl(prod?.url);
+      return String(fromUrl || "")
+        .trim()
+        .toLowerCase();
+    };
+    const fetchJudgeMeCountByHandle = async (handle) => {
+      const h = String(handle || "")
+        .trim()
+        .toLowerCase();
+      if (!h) return 0;
+      if (judgeMeReviewCountCache.has(h)) {
+        return judgeMeReviewCountCache.get(h) || 0;
+      }
+
+      // On product page, prefer already-rendered Judge.me badge count.
+      if (isPd && String(ch || "").toLowerCase() === h) {
+        const domCount = judgeMeCountFromDom();
+        judgeMeReviewCountCache.set(h, domCount);
+        return domCount;
+      }
+
+      try {
+        const res = await fetchWithProxyFallback(`/products/${encodeURIComponent(h)}`, {
+          headers: { "Content-Type": "text/html" },
+        });
+        if (!res || !res.ok) {
+          judgeMeReviewCountCache.set(h, 0);
+          return 0;
+        }
+        const html = await res.text();
+        const count = parseJudgeMeCount(html);
+        judgeMeReviewCountCache.set(h, count);
+        return count;
+      } catch {
+        judgeMeReviewCountCache.set(h, 0);
+        return 0;
+      }
+    };
+    const hasJudgeMeReview = async (prod) => {
+      const directCountCandidates = [
+        prod?.reviewCount,
+        prod?.reviewsCount,
+        prod?.reviews_count,
+        prod?.ratingCount,
+        prod?.rating_count,
+        prod?.numberOfReviews,
+      ];
+      for (const value of directCountCandidates) {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return true;
+      }
+
+      const handle = productHandleOf(prod);
+      if (!handle) {
+        if (isPd) return judgeMeCountFromDom() > 0;
+        return false;
+      }
+
+      const count = await fetchJudgeMeCountByHandle(handle);
+      return count > 0;
     };
     const fetchProductByHandle = async (handle) => {
       const h = String(handle || "").trim();
@@ -2538,6 +2638,17 @@ document.addEventListener("DOMContentLoaded", async function () {
             if (hideOutOfStock && qty <= 0) return false;
             return qty < stockUnder;
           });
+          if (!pool.length) continue;
+        }
+        if (
+          type === "review" &&
+          String(row?.dataSource || "judge_me").toLowerCase() === "judge_me"
+        ) {
+          const reviewedPool = [];
+          for (const prod of pool) {
+            if (await hasJudgeMeReview(prod)) reviewedPool.push(prod);
+          }
+          pool = reviewedPool;
           if (!pool.length) continue;
         }
 
