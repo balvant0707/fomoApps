@@ -157,6 +157,15 @@ export async function saveVisitorPopup(shop, form) {
 }
 
 export async function saveLowStockPopup(shop, form) {
+  const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
+    ? form.selectedDataProducts
+    : Array.isArray(form?.selectedProducts)
+      ? form.selectedProducts
+      : [];
+  const selectedVisibilityProducts = Array.isArray(form?.selectedVisibilityProducts)
+    ? form.selectedVisibilityProducts
+    : selectedDataProducts;
+
   const data = {
     enabled: toBool(form?.enabled, true),
 
@@ -207,7 +216,10 @@ export async function saveLowStockPopup(shop, form) {
     intervalUnit: toStr(form?.behavior?.intervalUnit),
     randomize: toBool(form?.behavior?.randomize),
 
-    selectedProductsJson: toJson(form?.selectedProducts),
+    selectedDataProductsJson: toJson(selectedDataProducts),
+    selectedVisibilityProductsJson: toJson(selectedVisibilityProducts),
+    // Keep legacy field populated for backward compatibility.
+    selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
@@ -215,6 +227,15 @@ export async function saveLowStockPopup(shop, form) {
 }
 
 export async function saveAddToCartPopup(shop, form) {
+  const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
+    ? form.selectedDataProducts
+    : Array.isArray(form?.selectedProducts)
+      ? form.selectedProducts
+      : [];
+  const selectedVisibilityProducts = Array.isArray(form?.selectedVisibilityProducts)
+    ? form.selectedVisibilityProducts
+    : selectedDataProducts;
+
   const data = {
     enabled: toBool(form?.enabled, true),
 
@@ -265,7 +286,10 @@ export async function saveAddToCartPopup(shop, form) {
     intervalUnit: toStr(form?.behavior?.intervalUnit),
     randomize: toBool(form?.behavior?.randomize),
 
-    selectedProductsJson: toJson(form?.selectedProducts),
+    selectedDataProductsJson: toJson(selectedDataProducts),
+    selectedVisibilityProductsJson: toJson(selectedVisibilityProducts),
+    // Keep legacy field populated for backward compatibility.
+    selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
@@ -273,6 +297,15 @@ export async function saveAddToCartPopup(shop, form) {
 }
 
 export async function saveReviewPopup(shop, form) {
+  const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
+    ? form.selectedDataProducts
+    : Array.isArray(form?.selectedProducts)
+      ? form.selectedProducts
+      : [];
+  const selectedVisibilityProducts = Array.isArray(form?.selectedVisibilityProducts)
+    ? form.selectedVisibilityProducts
+    : selectedDataProducts;
+
   const data = {
     enabled: toBool(form?.enabled, true),
 
@@ -320,7 +353,10 @@ export async function saveReviewPopup(shop, form) {
     intervalUnit: toStr(form?.behavior?.intervalUnit),
     randomize: toBool(form?.behavior?.randomize),
 
-    selectedProductsJson: toJson(form?.selectedProducts),
+    selectedDataProductsJson: toJson(selectedDataProducts),
+    selectedVisibilityProductsJson: toJson(selectedVisibilityProducts),
+    // Keep legacy field populated for backward compatibility.
+    selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 

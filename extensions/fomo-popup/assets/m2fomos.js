@@ -2037,6 +2037,31 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (Number.isInteger(n)) return formatMoney(n);
       return String(n);
     };
+    const normalizeInventory = (p) => {
+      if (!p || typeof p !== "object") return null;
+      const direct = [
+        p.inventoryQty,
+        p.totalInventory,
+        p.total_inventory,
+        p.inventory_quantity,
+        p.stockCount,
+      ];
+      for (const raw of direct) {
+        const n = Number(raw);
+        if (Number.isFinite(n)) return Math.round(n);
+      }
+      const variants = Array.isArray(p.variants) ? p.variants : [];
+      if (!variants.length) return null;
+      let sum = 0;
+      let hasAny = false;
+      for (const variant of variants) {
+        const n = Number(variant?.inventory_quantity);
+        if (!Number.isFinite(n)) continue;
+        sum += n;
+        hasAny = true;
+      }
+      return hasAny ? Math.round(sum) : null;
+    };
     const normalizeProduct = (p) => {
       if (!p) return null;
       const title = p.title || p.productTitle || p.name || "";
@@ -2065,6 +2090,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         p.compareAtPrice ||
         p.compareAt ||
         "";
+      const inventoryQty = normalizeInventory(p);
       return {
         title,
         handle,
@@ -2073,6 +2099,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         price: normalizePrice(price),
         compareAt: normalizePrice(compareAt),
         rating: p.rating,
+        inventoryQty,
       };
     };
     const productHandleFromEntry = (entry) => {
@@ -2124,6 +2151,21 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     const productCache = new Map();
+    let storeProductsCache = null;
+    const dedupeProducts = (list) => {
+      const out = [];
+      const seen = new Set();
+      for (const prod of Array.isArray(list) ? list : []) {
+        if (!prod) continue;
+        const key = String(
+          prod.handle || prod.url || prod.title || Math.random()
+        ).toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(prod);
+      }
+      return out;
+    };
     const fetchProductByHandle = async (handle) => {
       const h = String(handle || "").trim();
       if (!h || h.startsWith("gid://")) return null;
@@ -2137,19 +2179,47 @@ document.addEventListener("DOMContentLoaded", async function () {
       productCache.set(h, normalized);
       return normalized;
     };
+    const fetchStoreProductsForLowStock = async () => {
+      if (storeProductsCache) return storeProductsCache;
+      const payload = await fetchJson(
+        "/products.json?limit=250",
+        "products:all:250",
+        600000
+      );
+      const rows = Array.isArray(payload?.products) ? payload.products : [];
+      storeProductsCache = dedupeProducts(
+        rows.map((row) => normalizeProduct(row)).filter(Boolean)
+      );
+      return storeProductsCache;
+    };
     const resolveProduct = async (entry) => {
       if (!entry) return null;
       if (typeof entry === "string") return fetchProductByHandle(entry);
       if (typeof entry === "object") {
-        if (entry.handle && (!entry.title || !entry.image)) {
-          const p = await fetchProductByHandle(entry.handle);
-          if (p) return p;
+        const local = normalizeProduct(entry);
+        const handle = entry.handle || entry.productHandle;
+        const hasInventory = Number.isFinite(Number(local?.inventoryQty));
+        if (handle && (!local?.title || !local?.image || !hasInventory)) {
+          const fetched = await fetchProductByHandle(handle);
+          if (fetched) {
+            return {
+              ...fetched,
+              ...(local || {}),
+              title: local?.title || fetched.title,
+              image: local?.image || fetched.image,
+              url: local?.url || fetched.url,
+              price: local?.price || fetched.price,
+              compareAt: local?.compareAt || fetched.compareAt,
+              inventoryQty: hasInventory ? local.inventoryQty : fetched.inventoryQty,
+            };
+          }
         }
-        return normalizeProduct(entry);
+        return local;
       }
       return null;
     };
-    const collectProducts = async (row) => {
+    const collectProducts = async (row, options = {}) => {
+      const includeCurrent = options.includeCurrent !== false;
       const { dataProducts: list } = parseProductBuckets(row);
       const out = [];
       for (const entry of list) {
@@ -2160,16 +2230,16 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (Array.isArray(collectionList)) {
         for (const entry of collectionList) {
           if (entry && typeof entry === "object" && entry.sampleProduct) {
-            const sp = normalizeProduct(entry.sampleProduct);
+            const sp = await resolveProduct(entry.sampleProduct);
             if (sp) out.push(sp);
           }
         }
       }
-      if (!out.length && currentProduct) {
+      if (!out.length && includeCurrent && currentProduct) {
         const p = normalizeProduct(currentProduct);
         if (p) out.push(p);
       }
-      return out;
+      return dedupeProducts(out);
     };
 
     const baseTokens = {
@@ -2434,10 +2504,42 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (!matchesScope(row)) continue;
         if (isMobile() && toBool(row?.hideOnMobile, false)) continue;
 
-        const products = await collectProducts(row);
-        const pool = products.length
+        const lowStockSource = String(row?.dataSource || "shopify").toLowerCase();
+        const hideOutOfStock =
+          row?.hideOutOfStock === undefined || row?.hideOutOfStock === null
+            ? true
+            : toBool(row?.hideOutOfStock);
+        const stockUnder = Math.max(1, toNum(row.stockUnder, 10));
+
+        let products = [];
+        if (type === "lowstock" && lowStockSource === "manual") {
+          const { dataProducts: manualProducts } = parseProductBuckets(row);
+          if (!manualProducts.length) continue;
+          for (const entry of manualProducts) {
+            const product = await resolveProduct(entry);
+            if (product) products.push(product);
+          }
+          products = dedupeProducts(products);
+        } else {
+          products = await collectProducts(row);
+        }
+        if (type === "lowstock" && lowStockSource === "shopify") {
+          const storeProducts = await fetchStoreProductsForLowStock();
+          products = dedupeProducts([...(products || []), ...storeProducts]);
+        }
+        let pool = products.length
           ? products
           : [{ title: "Product", image: "", price: "", compareAt: "" }];
+
+        if (type === "lowstock") {
+          pool = pool.filter((prod) => {
+            const qty = Number(prod?.inventoryQty);
+            if (!Number.isFinite(qty)) return false;
+            if (hideOutOfStock && qty <= 0) return false;
+            return qty < stockUnder;
+          });
+          if (!pool.length) continue;
+        }
 
         const imageStyle = type === "addtocart" ? "offset" : "inline";
         const highlightStyle = type === "review" ? "upper" : "underline";
@@ -2491,11 +2593,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           const price = normalizePrice(prod.price);
           const compareAt = normalizePrice(prod.compareAt);
 
-          const stockUnder = Math.max(1, toNum(row.stockUnder, 10));
           const stockCount =
-            stockUnder > 1
-              ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
-              : stockUnder;
+            type === "lowstock"
+              ? Math.max(0, Math.round(toNum(prod?.inventoryQty, stockUnder)))
+              : stockUnder > 1
+                ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
+                : stockUnder;
 
           const customer = pickCustomer(customerPool, i);
           const customerTokens = customer

@@ -121,7 +121,9 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseArr(source.selectedProductsJson),
+        selectedProducts: parseArr(
+          source.selectedDataProductsJson ?? source.selectedProductsJson
+        ),
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
@@ -855,6 +857,10 @@ export default function LowStockPopupPage() {
       status: item.status,
       price: item.price || null,
       compareAt: item.compareAt || null,
+      totalInventory:
+        item.totalInventory === null || item.totalInventory === undefined
+          ? null
+          : Number(item.totalInventory),
       rating: 4,
     }));
   }, [productFetcher.data]);
@@ -881,11 +887,14 @@ export default function LowStockPopupPage() {
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
   const needsProductSelection =
-    visibility.productScope === "specific" && selectedProducts.length === 0;
+    (visibility.productScope === "specific" && selectedProducts.length === 0) ||
+    (data.dataSource === "manual" && selectedProducts.length === 0);
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
+  const manualScopedProduct =
+    data.dataSource === "manual" ? selectedProducts[0] : null;
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -893,7 +902,11 @@ export default function LowStockPopupPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+    manualScopedProduct ||
+    scopedProduct ||
+    scopedCollectionProduct ||
+    storeProducts[0] ||
+    null;
   const previewMessage = needsProductSelection
     ? "Select a product to preview."
     : needsCollectionSelection
@@ -1334,6 +1347,22 @@ export default function LowStockPopupPage() {
                                 }
                               />
                             </InlineStack>
+
+                            {data.dataSource === "manual" && (
+                              <InlineStack
+                                gap="200"
+                                blockAlign="center"
+                                wrap
+                                style={{ marginTop: 6 }}
+                              >
+                                <Button onClick={() => setPickerOpen(true)}>
+                                  Browse products
+                                </Button>
+                                <Text tone="subdued">
+                                  {selectedProducts.length} products selected
+                                </Text>
+                              </InlineStack>
+                            )}
 
                             <TextField
                               label="Show notification for product with stock under"

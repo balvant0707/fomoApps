@@ -120,7 +120,9 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseArr(source.selectedProductsJson),
+        selectedProducts: parseArr(
+          source.selectedDataProductsJson ?? source.selectedProductsJson
+        ),
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }

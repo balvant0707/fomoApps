@@ -113,7 +113,9 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "mins"),
           randomize: toBool(source.randomize, false),
         },
-        selectedProducts: parseArr(source.selectedProductsJson),
+        selectedProducts: parseArr(
+          source.selectedDataProductsJson ?? source.selectedProductsJson
+        ),
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }

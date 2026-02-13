@@ -195,6 +195,8 @@ model lowstockpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  selectedDataProductsJson String?  @db.LongText
+  selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText
 
@@ -255,6 +257,8 @@ model addtocartpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  selectedDataProductsJson String?  @db.LongText
+  selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText
 
@@ -312,6 +316,8 @@ model reviewpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  selectedDataProductsJson String?  @db.LongText
+  selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText
 
