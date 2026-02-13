@@ -2064,6 +2064,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
     const normalizeProduct = (p) => {
       if (!p) return null;
+      const idNum = Number(p.id ?? p.product_id ?? 0);
       const title = p.title || p.productTitle || p.name || "";
       const handle = p.handle || p.productHandle || "";
       const image =
@@ -2092,6 +2093,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         "";
       const inventoryQty = normalizeInventory(p);
       return {
+        id: Number.isFinite(idNum) && idNum > 0 ? Math.round(idNum) : null,
         title,
         handle,
         image,
@@ -2291,6 +2293,31 @@ document.addEventListener("DOMContentLoaded", async function () {
         rows.map((row) => normalizeProduct(row)).filter(Boolean)
       );
       return storeProductsCache;
+    };
+    const findStoreProductForOrderLine = async (line) => {
+      const products = await fetchStoreProductsForLowStock();
+      if (!Array.isArray(products) || !products.length) return null;
+
+      const lineProductId = Number(line?.product_id ?? 0);
+      if (Number.isFinite(lineProductId) && lineProductId > 0) {
+        const byId = products.find((p) => Number(p?.id) === lineProductId);
+        if (byId) return byId;
+      }
+
+      const lineTitle = safe(line?.title, "").trim().toLowerCase();
+      if (lineTitle) {
+        const byExactTitle = products.find(
+          (p) => String(p?.title || "").trim().toLowerCase() === lineTitle
+        );
+        if (byExactTitle) return byExactTitle;
+
+        const byContainsTitle = products.find((p) =>
+          String(p?.title || "").toLowerCase().includes(lineTitle)
+        );
+        if (byContainsTitle) return byContainsTitle;
+      }
+
+      return null;
     };
     const resolveProduct = async (entry) => {
       if (!entry) return null;
@@ -2496,16 +2523,46 @@ document.addEventListener("DOMContentLoaded", async function () {
 
               const line =
                 (Array.isArray(o?.line_items) && o.line_items[0]) || null;
-              const pHandle = safe(line?.product_handle, "");
-              const pTitle = safe(line?.title, "Product");
-              let pImg = safe(line?.image, "");
-              if (!pImg && pHandle) {
+              let pHandle = safe(
+                line?.product_handle || line?.handle || line?.product?.handle,
+                ""
+              );
+              const lineImage =
+                normalizeImage(line?.image) ||
+                normalizeImage(line?.featured_image) ||
+                normalizeImage(line?.product?.image) ||
+                "";
+
+              let resolvedProduct = null;
+              if (pHandle) {
                 try {
-                  const fetchedProduct = await fetchProductByHandle(pHandle);
-                  pImg = safe(fetchedProduct?.image, "");
+                  resolvedProduct = await fetchProductByHandle(pHandle);
                 } catch {}
               }
-              const productUrl = pHandle ? `/products/${pHandle}` : "#";
+
+              if (!resolvedProduct) {
+                try {
+                  resolvedProduct = await findStoreProductForOrderLine(line);
+                } catch {}
+              }
+
+              if (!pHandle) {
+                pHandle = safe(resolvedProduct?.handle, "");
+              }
+              const pTitle = safe(
+                line?.title || resolvedProduct?.title,
+                "Product"
+              );
+              const pImg = safe(
+                lineImage || resolvedProduct?.image,
+                ""
+              );
+              const productUrl = safe(
+                pHandle
+                  ? `/products/${pHandle}`
+                  : resolvedProduct?.url || line?.product_url,
+                "#"
+              );
               const iconSrc = resolveIconForIndex(it, 0);
 
               const cfg = {
