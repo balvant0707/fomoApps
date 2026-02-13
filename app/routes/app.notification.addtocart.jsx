@@ -1466,7 +1466,7 @@ export default function AddToCartPopupPage() {
                                       : "Customer profiles are imported from Shopify."}
                                   </Text>
                                 )}
-                                <RadioButton
+                                {/* <RadioButton
                                   id="customer-info-manual"
                                   name="customer_info"
                                   label="Set manually"
@@ -1477,7 +1477,7 @@ export default function AddToCartPopupPage() {
                                       customerInfo: "manual",
                                     }))
                                   }
-                                />
+                                /> */}
                               </BlockStack>
                             </div>
                           </BlockStack>

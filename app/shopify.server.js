@@ -11,18 +11,42 @@ import prisma from "./db.server";
 import { upsertInstalledShop } from "./utils/upsertShop.server";
 import { ensurePrismaSessionTable } from "./utils/ensureSessionTable.server";
 
+const toPositiveInt = (value, fallback) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return fallback;
+  return Math.floor(n);
+};
+
+const shouldAutoPrepareSessionTable =
+  process.env.PRISMA_AUTO_PREPARE_SESSION_TABLE === "1" ||
+  process.env.NODE_ENV !== "production";
+const sessionConnectionRetries = toPositiveInt(
+  process.env.SHOPIFY_SESSION_CONNECTION_RETRIES,
+  1
+);
+const sessionConnectionRetryIntervalMs = toPositiveInt(
+  process.env.SHOPIFY_SESSION_CONNECTION_RETRY_INTERVAL_MS,
+  1000
+);
+
 function createSessionStorage(prismaClient) {
   let storagePromise;
 
   const getStorage = async () => {
     if (!storagePromise) {
       storagePromise = (async () => {
-        await ensurePrismaSessionTable(prismaClient);
+        if (shouldAutoPrepareSessionTable) {
+          await ensurePrismaSessionTable(prismaClient);
+        }
         return new PrismaSessionStorage(prismaClient, {
-          connectionRetries: 6,
-          connectionRetryIntervalMs: 1500,
+          connectionRetries: sessionConnectionRetries,
+          connectionRetryIntervalMs: sessionConnectionRetryIntervalMs,
         });
-      })();
+      })().catch((error) => {
+        // Allow retries after transient failures (for example, temporary DB saturation).
+        storagePromise = undefined;
+        throw error;
+      });
     }
     return storagePromise;
   };

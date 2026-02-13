@@ -29,17 +29,38 @@ const withoutKeys = (obj, keys) => {
   for (const key of keys) delete out[key];
   return out;
 };
-const hasMissingColumnError = (err, columns) => {
-  const cols = Array.isArray(columns) ? columns : [];
-  if (!cols.length) return false;
+const normalizeColumnName = (value) => {
+  const raw = String(value || "")
+    .replace(/[`'"]/g, "")
+    .trim();
+  if (!raw) return "";
+  const parts = raw.split(".");
+  return parts[parts.length - 1] || "";
+};
+const extractMissingColumn = (err) => {
+  const fromMeta = normalizeColumnName(err?.meta?.column);
+  if (fromMeta) return fromMeta;
+
+  const msg = String(err?.message || "");
+  const patterns = [
+    /unknown column ['`"]([^'`"]+)['`"]/i,
+    /the column ['`"]([^'`"]+)['`"] does not exist/i,
+    /column ['`"]([^'`"]+)['`"] does not exist/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = msg.match(pattern);
+    if (match?.[1]) return normalizeColumnName(match[1]);
+  }
+  return "";
+};
+const hasMissingColumnError = (err) => {
   const code = String(err?.code || "").toUpperCase();
   const msg = String(err?.message || "").toLowerCase();
-  const metaColumn = String(err?.meta?.column || "").toLowerCase();
-  const targetColumn = cols.some(
-    (col) => msg.includes(col.toLowerCase()) || metaColumn.includes(col.toLowerCase())
-  );
-  if (code === "P2022" && targetColumn) return true;
-  return msg.includes("unknown column") && targetColumn;
+
+  if (code === "P2022") return true;
+  if (msg.includes("unknown column")) return true;
+  return msg.includes("column") && msg.includes("does not exist");
 };
 
 async function upsertByShop(table, shop, data, modelName = "unknown") {
@@ -96,19 +117,35 @@ async function upsertByShopWithSplitFallback(
   modelName = "unknown",
   fallbackColumns = SPLIT_SELECTION_COLUMNS
 ) {
-  try {
-    return await upsertByShop(table, shop, data, modelName);
-  } catch (e) {
-    if (!hasMissingColumnError(e, fallbackColumns)) throw e;
+  let workingData = { ...data };
+  const removable = new Set(Array.isArray(fallbackColumns) ? fallbackColumns : []);
 
-    const legacyData = withoutKeys(data, fallbackColumns);
-    console.warn("[PopupConfig] columns missing; retrying legacy payload:", {
-      model: modelName,
-      shop,
-      columns: fallbackColumns,
-    });
-    return upsertByShop(table, shop, legacyData, `${modelName}:legacy`);
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const suffix = attempt === 0 ? "" : `:fallback${attempt}`;
+      return await upsertByShop(table, shop, workingData, `${modelName}${suffix}`);
+    } catch (e) {
+      if (!hasMissingColumnError(e)) throw e;
+
+      const discovered = extractMissingColumn(e);
+      if (discovered) removable.add(discovered);
+
+      const nextData = withoutKeys(workingData, [...removable]);
+      const unchanged =
+        Object.keys(nextData).length === Object.keys(workingData).length;
+      if (unchanged) throw e;
+
+      console.warn("[PopupConfig] columns missing; retrying legacy payload:", {
+        model: modelName,
+        shop,
+        discoveredColumn: discovered || null,
+        removedColumns: [...removable],
+      });
+      workingData = nextData;
+    }
   }
+
+  return upsertByShop(table, shop, workingData, `${modelName}:fallback-final`);
 }
 
 export async function saveVisitorPopup(shop, form) {
