@@ -9,7 +9,9 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 import { upsertInstalledShop } from "./utils/upsertShop.server";
+import { ensurePrismaSessionTable } from "./utils/ensureSessionTable.server";
 
+await ensurePrismaSessionTable(prisma);
 
 export const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
@@ -19,7 +21,10 @@ export const shopify = shopifyApp({
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
   distribution: AppDistribution.AppStore,
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: new PrismaSessionStorage(prisma, {
+    connectionRetries: 6,
+    connectionRetryIntervalMs: 1500,
+  }),
   future: { unstable_newEmbeddedAuthStrategy: true, removeRest: true },
 
   // Register topics (handlers are in /webhooks routes via authenticate.webhook)
