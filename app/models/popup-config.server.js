@@ -63,7 +63,13 @@ const hasMissingColumnError = (err) => {
   return msg.includes("column") && msg.includes("does not exist");
 };
 
-async function upsertByShop(table, shop, data, modelName = "unknown") {
+async function upsertByShop(
+  table,
+  shop,
+  data,
+  modelName = "unknown",
+  preferredId = null
+) {
   const payload = stripUndefined({ ...data, shop });
   try {
     console.log("[PopupConfig] upsert start:", {
@@ -72,11 +78,25 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
       payload: payload,
     });
 
-    const existing = await table.findFirst({
-      where: { shop },
-      orderBy: { id: "desc" },
-      select: { id: true },
-    });
+    const parsedPreferredId = Number(preferredId);
+    const hasPreferredId =
+      Number.isInteger(parsedPreferredId) && parsedPreferredId > 0;
+
+    let existing = null;
+    if (hasPreferredId) {
+      existing = await table.findFirst({
+        where: { id: parsedPreferredId, shop },
+        select: { id: true },
+      });
+    }
+
+    if (!existing) {
+      existing = await table.findFirst({
+        where: { shop },
+        orderBy: { id: "desc" },
+        select: { id: true },
+      });
+    }
 
     if (existing?.id) {
       const updated = await table.update({
@@ -119,7 +139,8 @@ async function upsertByShopWithSplitFallback(
   shop,
   data,
   modelName = "unknown",
-  fallbackColumns = SPLIT_SELECTION_COLUMNS
+  fallbackColumns = SPLIT_SELECTION_COLUMNS,
+  preferredId = null
 ) {
   let workingData = { ...data };
   const removable = new Set(Array.isArray(fallbackColumns) ? fallbackColumns : []);
@@ -127,7 +148,13 @@ async function upsertByShopWithSplitFallback(
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
       const suffix = attempt === 0 ? "" : `:fallback${attempt}`;
-      return await upsertByShop(table, shop, workingData, `${modelName}${suffix}`);
+      return await upsertByShop(
+        table,
+        shop,
+        workingData,
+        `${modelName}${suffix}`,
+        preferredId
+      );
     } catch (e) {
       if (!hasMissingColumnError(e)) throw e;
 
@@ -149,7 +176,13 @@ async function upsertByShopWithSplitFallback(
     }
   }
 
-  return upsertByShop(table, shop, workingData, `${modelName}:fallback-final`);
+  return upsertByShop(
+    table,
+    shop,
+    workingData,
+    `${modelName}:fallback-final`,
+    preferredId
+  );
 }
 
 export async function saveVisitorPopup(shop, form) {
@@ -388,13 +421,15 @@ export async function saveAddToCartPopup(shop, form) {
     selectedProductsJson: toJson(selectedDataProducts),
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
+  const preferredId = toInt(form?.editId ?? form?.id);
 
   return upsertByShopWithSplitFallback(
     table,
     shop,
     data,
     "addtocartpopupconfig",
-    [...SPLIT_SELECTION_COLUMNS, ...ADD_TO_CART_EXTRA_COLUMNS]
+    [...SPLIT_SELECTION_COLUMNS, ...ADD_TO_CART_EXTRA_COLUMNS],
+    preferredId
   );
 }
 

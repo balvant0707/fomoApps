@@ -76,6 +76,10 @@ async function saveWithRetry(shop, form, retries = 2) {
 export async function loader({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
+  const reqUrl = new URL(request.url);
+  const editIdRaw = reqUrl.searchParams.get("editId") || reqUrl.searchParams.get("id");
+  const editIdNum = Number(editIdRaw);
+  const editId = Number.isInteger(editIdNum) && editIdNum > 0 ? editIdNum : null;
 
   const parseArr = (raw) => {
     if (Array.isArray(raw)) return raw;
@@ -151,14 +155,21 @@ export async function loader({ request }) {
     const model = prisma?.addtocartpopupconfig || prisma?.addToCartPopupConfig || null;
     const source =
       shop && model?.findFirst
-        ? await model.findFirst({
-            where: { shop },
-            orderBy: { id: "desc" },
-          })
+        ? await model.findFirst(
+            editId
+              ? {
+                  where: { id: editId, shop },
+                }
+              : {
+                  where: { shop },
+                  orderBy: { id: "desc" },
+                }
+          )
         : null;
 
     if (source) {
       saved = {
+        id: source.id,
         design: {
           layout: toStr(source.layout, "landscape"),
           size: toNum(source.size, 60),
@@ -875,6 +886,7 @@ export default function AddToCartPopupPage() {
 
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     if (!saved) return;
@@ -894,6 +906,11 @@ export default function AddToCartPopupPage() {
     setSelectedProducts(Array.isArray(saved.selectedProducts) ? saved.selectedProducts : []);
     setSelectedCollections(
       Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
+    );
+    setEditingId(
+      Number.isInteger(Number(saved.id)) && Number(saved.id) > 0
+        ? Number(saved.id)
+        : null
     );
   }, [saved]);
 
@@ -1022,6 +1039,7 @@ export default function AddToCartPopupPage() {
     try {
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
+        editId: editingId,
         design,
         textSize,
         content,
@@ -1054,6 +1072,9 @@ export default function AddToCartPopupPage() {
 
       if (out && out.success === false) {
         throw new Error(errorText(out?.error));
+      }
+      if (Number.isInteger(Number(out?.id)) && Number(out.id) > 0) {
+        setEditingId(Number(out.id));
       }
       setToast({ active: true, error: false, msg: "Saved." });
     } catch (e) {

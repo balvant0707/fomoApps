@@ -530,7 +530,7 @@ export default function NotificationTable({
                             onClick={() =>
                               navigate(
                                 appendQS(
-                                  `/app/notification/${row.key}`
+                                  `/app/notification/${row.key}?editId=${row.id}`
                                 )
                               )
                             }
