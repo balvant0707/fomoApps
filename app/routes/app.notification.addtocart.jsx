@@ -41,6 +41,38 @@ const errorText = (value, fallback = "Save failed") => {
   return fallback;
 };
 
+const isTransientDbError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const msg = String(error?.message || "").toLowerCase();
+  const causeMsg = String(error?.cause?.message || "").toLowerCase();
+  const combined = `${msg} ${causeMsg}`;
+
+  if (code === "P1001" || code === "P1008" || code === "P1017") return true;
+  return (
+    combined.includes("too many database connections") ||
+    combined.includes("max_user_connections") ||
+    combined.includes("too many connections") ||
+    combined.includes("connection pool timeout") ||
+    combined.includes("can't reach database server")
+  );
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function saveWithRetry(shop, form, retries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await saveAddToCartPopup(shop, form);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDbError(error) || attempt === retries) break;
+      await sleep(200 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 export async function loader({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -200,7 +232,19 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  let session;
+  try {
+    ({ session } = await authenticate.admin(request));
+  } catch (error) {
+    console.error("[AddToCart Popup] auth failed:", error);
+    return json(
+      {
+        success: false,
+        error: "Session/auth temporarily unavailable. Please try again.",
+      },
+      { status: 503 }
+    );
+  }
   const shop = session?.shop;
   if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
 
@@ -224,7 +268,7 @@ export async function action({ request }) {
 
   console.log("[AddToCart Popup] form payload:", JSON.stringify(form, null, 2));
   try {
-    const saved = await saveAddToCartPopup(shop, form);
+    const saved = await saveWithRetry(shop, form, 2);
     console.log("[AddToCart Popup] saved id:", saved?.id);
     return json({ success: true, id: saved?.id });
   } catch (e) {

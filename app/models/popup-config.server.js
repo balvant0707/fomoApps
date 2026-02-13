@@ -82,6 +82,7 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
       const updated = await table.update({
         where: { id: existing.id },
         data: payload,
+        select: { id: true },
       });
       console.log("[PopupConfig] update result:", {
         model: modelName,
@@ -92,7 +93,10 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
       return updated;
     }
 
-    const created = await table.create({ data: payload });
+    const created = await table.create({
+      data: payload,
+      select: { id: true },
+    });
     console.log("[PopupConfig] create result:", {
       model: modelName,
       shop,
