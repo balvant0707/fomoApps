@@ -928,15 +928,16 @@ export default function VisitorPopupPage() {
         body: JSON.stringify({ form }),
       });
       const raw = await res.text();
-      let out = {};
+      let out = null;
       if (raw) {
         try {
           out = JSON.parse(raw);
         } catch {
-          out = {};
+          out = null;
         }
       }
-      if (!res.ok || !out?.success) {
+      const isExplicitFailure = out?.success === false;
+      if (!res.ok || isExplicitFailure) {
         const msg =
           out?.error ||
           (raw && raw.length < 240 ? raw : "") ||
