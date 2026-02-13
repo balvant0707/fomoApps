@@ -19,6 +19,25 @@ const stripUndefined = (data) => {
   });
   return data;
 };
+const SPLIT_SELECTION_COLUMNS = [
+  "selectedDataProductsJson",
+  "selectedVisibilityProductsJson",
+];
+const withoutKeys = (obj, keys) => {
+  const out = { ...obj };
+  for (const key of keys) delete out[key];
+  return out;
+};
+const hasMissingSplitColumnError = (err) => {
+  const code = String(err?.code || "").toUpperCase();
+  const msg = String(err?.message || "").toLowerCase();
+  const metaColumn = String(err?.meta?.column || "").toLowerCase();
+  const targetColumn = SPLIT_SELECTION_COLUMNS.some(
+    (col) => msg.includes(col.toLowerCase()) || metaColumn.includes(col.toLowerCase())
+  );
+  if (code === "P2022" && targetColumn) return true;
+  return msg.includes("unknown column") && targetColumn;
+};
 
 async function upsertByShop(table, shop, data, modelName = "unknown") {
   const payload = stripUndefined({ ...data, shop });
@@ -73,6 +92,22 @@ async function upsertByShop(table, shop, data, modelName = "unknown") {
       code: e?.code || null,
     });
     throw e;
+  }
+}
+
+async function upsertByShopWithSplitFallback(table, shop, data, modelName = "unknown") {
+  try {
+    return await upsertByShop(table, shop, data, modelName);
+  } catch (e) {
+    if (!hasMissingSplitColumnError(e)) throw e;
+
+    const legacyData = withoutKeys(data, SPLIT_SELECTION_COLUMNS);
+    console.warn("[PopupConfig] split columns missing; retrying legacy payload:", {
+      model: modelName,
+      shop,
+      columns: SPLIT_SELECTION_COLUMNS,
+    });
+    return upsertByShop(table, shop, legacyData, `${modelName}:legacy`);
   }
 }
 
@@ -153,7 +188,7 @@ export async function saveVisitorPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(table, shop, data, "visitorpopupconfig");
+  return upsertByShopWithSplitFallback(table, shop, data, "visitorpopupconfig");
 }
 
 export async function saveLowStockPopup(shop, form) {
@@ -223,7 +258,12 @@ export async function saveLowStockPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.lowstockpopupconfig, shop, data, "lowstockpopupconfig");
+  return upsertByShopWithSplitFallback(
+    prisma.lowstockpopupconfig,
+    shop,
+    data,
+    "lowstockpopupconfig"
+  );
 }
 
 export async function saveAddToCartPopup(shop, form) {
@@ -293,7 +333,12 @@ export async function saveAddToCartPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.addtocartpopupconfig, shop, data, "addtocartpopupconfig");
+  return upsertByShopWithSplitFallback(
+    prisma.addtocartpopupconfig,
+    shop,
+    data,
+    "addtocartpopupconfig"
+  );
 }
 
 export async function saveReviewPopup(shop, form) {
@@ -360,7 +405,12 @@ export async function saveReviewPopup(shop, form) {
     selectedCollectionsJson: toJson(form?.selectedCollections),
   };
 
-  return upsertByShop(prisma.reviewpopupconfig, shop, data, "reviewpopupconfig");
+  return upsertByShopWithSplitFallback(
+    prisma.reviewpopupconfig,
+    shop,
+    data,
+    "reviewpopupconfig"
+  );
 }
 
 export async function saveRecentPopup(shop, form) {
