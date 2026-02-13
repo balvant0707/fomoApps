@@ -27,6 +27,20 @@ import { authenticate } from "../shopify.server";
 import { saveAddToCartPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
+const errorText = (value, fallback = "Save failed") => {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value.message === "string" && value.message.trim()) {
+    return value.message;
+  }
+  if (value && typeof value === "object") {
+    try {
+      const s = JSON.stringify(value);
+      if (s && s !== "{}") return s;
+    } catch {}
+  }
+  return fallback;
+};
+
 export async function loader({ request }) {
   const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
@@ -197,7 +211,13 @@ export async function action({ request }) {
     return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { form } = body || {};
+  const rawForm = body?.form;
+  const form =
+    rawForm && typeof rawForm === "object" && !Array.isArray(rawForm)
+      ? rawForm
+      : body && typeof body === "object" && !Array.isArray(body)
+        ? body
+        : null;
   if (!form) {
     return json({ success: false, error: "Missing form" }, { status: 400 });
   }
@@ -212,7 +232,7 @@ export async function action({ request }) {
     return json(
       {
         success: false,
-        error: e?.message || "Save failed",
+        error: errorText(e),
         code: e?.code || null,
       },
       { status: 500 }
@@ -984,19 +1004,19 @@ export default function AddToCartPopupPage() {
 
       if (!res.ok) {
         throw new Error(
-          out?.error || out?.message || `Save failed (HTTP ${res.status})`
+          errorText(out?.error, errorText(out?.message, `Save failed (HTTP ${res.status})`))
         );
       }
 
       if (out && out.success === false) {
-        throw new Error(out?.error || "Save failed");
+        throw new Error(errorText(out?.error));
       }
       setToast({ active: true, error: false, msg: "Saved." });
     } catch (e) {
       setToast({
         active: true,
         error: true,
-        msg: e?.message || "Save failed",
+        msg: errorText(e),
       });
     } finally {
       setSaving(false);

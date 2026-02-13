@@ -192,6 +192,12 @@ export async function saveVisitorPopup(shop, form) {
 }
 
 export async function saveLowStockPopup(shop, form) {
+  const table =
+    prisma?.lowstockpopupconfig || prisma?.lowStockPopupConfig || null;
+  if (!table) {
+    throw new Error("Prisma model missing: lowstockpopupconfig");
+  }
+
   const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
     ? form.selectedDataProducts
     : Array.isArray(form?.selectedProducts)
@@ -259,7 +265,7 @@ export async function saveLowStockPopup(shop, form) {
   };
 
   return upsertByShopWithSplitFallback(
-    prisma.lowstockpopupconfig,
+    table,
     shop,
     data,
     "lowstockpopupconfig"
@@ -267,6 +273,12 @@ export async function saveLowStockPopup(shop, form) {
 }
 
 export async function saveAddToCartPopup(shop, form) {
+  const table =
+    prisma?.addtocartpopupconfig || prisma?.addToCartPopupConfig || null;
+  if (!table) {
+    throw new Error("Prisma model missing: addtocartpopupconfig");
+  }
+
   const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
     ? form.selectedDataProducts
     : Array.isArray(form?.selectedProducts)
@@ -337,7 +349,7 @@ export async function saveAddToCartPopup(shop, form) {
   };
 
   return upsertByShopWithSplitFallback(
-    prisma.addtocartpopupconfig,
+    table,
     shop,
     data,
     "addtocartpopupconfig",
@@ -346,6 +358,12 @@ export async function saveAddToCartPopup(shop, form) {
 }
 
 export async function saveReviewPopup(shop, form) {
+  const table =
+    prisma?.reviewpopupconfig || prisma?.reviewPopupConfig || null;
+  if (!table) {
+    throw new Error("Prisma model missing: reviewpopupconfig");
+  }
+
   const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
     ? form.selectedDataProducts
     : Array.isArray(form?.selectedProducts)
@@ -410,7 +428,7 @@ export async function saveReviewPopup(shop, form) {
   };
 
   return upsertByShopWithSplitFallback(
-    prisma.reviewpopupconfig,
+    table,
     shop,
     data,
     "reviewpopupconfig"
