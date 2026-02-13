@@ -1626,7 +1626,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const tableAddToCart = Array.isArray(tables.addtocart) ? tables.addtocart : [];
     const tableReview = Array.isArray(tables.review) ? tables.review : [];
     const useFlashLegacy = tableFlash.length === 0;
-    const useRecentLegacy = tableRecent.length === 0;
+    // Recent popup must always come from recentpopupconfig (tables.recent).
+    const useRecentLegacy = false;
 
     const pt = pageType(),
       ch = currHandle(),
