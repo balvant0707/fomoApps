@@ -21,14 +21,107 @@ import {
   Toast,
   Loading,
 } from "@shopify/polaris";
-import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
+import { useNavigate, useFetcher, useLocation, useLoaderData } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { saveReviewPopup } from "../models/popup-config.server";
+import prisma from "../db.server";
 
 export async function loader({ request }) {
-  await authenticate.admin(request);
-  return json({ title: "Review Notification" });
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop;
+
+  const parseArr = (raw) => {
+    if (Array.isArray(raw)) return raw;
+    try {
+      const value = JSON.parse(raw || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  };
+  const toBool = (v, fallback = false) => {
+    if (v === undefined || v === null) return fallback;
+    return v === true || v === 1 || v === "1";
+  };
+  const toStr = (v, fallback = "") =>
+    v === undefined || v === null ? fallback : String(v);
+
+  let saved = null;
+  try {
+    const model = prisma?.reviewpopupconfig || prisma?.reviewPopupConfig || null;
+    const source =
+      shop && model?.findFirst
+        ? await model.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+          })
+        : null;
+
+    if (source) {
+      saved = {
+        design: {
+          reviewType: toStr(source.reviewType, "new_review"),
+          template: toStr(source.template, "solid"),
+          imageAppearance: toStr(source.imageAppearance, "cover"),
+          bgColor: toStr(source.bgColor, "#FFFFFF"),
+          bgAlt: toStr(source.bgAlt, "#F3F4F6"),
+          textColor: toStr(source.textColor, "#000000"),
+          timestampColor: toStr(source.timestampColor, "#696969"),
+          priceTagBg: toStr(source.priceTagBg, "#593E3F"),
+          priceTagAlt: toStr(source.priceTagAlt, "#E66465"),
+          priceColor: toStr(source.priceColor, "#FFFFFF"),
+          starColor: toStr(source.starColor, "#FFCF0D"),
+        },
+        textSize: {
+          content: toStr(source.textSizeContent, "14"),
+          compareAt: toStr(source.textSizeCompareAt, "12"),
+          price: toStr(source.textSizePrice, "12"),
+        },
+        content: {
+          message: toStr(
+            source.message,
+            "{reviewer_name} from {reviewer_country} just reviewed this product {product_name}"
+          ),
+          timestamp: toStr(source.timestamp, "{review_date}"),
+        },
+        productNameMode: toStr(source.productNameMode, "full"),
+        productNameLimit: toStr(source.productNameLimit, DEFAULT_PRODUCT_NAME_LIMIT),
+        data: {
+          dataSource: toStr(source.dataSource, "judge_me"),
+          directProductPage: toBool(source.directProductPage, true),
+          showProductImage: toBool(source.showProductImage, true),
+          showPriceTag: toBool(source.showPriceTag, true),
+          showRating: toBool(source.showRating, true),
+        },
+        visibility: {
+          showHome: toBool(source.showHome, true),
+          showProduct: toBool(source.showProduct, true),
+          productScope: toStr(source.productScope, "all"),
+          showCollectionList: toBool(source.showCollectionList, true),
+          showCollection: toBool(source.showCollection, true),
+          collectionScope: toStr(source.collectionScope, "all"),
+          showCart: toBool(source.showCart, true),
+          position: toStr(source.position, "bottom-right"),
+        },
+        behavior: {
+          showClose: toBool(source.showClose, true),
+          hideOnMobile: toBool(source.hideOnMobile, false),
+          delay: toStr(source.delay, "1"),
+          duration: toStr(source.duration, "10"),
+          interval: toStr(source.interval, "1"),
+          intervalUnit: toStr(source.intervalUnit, "mins"),
+          randomize: toBool(source.randomize, false),
+        },
+        selectedProducts: parseArr(source.selectedProductsJson),
+        selectedCollections: parseArr(source.selectedCollectionsJson),
+      };
+    }
+  } catch (e) {
+    console.warn("[Review Popup] saved config fetch failed:", e);
+  }
+
+  return json({ title: "Review Notification", saved });
 }
 
 export async function action({ request }) {
@@ -594,6 +687,7 @@ function PreviewCard({
 }
 
 export default function ReviewNotificationPage() {
+  const { saved } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -672,6 +766,27 @@ export default function ReviewNotificationPage() {
 
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+
+  useEffect(() => {
+    if (!saved) return;
+
+    if (saved.design) setDesign((prev) => ({ ...prev, ...saved.design }));
+    if (saved.textSize) setTextSize((prev) => ({ ...prev, ...saved.textSize }));
+    if (saved.content) setContent((prev) => ({ ...prev, ...saved.content }));
+    if (saved.data) setData((prev) => ({ ...prev, ...saved.data }));
+    if (saved.visibility)
+      setVisibility((prev) => ({ ...prev, ...saved.visibility }));
+    if (saved.behavior) setBehavior((prev) => ({ ...prev, ...saved.behavior }));
+    if (saved.productNameMode) setProductNameMode(saved.productNameMode);
+    if (saved.productNameLimit !== undefined && saved.productNameLimit !== null) {
+      setProductNameLimit(String(saved.productNameLimit));
+    }
+
+    setSelectedProducts(Array.isArray(saved.selectedProducts) ? saved.selectedProducts : []);
+    setSelectedCollections(
+      Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
+    );
+  }, [saved]);
 
   useEffect(() => {
     if (hasLoaded) return;

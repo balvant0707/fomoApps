@@ -22,14 +22,114 @@ import {
   Toast,
   Loading,
 } from "@shopify/polaris";
-import { useNavigate, useFetcher, useLocation } from "@remix-run/react";
+import { useNavigate, useFetcher, useLocation, useLoaderData } from "@remix-run/react";
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { saveLowStockPopup } from "../models/popup-config.server";
+import prisma from "../db.server";
 
 export async function loader({ request }) {
-  await authenticate.admin(request);
-  return json({ title: "Low Stock Popup" });
+  const { session } = await authenticate.admin(request);
+  const shop = session?.shop;
+
+  const parseArr = (raw) => {
+    if (Array.isArray(raw)) return raw;
+    try {
+      const value = JSON.parse(raw || "[]");
+      return Array.isArray(value) ? value : [];
+    } catch {
+      return [];
+    }
+  };
+  const toBool = (v, fallback = false) => {
+    if (v === undefined || v === null) return fallback;
+    return v === true || v === 1 || v === "1";
+  };
+  const toNum = (v, fallback) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const toStr = (v, fallback = "") =>
+    v === undefined || v === null ? fallback : String(v);
+
+  let saved = null;
+  try {
+    const model = prisma?.lowstockpopupconfig || prisma?.lowStockPopupConfig || null;
+    const source =
+      shop && model?.findFirst
+        ? await model.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+          })
+        : null;
+
+    if (source) {
+      saved = {
+        design: {
+          layout: toStr(source.layout, "landscape"),
+          size: toNum(source.size, 60),
+          transparent: toNum(source.transparent, 10),
+          template: toStr(source.template, "gradient"),
+          imageAppearance: toStr(source.imageAppearance, "cover"),
+          bgColor: toStr(source.bgColor, "#FFFBD2"),
+          bgAlt: toStr(source.bgAlt, "#FBCFCF"),
+          textColor: toStr(source.textColor, "#000000"),
+          numberColor: toStr(source.numberColor, "#000000"),
+          priceTagBg: toStr(source.priceTagBg, "#593E3F"),
+          priceTagAlt: toStr(source.priceTagAlt, "#E66465"),
+          priceColor: toStr(source.priceColor, "#FFFFFF"),
+          starColor: toStr(source.starColor, "#F06663"),
+        },
+        textSize: {
+          content: toStr(source.textSizeContent, "14"),
+          compareAt: toStr(source.textSizeCompareAt, "12"),
+          price: toStr(source.textSizePrice, "12"),
+        },
+        content: {
+          message: toStr(
+            source.message,
+            "{product_name} has only {stock_count} items left in stock"
+          ),
+        },
+        productNameMode: toStr(source.productNameMode, "full"),
+        productNameLimit: toStr(source.productNameLimit, DEFAULT_PRODUCT_NAME_LIMIT),
+        data: {
+          dataSource: toStr(source.dataSource, "shopify"),
+          stockUnder: toStr(source.stockUnder, "10"),
+          hideOutOfStock: toBool(source.hideOutOfStock, true),
+          directProductPage: toBool(source.directProductPage, true),
+          showProductImage: toBool(source.showProductImage, true),
+          showPriceTag: toBool(source.showPriceTag, true),
+          showRating: toBool(source.showRating, false),
+        },
+        visibility: {
+          showHome: toBool(source.showHome, true),
+          showProduct: toBool(source.showProduct, true),
+          productScope: toStr(source.productScope, "all"),
+          showCollectionList: toBool(source.showCollectionList, true),
+          showCollection: toBool(source.showCollection, true),
+          collectionScope: toStr(source.collectionScope, "all"),
+          showCart: toBool(source.showCart, true),
+          position: toStr(source.position, "top-right"),
+        },
+        behavior: {
+          showClose: toBool(source.showClose, true),
+          hideOnMobile: toBool(source.hideOnMobile, false),
+          delay: toStr(source.delay, "1"),
+          duration: toStr(source.duration, "10"),
+          interval: toStr(source.interval, "5"),
+          intervalUnit: toStr(source.intervalUnit, "seconds"),
+          randomize: toBool(source.randomize, true),
+        },
+        selectedProducts: parseArr(source.selectedProductsJson),
+        selectedCollections: parseArr(source.selectedCollectionsJson),
+      };
+    }
+  } catch (e) {
+    console.warn("[LowStock Popup] saved config fetch failed:", e);
+  }
+
+  return json({ title: "Low Stock Popup", saved });
 }
 
 export async function action({ request }) {
@@ -607,6 +707,7 @@ function PreviewCard({
 }
 
 export default function LowStockPopupPage() {
+  const { saved } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -689,6 +790,27 @@ export default function LowStockPopupPage() {
 
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+
+  useEffect(() => {
+    if (!saved) return;
+
+    if (saved.design) setDesign((prev) => ({ ...prev, ...saved.design }));
+    if (saved.textSize) setTextSize((prev) => ({ ...prev, ...saved.textSize }));
+    if (saved.content) setContent((prev) => ({ ...prev, ...saved.content }));
+    if (saved.data) setData((prev) => ({ ...prev, ...saved.data }));
+    if (saved.visibility)
+      setVisibility((prev) => ({ ...prev, ...saved.visibility }));
+    if (saved.behavior) setBehavior((prev) => ({ ...prev, ...saved.behavior }));
+    if (saved.productNameMode) setProductNameMode(saved.productNameMode);
+    if (saved.productNameLimit !== undefined && saved.productNameLimit !== null) {
+      setProductNameLimit(String(saved.productNameLimit));
+    }
+
+    setSelectedProducts(Array.isArray(saved.selectedProducts) ? saved.selectedProducts : []);
+    setSelectedCollections(
+      Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
+    );
+  }, [saved]);
 
   useEffect(() => {
     if (hasLoadedProducts) return;

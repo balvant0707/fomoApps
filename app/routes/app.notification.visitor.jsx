@@ -32,10 +32,75 @@ import {
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { saveVisitorPopup } from "../models/popup-config.server";
+import prisma from "../db.server";
 
 export async function loader({ request }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
+  const shop = session?.shop;
+
+  const parseJsonLoose = (raw) => {
+    if (raw === undefined || raw === null) return null;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "object") return raw;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
+  const parseArr = (raw) => {
+    const parsed = parseJsonLoose(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  };
+  const parseProductSelections = (source) => {
+    const dataProducts = parseArr(source?.selectedDataProductsJson);
+    const visibilityProducts = parseArr(source?.selectedVisibilityProductsJson);
+
+    if (dataProducts.length || visibilityProducts.length) {
+      return {
+        dataProducts,
+        visibilityProducts: visibilityProducts.length
+          ? visibilityProducts
+          : dataProducts,
+      };
+    }
+
+    const legacy = parseJsonLoose(source?.selectedProductsJson);
+    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      const legacyData = parseArr(
+        legacy.dataProducts ?? legacy.products ?? legacy.selectedProducts
+      );
+      const legacyVisibility = parseArr(
+        legacy.visibilityProducts ?? legacy.visibility ?? legacy.showOnProducts
+      );
+      return {
+        dataProducts: legacyData,
+        visibilityProducts: legacyVisibility.length
+          ? legacyVisibility
+          : legacyData,
+      };
+    }
+
+    const legacyList = Array.isArray(legacy) ? legacy : parseArr(source?.selectedProductsJson);
+    return {
+      dataProducts: legacyList,
+      visibilityProducts: legacyList,
+    };
+  };
+  const toBool = (v, fallback = false) => {
+    if (v === undefined || v === null) return fallback;
+    return v === true || v === 1 || v === "1";
+  };
+  const toNum = (v, fallback) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const toStr = (v, fallback = "") =>
+    v === undefined || v === null ? fallback : String(v);
+
   let customerCount = null;
+  let saved = null;
+
   try {
     const resp = await admin.graphql(
       "query { customersCount { count } }"
@@ -49,7 +114,89 @@ export async function loader({ request }) {
   } catch (e) {
     console.warn("[Visitor Popup] customer count fetch failed:", e);
   }
-  return json({ title: "Visitor Popup", customerCount });
+
+  try {
+    const model = prisma?.visitorpopupconfig || prisma?.visitorPopupConfig || null;
+    const source =
+      shop && model?.findFirst
+        ? await model.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+          })
+        : null;
+
+    if (source) {
+      const { dataProducts, visibilityProducts } = parseProductSelections(source);
+      saved = {
+        design: {
+          notiType: toStr(source.notiType, "visitor_list"),
+          layout: toStr(source.layout, "landscape"),
+          size: toNum(source.size, 30),
+          transparent: toNum(source.transparent, 10),
+          template: toStr(source.template, "solid"),
+          imageAppearance: toStr(source.imageAppearance, "cover"),
+          bgColor: toStr(source.bgColor, "#FFFFFF"),
+          bgAlt: toStr(source.bgAlt, "#F3F4F6"),
+          textColor: toStr(source.textColor, "#111111"),
+          timestampColor: toStr(source.timestampColor, "#696969"),
+          priceTagBg: toStr(source.priceTagBg, "#593E3F"),
+          priceTagAlt: toStr(source.priceTagAlt, "#E66465"),
+          priceColor: toStr(source.priceColor, "#FFFFFF"),
+          starColor: toStr(source.starColor, "#FFD240"),
+        },
+        textSize: {
+          content: toStr(source.textSizeContent, "14"),
+          compareAt: toStr(source.textSizeCompareAt, "13"),
+          price: toStr(source.textSizePrice, "13"),
+        },
+        content: {
+          message: toStr(
+            source.message,
+            "{full_name} from {country} just viewed this {product_name}"
+          ),
+          timestamp: toStr(source.timestamp, "Just now"),
+          avgTime: toStr(source.avgTime, "2"),
+          avgUnit: toStr(source.avgUnit, "mins"),
+        },
+        productNameMode: toStr(source.productNameMode, "full"),
+        productNameLimit: toStr(source.productNameLimit, DEFAULT_PRODUCT_NAME_LIMIT),
+        data: {
+          directProductPage: toBool(source.directProductPage, true),
+          showProductImage: toBool(source.showProductImage, true),
+          showPriceTag: toBool(source.showPriceTag, true),
+          showRating: toBool(source.showRating, false),
+          ratingSource: toStr(source.ratingSource, "judge_me"),
+          customerInfo: toStr(source.customerInfo, "shopify"),
+        },
+        visibility: {
+          showHome: toBool(source.showHome, true),
+          showProduct: toBool(source.showProduct, true),
+          productScope: toStr(source.productScope, "all"),
+          showCollectionList: toBool(source.showCollectionList, true),
+          showCollection: toBool(source.showCollection, true),
+          collectionScope: toStr(source.collectionScope, "all"),
+          showCart: toBool(source.showCart, true),
+          position: toStr(source.position, "bottom-right"),
+        },
+        behavior: {
+          showClose: toBool(source.showClose, true),
+          hideOnMobile: toBool(source.hideOnMobile, false),
+          delay: toStr(source.delay, "1"),
+          duration: toStr(source.duration, "10"),
+          interval: toStr(source.interval, "1"),
+          intervalUnit: toStr(source.intervalUnit, "mins"),
+          randomize: toBool(source.randomize, false),
+        },
+        selectedDataProducts: dataProducts,
+        selectedVisibilityProducts: visibilityProducts,
+        selectedCollections: parseArr(source.selectedCollectionsJson),
+      };
+    }
+  } catch (e) {
+    console.warn("[Visitor Popup] saved config fetch failed:", e);
+  }
+
+  return json({ title: "Visitor Popup", customerCount, saved });
 }
 
 export async function action({ request }) {
@@ -668,7 +815,7 @@ function PreviewCard({
   );
 }
 export default function VisitorPopupPage() {
-  const { customerCount } = useLoaderData();
+  const { customerCount, saved } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -756,6 +903,35 @@ export default function VisitorPopupPage() {
   const [selectedVisibilityProducts, setSelectedVisibilityProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
   const [pickerMode, setPickerMode] = useState("data");
+
+  useEffect(() => {
+    if (!saved) return;
+
+    if (saved.design) setDesign((prev) => ({ ...prev, ...saved.design }));
+    if (saved.textSize) setTextSize((prev) => ({ ...prev, ...saved.textSize }));
+    if (saved.content) setContent((prev) => ({ ...prev, ...saved.content }));
+    if (saved.data) setData((prev) => ({ ...prev, ...saved.data }));
+    if (saved.visibility)
+      setVisibility((prev) => ({ ...prev, ...saved.visibility }));
+    if (saved.behavior) setBehavior((prev) => ({ ...prev, ...saved.behavior }));
+
+    if (saved.productNameMode) setProductNameMode(saved.productNameMode);
+    if (saved.productNameLimit !== undefined && saved.productNameLimit !== null) {
+      setProductNameLimit(String(saved.productNameLimit));
+    }
+
+    setSelectedDataProducts(
+      Array.isArray(saved.selectedDataProducts) ? saved.selectedDataProducts : []
+    );
+    setSelectedVisibilityProducts(
+      Array.isArray(saved.selectedVisibilityProducts)
+        ? saved.selectedVisibilityProducts
+        : []
+    );
+    setSelectedCollections(
+      Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
+    );
+  }, [saved]);
 
   useEffect(() => {
     if (hasLoadedProducts) return;
@@ -1008,7 +1184,7 @@ export default function VisitorPopupPage() {
                       Design
                     </Text>
                     <InlineStack gap="400" wrap={false}>
-                      <Box width="50%">
+                      {/* <Box width="50%">
                         <Select
                           label="Noti type"
                           options={NOTI_TYPES}
@@ -1017,8 +1193,8 @@ export default function VisitorPopupPage() {
                             setDesign((d) => ({ ...d, notiType: v }))
                           }
                         />
-                      </Box>
-                      <Box width="50%">
+                      </Box> */}
+                      <Box width="100%">
                         <Select
                           label="Layout"
                           options={LAYOUTS}
