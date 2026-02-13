@@ -2498,7 +2498,13 @@ document.addEventListener("DOMContentLoaded", async function () {
                 (Array.isArray(o?.line_items) && o.line_items[0]) || null;
               const pHandle = safe(line?.product_handle, "");
               const pTitle = safe(line?.title, "Product");
-              const pImg = safe(line?.image, "");
+              let pImg = safe(line?.image, "");
+              if (!pImg && pHandle) {
+                try {
+                  const fetchedProduct = await fetchProductByHandle(pHandle);
+                  pImg = safe(fetchedProduct?.image, "");
+                } catch {}
+              }
               const productUrl = pHandle ? `/products/${pHandle}` : "#";
               const iconSrc = resolveIconForIndex(it, 0);
 
