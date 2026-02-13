@@ -28,7 +28,7 @@ import { saveAddToCartPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = session?.shop;
 
   const parseArr = (raw) => {
@@ -52,7 +52,21 @@ export async function loader({ request }) {
     v === undefined || v === null ? fallback : String(v);
 
   let saved = null;
+  let customerCount = null;
   try {
+    if (admin?.graphql) {
+      const countRes = await admin.graphql(`
+        query AddToCartCustomerCount {
+          customersCount {
+            count
+          }
+        }
+      `);
+      const countJson = await countRes.json();
+      const count = Number(countJson?.data?.customersCount?.count);
+      customerCount = Number.isFinite(count) ? count : null;
+    }
+
     const model = prisma?.addtocartpopupconfig || prisma?.addToCartPopupConfig || null;
     const source =
       shop && model?.findFirst
@@ -133,7 +147,7 @@ export async function loader({ request }) {
     console.warn("[AddToCart Popup] saved config fetch failed:", e);
   }
 
-  return json({ title: "Add to cart Popup", saved });
+  return json({ title: "Add to cart Popup", saved, customerCount });
 }
 
 export async function action({ request }) {
@@ -676,7 +690,7 @@ function PreviewCard({
 }
 
 export default function AddToCartPopupPage() {
-  const { saved } = useLoaderData();
+  const { saved, customerCount } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -1379,7 +1393,9 @@ export default function AddToCartPopupPage() {
                                 />
                                 {data.customerInfo === "shopify" && (
                                   <Text tone="subdued">
-                                    Customer profiles are imported from Shopify.
+                                    {Number.isFinite(customerCount)
+                                      ? `${customerCount} customer profiles are imported`
+                                      : "Customer profiles are imported from Shopify."}
                                   </Text>
                                 )}
                                 <RadioButton
