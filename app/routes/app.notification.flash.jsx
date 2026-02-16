@@ -578,8 +578,10 @@ const posToFlex = (pos) => {
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const isPortrait = form.layout === "portrait";
-  const iconSize = form.imageAppearance === "contain" ? 48 : 60;
+  const imageAppearance = String(form.imageAppearance || "cover").toLowerCase();
+  const isContain = imageAppearance === "contain";
   const iconDim = isPortrait ? 56 : 60;
+  const iconSize = isContain ? 48 : iconDim;
 
   const svgMarkup = useMemo(() => {
     const uploaded = extractFirstSvg(form.iconSvg || "");
@@ -592,7 +594,7 @@ function NotificationPreview({ form, isMobile = false }) {
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
   const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
   const showIcon = !!svgMarkup;
-  const imageOverflow = showIcon && form.imageAppearance === "cover" && !isPortrait;
+  const imageOverflow = showIcon && !isContain && !isPortrait;
   const avatarOffset = Math.round(iconDim * 0.45);
   const background =
     form.template === "gradient"
@@ -665,8 +667,8 @@ function NotificationPreview({ form, isMobile = false }) {
             style={{
               display: "block",
               flexShrink: 0,
-              width: iconDim,
-              height: iconDim,
+              width: iconSize,
+              height: iconSize,
             }}
             dangerouslySetInnerHTML={{ __html: svgMarkup }}
           />

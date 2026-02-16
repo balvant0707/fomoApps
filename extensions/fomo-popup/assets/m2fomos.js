@@ -808,6 +808,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
+    const isPortrait = String(cfg.layout || "landscape").toLowerCase() === "portrait";
+    const imageAppearance = String(cfg.imageAppearance || "cover").toLowerCase();
+    const isContain = imageAppearance === "contain";
+    const imageOverflow = !isContain && !isPortrait;
     const bgFlash =
       String(cfg.template || "solid").toLowerCase() === "gradient"
         ? `linear-gradient(135deg, ${cfg.bgColor || "#111"} 0%, ${cfg.bgAlt || cfg.bgColor || "#111"} 100%)`
@@ -828,10 +832,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const card = document.createElement("div");
     card.className = "fomo-card";
+    const coverBoxSize = mode === "mobile" ? Math.max(mt.img, 52) : 60;
+    const containIconSize = mode === "mobile" ? Math.max(42, mt.img - 6) : 48;
+    const leftPad = imageOverflow ? 12 + Math.round(coverBoxSize * 0.45) : 14;
     card.style.cssText = `
       display:flex; gap:12px; align-items:center; position:relative;
       padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12
-      }px 14px;
+      }px ${leftPad}px;
       font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
       }px; line-height:1.35;
     `;
@@ -840,12 +847,38 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.className = "fomo-icon";
     img.alt = "Flash";
     img.src = cfg.uploadedImage || cfg.image || FLAME_SVG;
-    const iSize = mode === "mobile" ? mt.img : 58,
-      iRad = mode === "mobile" ? Math.round(mt.img * 0.17) : 12;
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${cfg.imageAppearance || "cover"};border-radius:${iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
+    const iSize = imageOverflow ? coverBoxSize : containIconSize;
+    const iRad = mode === "mobile" ? Math.round(iSize * 0.17) : 12;
+    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.src = FLAME_SVG;
     };
+
+    let iconNode = img;
+    if (imageOverflow) {
+      const imgWrap = document.createElement("div");
+      imgWrap.style.cssText = `
+        position:absolute;
+        left:8px;
+        top:50%;
+        transform:translate(-50%, -50%);
+        width:${coverBoxSize}px;height:${coverBoxSize}px;
+        border-radius:12px;
+        overflow:hidden;
+        background:#f3f4f6;
+        display:grid;
+        place-items:center;
+        box-shadow:0 8px 18px rgba(0,0,0,0.18);
+        border:2px solid rgba(255,255,255,0.75);
+        pointer-events:none;
+      `;
+      img.style.width = "100%";
+      img.style.height = "100%";
+      img.style.borderRadius = "0";
+      img.style.objectFit = "cover";
+      imgWrap.appendChild(img);
+      iconNode = imgWrap;
+    }
 
     const body = document.createElement("div");
     body.className = "fomo-body";
@@ -897,7 +930,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
 
-    card.appendChild(img);
+    card.appendChild(iconNode);
     card.appendChild(body);
     card.appendChild(close);
     wrap.appendChild(card);
@@ -1828,6 +1861,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         animation: it.animation,
         animationSpeed: it.animationSpeed,
         animationMs: it.animationMs,
+        layout: it.layout,
         fontFamily: it.fontFamily,
         fontWeight: it.fontWeight,
         baseFontSize: Number(it.fontSize ?? it.rounded ?? 0) || null,
@@ -2554,6 +2588,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             positionDesktop: it.position,
             mobileSize: it.mobileSize,
             animation: it.animation,
+            layout: it.layout,
             fontFamily: it.fontFamily,
             fontWeight: it.fontWeight,
             template: it.template,
