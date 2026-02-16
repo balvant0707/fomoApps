@@ -1291,6 +1291,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
+    const popupType = String(cfg.popupType || "").toLowerCase();
+    const isVisitor = popupType === "visitor";
 
     const hasSize = cfg.size !== undefined && cfg.size !== null && cfg.size !== "";
     const hasTransparency =
@@ -1381,9 +1383,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
         width:${imgSize}px;height:${imgSize}px;
         border-radius:${Math.round(imgSize * 0.22)}px;
-        overflow:hidden;background:transparent;
+        overflow:hidden;background:${isVisitor ? "#ffffff" : "transparent"};
         display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;
+        ${isVisitor ? "box-shadow:0 8px 18px rgba(0,0,0,0.16);border:1px solid rgba(15,23,42,0.08);" : ""}
         pointer-events:none;
       `;
     } else {
@@ -1430,7 +1433,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     if (cfg.message) {
       const msg = document.createElement("div");
-      msg.style.cssText = `color:${cfg.textColor || "#111"};`;
+      msg.style.cssText = isVisitor
+        ? `color:${cfg.textColor || "#111"};font-size:${Math.max(12, fontSize)}px;line-height:1.45;`
+        : `color:${cfg.textColor || "#111"};`;
       const messageText = String(cfg.message || "");
       const productName = String(cfg.productTitle || "").trim();
       const countValue = cfg.stockCountValue ? String(cfg.stockCountValue) : "";
@@ -1499,7 +1504,21 @@ document.addEventListener("DOMContentLoaded", async function () {
       body.appendChild(line);
     }
 
-    if (cfg.timestamp) {
+    if (isVisitor) {
+      const footer = document.createElement("div");
+      footer.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:${Math.max(
+        10,
+        fontSize - 2
+      )}px;color:${cfg.timestampColor || "rgba(0,0,0,0.6)"};`;
+      const ts = document.createElement("span");
+      ts.textContent = cfg.timestamp || "Just now";
+      footer.appendChild(ts);
+      const brand = document.createElement("span");
+      brand.textContent = safe(cfg.brandText, "© WizzCommerce");
+      brand.style.opacity = ".9";
+      footer.appendChild(brand);
+      body.appendChild(footer);
+    } else if (cfg.timestamp) {
       const ts = document.createElement("div");
       ts.textContent = cfg.timestamp;
       ts.style.cssText = `font-size:${Math.max(10, fontSize - 2)}px;color:${cfg.timestampColor || "rgba(0,0,0,0.6)"};`;
@@ -1530,13 +1549,28 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     wrap.addEventListener("click", (e) => {
       if (e.target === close) return;
+      const directEnabled = cfg.directProductPage !== false;
+      const rawUrl = String(cfg.productUrl || "").trim();
+      const handleFallback = String(cfg.productHandle || "").trim();
+      let href = rawUrl;
+      if ((!href || href === "#") && handleFallback) {
+        href = `/products/${handleFallback}`;
+      }
+      if (
+        href &&
+        href !== "#" &&
+        !/^https?:\/\//i.test(href) &&
+        !href.startsWith("/")
+      ) {
+        href = `/products/${href}`;
+      }
       sendTrack({
         eventType: "click",
         popupType: cfg.popupType || "recent",
-        productUrl: cfg.productUrl,
+        productUrl: href || cfg.productUrl,
       });
-      if (cfg.productUrl && cfg.directProductPage !== false) {
-        window.location.href = cfg.productUrl;
+      if (directEnabled && href && href !== "#") {
+        window.location.href = href;
       }
     });
 
@@ -3082,6 +3116,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           const message = applyTokens(msgTpl, tokens).trim();
           const timestamp = tsTpl ? applyTokens(tsTpl, tokens).trim() : "";
 
+          const fallbackHandle =
+            String(prod.handle || productHandleFromUrl(prod.url) || "").trim();
+          const resolvedProductUrl =
+            safe(prod.url, "").trim() ||
+            (fallbackHandle ? `/products/${fallbackHandle}` : "");
+
           target.push({
             ...baseCfg,
             message,
@@ -3090,7 +3130,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             productImage: prod.image,
             price,
             compareAt,
-            productUrl: prod.url,
+            productUrl: resolvedProductUrl,
+            productHandle: fallbackHandle,
             rating: prod.rating || 4,
             stockCountValue: type === "lowstock" ? stockCount : null,
           });
