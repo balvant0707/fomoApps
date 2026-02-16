@@ -808,14 +808,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
-    const isPortrait =
-      String(cfg.layout || "landscape").toLowerCase() === "portrait";
     const imageAppearance = String(cfg.imageAppearance || "cover")
       .trim()
       .toLowerCase();
     const isContain =
       imageAppearance === "contain" || imageAppearance.includes("fit");
-    const imageOverflow = !isContain && !isPortrait;
+    const imageOverflow = !isContain;
     const bgFlash =
       String(cfg.template || "solid").toLowerCase() === "gradient"
         ? `linear-gradient(135deg, ${cfg.bgColor || "#111"} 0%, ${cfg.bgAlt || cfg.bgColor || "#111"} 100%)`

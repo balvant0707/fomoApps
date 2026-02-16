@@ -577,12 +577,12 @@ const posToFlex = (pos) => {
 /* ---------------- Notification bubble ---------------- */
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
-  const isPortrait = form.layout === "portrait";
   const imageAppearance = String(form.imageAppearance || "cover")
     .trim()
     .toLowerCase();
   const isContain =
     imageAppearance === "contain" || imageAppearance.includes("fit");
+  const isPortrait = form.layout === "portrait";
   const iconDim = isPortrait ? 56 : 60;
   const iconSize = isContain ? 48 : iconDim;
 
@@ -597,7 +597,7 @@ function NotificationPreview({ form, isMobile = false }) {
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
   const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
   const showIcon = !!svgMarkup;
-  const imageOverflow = showIcon && !isContain && !isPortrait;
+  const imageOverflow = showIcon && !isContain;
   const avatarOffset = Math.round(iconDim * 0.45);
   const background =
     form.template === "gradient"
