@@ -1343,6 +1343,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const imageFit = isContain ? "contain" : "cover";
     const imageOverflow =
       !isContain && !isPortrait && cfg.showProductImage !== false;
+    const portraitVisitor = isVisitor && isPortrait;
     const pad = Math.round(
       imageOverflow
         ? mode === "mobile"
@@ -1357,7 +1358,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     );
     const imgSize = Math.round((mode === "mobile" ? 56 : 64));
     const imgOffset = Math.round(imgSize * (isVisitor ? 0.62 : 0.45));
-    const inlineSize = isPortrait ? 56 : imgSize;
+    const inlineSize = isPortrait
+      ? portraitVisitor
+        ? mode === "mobile"
+          ? 70
+          : 72
+        : 56
+      : imgSize;
 
     const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
     const originX = posKey.includes("right") ? "right" : "left";
@@ -1384,12 +1391,18 @@ document.addEventListener("DOMContentLoaded", async function () {
       border:1px solid rgba(0,0,0,0.06);
       transform:scale(${effectiveSizeScale});
       transform-origin:${transformOrigin};
-      max-width:${isPortrait ? 320 : isVisitor ? 520 : 460}px;
+      max-width:${isPortrait ? (portraitVisitor ? 360 : 320) : isVisitor ? 520 : 460}px;
     `;
 
     const card = document.createElement("div");
     const leftPad = imageOverflow ? pad + imgOffset : pad;
-    const alignItems = isPortrait ? "flex-start" : imageOverflow ? "flex-start" : "center";
+    const alignItems = portraitVisitor
+      ? "stretch"
+      : isPortrait
+        ? "flex-start"
+        : imageOverflow
+          ? "flex-start"
+          : "center";
     card.style.cssText = `
       display:flex; gap:${gap}px; align-items:${alignItems};
       flex-direction:${isPortrait ? "column" : "row"};
@@ -1403,7 +1416,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       imgWrap = document.createElement("div");
       imgWrap.style.cssText = `
         position:absolute;
-        left:${pad}px;
+        left:6px;
         top:${isPortrait ? 28 : "50%"};
         transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
         width:${imgSize}px;height:${imgSize}px;
@@ -1419,9 +1432,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       imgWrap.style.cssText = `
         width:${inlineSize}px;height:${inlineSize}px;
         border-radius:${Math.round(inlineSize * 0.22)}px;
-        overflow:hidden;background:transparent;
+        overflow:hidden;
+        background:${portraitVisitor ? "#ffffff" : "transparent"};
         flex-shrink:0;display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;pointer-events:none;
+        align-self:${isPortrait ? "center" : "flex-start"};
+        ${portraitVisitor ? "box-shadow:0 10px 22px rgba(0,0,0,0.14);border:1px solid rgba(15,23,42,0.08);margin:2px auto 2px;" : ""}
       `;
     }
 
@@ -1437,22 +1453,26 @@ document.addEventListener("DOMContentLoaded", async function () {
     imgWrap.appendChild(img);
 
     const body = document.createElement("div");
-    body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:6px;`;
+    body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:${portraitVisitor ? 8 : 6}px;${portraitVisitor ? "width:100%;" : ""}`;
 
     if (cfg.showRating) {
       const rating = Math.max(
         1,
         Math.min(5, Number(cfg.rating || 4))
       );
-      const stars = Array.from({ length: 5 })
-        .map((_, i) => (i < rating ? "&#9733;" : "&#9734;"))
-        .join("");
       const rate = document.createElement("div");
-      rate.innerHTML = stars;
-      rate.style.cssText = `color:${cfg.starColor || "#f5a623"};font-size:${Math.max(
-        10,
-        fontSize - 2
-      )}px;letter-spacing:1px;`;
+      rate.style.cssText = `display:inline-flex;align-items:center;gap:1px;font-size:${Math.max(
+        portraitVisitor ? 16 : 10,
+        portraitVisitor ? fontSize + 2 : fontSize - 2
+      )}px;letter-spacing:1px;line-height:1;`;
+      const filled = document.createElement("span");
+      filled.textContent = "★".repeat(Math.max(0, Math.min(5, rating)));
+      filled.style.color = cfg.starColor || "#f5a623";
+      const empty = document.createElement("span");
+      empty.textContent = "★".repeat(Math.max(0, 5 - rating));
+      empty.style.color = "rgba(156,163,175,0.95)";
+      rate.appendChild(filled);
+      rate.appendChild(empty);
       body.appendChild(rate);
     }
 
@@ -3548,4 +3568,3 @@ document.addEventListener("DOMContentLoaded", async function () {
     return false;
   }
 });
-

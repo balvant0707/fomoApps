@@ -679,7 +679,8 @@ function PreviewCard({
     imageModeRaw.includes("contain") ||
     imageModeRaw.includes("fit");
   const imageFit = isContainMode ? "contain" : "cover";
-  const avatarSize = isPortrait ? 56 : 64;
+  const portraitVisitor = isPortrait;
+  const avatarSize = isPortrait ? 72 : 64;
   const avatarOffset = Math.round(avatarSize * 0.62);
   const pad = 16;
   const imageOverflow = showProductImage && !isContainMode && !isPortrait;
@@ -787,9 +788,9 @@ function PreviewCard({
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
-    gap: isPortrait ? 12 : imageOverflow ? 14 : 12,
+    gap: isPortrait ? 14 : imageOverflow ? 14 : 12,
     alignItems: "flex-start",
-    maxWidth: layout === "portrait" ? 320 : 460,
+    maxWidth: layout === "portrait" ? 360 : 460,
   };
 
   return (
@@ -860,13 +861,16 @@ function PreviewCard({
               height: avatarSize,
               borderRadius: Math.round(avatarSize * 0.22),
               overflow: "hidden",
-              background: "#f3f4f6",
+              background: portraitVisitor ? "#ffffff" : "#f3f4f6",
               flexShrink: 0,
               display: "grid",
               placeItems: "center",
-              boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
+              boxShadow: portraitVisitor
+                ? "0 10px 22px rgba(0,0,0,0.14)"
+                : "0 6px 14px rgba(0,0,0,0.12)",
               border: "1px solid rgba(15,23,42,0.08)",
               alignSelf: isPortrait ? "center" : "flex-start",
+              margin: portraitVisitor ? "2px auto 2px" : undefined,
             }}
           >
             {product?.image ? (
@@ -887,12 +891,26 @@ function PreviewCard({
           </div>
         ))}
 
-      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
+      <div
+        style={{
+          display: "grid",
+          gap: portraitVisitor ? 8 : 6,
+          minWidth: 0,
+          flex: 1,
+          width: portraitVisitor ? "100%" : undefined,
+        }}
+      >
         {showRating && (
-          <div style={{ color: starColor, fontSize: 12 }}>
-            {"*****".slice(0, product?.rating || 4)}
-            <span style={{ color: "#d1d5db" }}>
-              {"*****".slice(0, 5 - (product?.rating || 4))}
+          <div
+            style={{
+              color: starColor,
+              fontSize: portraitVisitor ? 18 : 12,
+              lineHeight: 1,
+            }}
+          >
+            {"★".repeat(Math.max(0, Math.min(5, product?.rating || 4)))}
+            <span style={{ color: "#9ca3af" }}>
+              {"★".repeat(Math.max(0, 5 - (product?.rating || 4)))}
             </span>
           </div>
         )}
