@@ -28,18 +28,96 @@ import { authenticate } from "../shopify.server";
 import { saveLowStockPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
+const errorText = (value, fallback = "Save failed") => {
+  if (typeof value === "string" && value.trim()) return value;
+  if (value && typeof value.message === "string" && value.message.trim()) {
+    return value.message;
+  }
+  if (value && typeof value === "object") {
+    try {
+      const s = JSON.stringify(value);
+      if (s && s !== "{}") return s;
+    } catch {}
+  }
+  return fallback;
+};
+
+const isTransientDbError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const msg = String(error?.message || "").toLowerCase();
+  const causeMsg = String(error?.cause?.message || "").toLowerCase();
+  const combined = `${msg} ${causeMsg}`;
+
+  if (code === "P1001" || code === "P1008" || code === "P1017") return true;
+  return (
+    combined.includes("too many database connections") ||
+    combined.includes("max_user_connections") ||
+    combined.includes("too many connections") ||
+    combined.includes("connection pool timeout") ||
+    combined.includes("can't reach database server")
+  );
+};
+
+const isMissingColumnError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const msg = String(error?.message || "").toLowerCase();
+  return (
+    code === "P2022" ||
+    msg.includes("unknown column") ||
+    (msg.includes("column") && msg.includes("does not exist"))
+  );
+};
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function saveWithRetry(shop, form, retries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await saveLowStockPopup(shop, form);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDbError(error) || attempt === retries) break;
+      await sleep(200 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
 export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
 
+  const parseJsonLoose = (raw) => {
+    if (raw === undefined || raw === null) return null;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "object") return raw;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  };
   const parseArr = (raw) => {
+    const parsed = parseJsonLoose(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  };
+  const parseSelectedProducts = (source) => {
+    const split = parseArr(source?.selectedDataProductsJson);
+    if (split.length) return split;
+
+    const raw = source?.selectedProductsJson;
     if (Array.isArray(raw)) return raw;
     try {
-      const value = JSON.parse(raw || "[]");
-      return Array.isArray(value) ? value : [];
-    } catch {
-      return [];
-    }
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object") {
+        const nested =
+          parsed.dataProducts ?? parsed.selectedProducts ?? parsed.products;
+        return Array.isArray(nested) ? nested : [];
+      }
+    } catch {}
+    return [];
   };
   const toBool = (v, fallback = false) => {
     if (v === undefined || v === null) return fallback;
@@ -55,13 +133,67 @@ export async function loader({ request }) {
   let saved = null;
   try {
     const model = prisma?.lowstockpopupconfig || prisma?.lowStockPopupConfig || null;
-    const source =
-      shop && model?.findFirst
-        ? await model.findFirst({
-            where: { shop },
-            orderBy: { id: "desc" },
-          })
-        : null;
+    let source = null;
+    if (shop && model?.findFirst) {
+      const findArgs = {
+        where: { shop },
+        orderBy: { id: "desc" },
+      };
+      try {
+        source = await model.findFirst(findArgs);
+      } catch (error) {
+        if (!isMissingColumnError(error)) throw error;
+        source = await model.findFirst({
+          ...findArgs,
+          select: {
+            id: true,
+            layout: true,
+            size: true,
+            transparent: true,
+            template: true,
+            imageAppearance: true,
+            bgColor: true,
+            bgAlt: true,
+            textColor: true,
+            numberColor: true,
+            priceTagBg: true,
+            priceTagAlt: true,
+            priceColor: true,
+            starColor: true,
+            textSizeContent: true,
+            textSizeCompareAt: true,
+            textSizePrice: true,
+            message: true,
+            productNameMode: true,
+            productNameLimit: true,
+            dataSource: true,
+            stockUnder: true,
+            hideOutOfStock: true,
+            directProductPage: true,
+            showProductImage: true,
+            showPriceTag: true,
+            showRating: true,
+            showHome: true,
+            showProduct: true,
+            productScope: true,
+            showCollectionList: true,
+            showCollection: true,
+            collectionScope: true,
+            showCart: true,
+            position: true,
+            showClose: true,
+            hideOnMobile: true,
+            delay: true,
+            duration: true,
+            interval: true,
+            intervalUnit: true,
+            randomize: true,
+            selectedProductsJson: true,
+            selectedCollectionsJson: true,
+          },
+        });
+      }
+    }
 
     if (source) {
       saved = {
@@ -121,9 +253,7 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseArr(
-          source.selectedDataProductsJson ?? source.selectedProductsJson
-        ),
+        selectedProducts: parseSelectedProducts(source),
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
@@ -135,7 +265,19 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  let session;
+  try {
+    ({ session } = await authenticate.admin(request));
+  } catch (error) {
+    console.error("[LowStock Popup] auth failed:", error);
+    return json(
+      {
+        success: false,
+        error: "Session/auth temporarily unavailable. Please try again.",
+      },
+      { status: 503 }
+    );
+  }
   const shop = session?.shop;
   if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
 
@@ -146,14 +288,20 @@ export async function action({ request }) {
     return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { form } = body || {};
+  const rawForm = body?.form;
+  const form =
+    rawForm && typeof rawForm === "object" && !Array.isArray(rawForm)
+      ? rawForm
+      : body && typeof body === "object" && !Array.isArray(body)
+        ? body
+        : null;
   if (!form) {
     return json({ success: false, error: "Missing form" }, { status: 400 });
   }
 
   console.log("[LowStock Popup] form payload:", JSON.stringify(form, null, 2));
   try {
-    const saved = await saveLowStockPopup(shop, form);
+    const saved = await saveWithRetry(shop, form, 2);
     console.log("[LowStock Popup] saved id:", saved?.id);
     return json({ success: true, id: saved?.id });
   } catch (e) {
@@ -161,7 +309,7 @@ export async function action({ request }) {
     return json(
       {
         success: false,
-        error: e?.message || "Save failed",
+        error: errorText(e),
         code: e?.code || null,
       },
       { status: 500 }

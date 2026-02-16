@@ -68,7 +68,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   /* ========== helpers ========== */
   const safe = (v, fb = "") =>
     v === undefined || v === null ? fb : String(v);
-  const toBool = (raw) => {
+  const toBool = (raw, fallback = false) => {
+    if (raw === undefined || raw === null || raw === "") return fallback;
     if (raw === true || raw === false) return raw;
     const normalized = String(raw || "")
       .trim()
@@ -183,36 +184,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const arr = parseList(raw);
     return Array.isArray(arr) ? arr.filter(Boolean) : [];
   };
-  const parseProductBuckets = (rawOrRow) => {
-    // New schema: dedicated columns for data and visibility selections.
-    if (
-      rawOrRow &&
-      typeof rawOrRow === "object" &&
-      !Array.isArray(rawOrRow) &&
-      ("selectedDataProductsJson" in rawOrRow ||
-        "selectedVisibilityProductsJson" in rawOrRow ||
-        "selectedProductsJson" in rawOrRow)
-    ) {
-      const dataProducts = parseProductList(
-        rawOrRow.selectedDataProductsJson ?? rawOrRow.selectedProductsJson
-      );
-      const visibilityProducts = parseProductList(
-        rawOrRow.selectedVisibilityProductsJson ?? rawOrRow.selectedProductsJson
-      );
-      return {
-        dataProducts,
-        visibilityProducts: visibilityProducts.length
-          ? visibilityProducts
-          : dataProducts,
-      };
-    }
-
-    let decoded = rawOrRow;
-    if (typeof rawOrRow === "string") {
+  const parseProductField = (raw) => {
+    let decoded = raw;
+    if (typeof raw === "string") {
       try {
-        decoded = JSON.parse(rawOrRow);
+        decoded = JSON.parse(raw);
       } catch {
-        decoded = rawOrRow;
+        decoded = raw;
       }
     }
 
@@ -223,6 +201,37 @@ document.addEventListener("DOMContentLoaded", async function () {
       const visibilityProducts = parseProductList(
         decoded.visibilityProducts ?? decoded.visibility ?? decoded.showOnProducts
       );
+      if (dataProducts.length || visibilityProducts.length) {
+        return {
+          dataProducts,
+          visibilityProducts: visibilityProducts.length
+            ? visibilityProducts
+            : dataProducts,
+        };
+      }
+    }
+
+    const list = parseProductList(decoded);
+    return { dataProducts: list, visibilityProducts: list };
+  };
+  const parseProductBuckets = (rawOrRow) => {
+    // New schema: dedicated columns for data and visibility selections.
+    if (
+      rawOrRow &&
+      typeof rawOrRow === "object" &&
+      !Array.isArray(rawOrRow) &&
+      ("selectedDataProductsJson" in rawOrRow ||
+        "selectedVisibilityProductsJson" in rawOrRow ||
+        "selectedProductsJson" in rawOrRow)
+    ) {
+      const dataSelection = parseProductField(
+        rawOrRow.selectedDataProductsJson ?? rawOrRow.selectedProductsJson
+      );
+      const visibilitySelection = parseProductField(
+        rawOrRow.selectedVisibilityProductsJson ?? rawOrRow.selectedProductsJson
+      );
+      const dataProducts = dataSelection.dataProducts;
+      const visibilityProducts = visibilitySelection.visibilityProducts;
       return {
         dataProducts,
         visibilityProducts: visibilityProducts.length
@@ -230,9 +239,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           : dataProducts,
       };
     }
-
-    const list = parseProductList(decoded);
-    return { dataProducts: list, visibilityProducts: list };
+    return parseProductField(rawOrRow);
   };
   const formatCurrencyByCode = (amountMajor, currencyCode) => {
     const n = Number(amountMajor);
@@ -2423,11 +2430,26 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
       return hasAny ? Math.round(sum) : null;
     };
+    const normalizeProductId = (value) => {
+      if (value === undefined || value === null || value === "") return null;
+      if (typeof value === "number") {
+        return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+      }
+      const raw = String(value || "").trim();
+      if (!raw) return null;
+      const gidMatch = raw.match(/gid:\/\/shopify\/Product\/(\d+)/i);
+      const parsed = Number(gidMatch?.[1] || raw);
+      return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+    };
     const normalizeProduct = (p) => {
       if (!p) return null;
-      const idNum = Number(p.id ?? p.product_id ?? 0);
+      const idNum = normalizeProductId(p.id ?? p.product_id ?? p.productId);
       const title = p.title || p.productTitle || p.name || "";
-      const handle = p.handle || p.productHandle || "";
+      const handle =
+        p.handle ||
+        p.productHandle ||
+        productHandleFromUrl(p.url || p.productUrl || "") ||
+        "";
       const image =
         normalizeImage(p.image) ||
         normalizeImage(p.featuredImage) ||
@@ -2435,11 +2457,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         (Array.isArray(p.images) ? p.images[0] : "") ||
         p.productImage ||
         "";
-      const url =
-        p.url ||
-        (handle ? `/products/${handle}` : "") ||
-        p.productUrl ||
-        "";
+      const rawUrl = String(p.url || p.productUrl || "").trim();
+      const url = rawUrl && rawUrl !== "#" ? rawUrl : handle ? `/products/${handle}` : "";
       const price =
         p.price ||
         p.price_min ||
@@ -2454,7 +2473,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         "";
       const inventoryQty = normalizeInventory(p);
       return {
-        id: Number.isFinite(idNum) && idNum > 0 ? Math.round(idNum) : null,
+        id: idNum,
         title,
         handle,
         image,
@@ -2467,8 +2486,21 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
     const productHandleFromEntry = (entry) => {
       if (!entry) return "";
-      if (typeof entry === "string") return entry;
-      if (typeof entry === "object") return entry.handle || entry.productHandle || "";
+      if (typeof entry === "string") {
+        const raw = String(entry || "").trim();
+        if (!raw || /^gid:\/\//i.test(raw)) return "";
+        const fromUrl = productHandleFromUrl(raw);
+        if (fromUrl) return fromUrl;
+        return raw.replace(/^\/?products\//i, "");
+      }
+      if (typeof entry === "object") {
+        return (
+          entry.handle ||
+          entry.productHandle ||
+          productHandleFromUrl(entry.url || entry.productUrl || "") ||
+          ""
+        );
+      }
       return "";
     };
     const productTitleFromEntry = (entry) => {
@@ -2476,12 +2508,23 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (typeof entry === "object") return entry.title || entry.productTitle || "";
       return "";
     };
+    const productIdFromEntry = (entry) => {
+      if (!entry) return null;
+      if (typeof entry === "string") return normalizeProductId(entry);
+      if (typeof entry === "object") {
+        return normalizeProductId(entry.id ?? entry.productId ?? entry.product_id);
+      }
+      return null;
+    };
     const matchesScope = (row) => {
       const pScope = String(row?.productScope || "").toLowerCase();
       if (pt === "product" && pScope === "specific") {
         const { visibilityProducts: list } = parseProductBuckets(row);
-        if (!list.length || !ch) return false;
+        const currentId = normalizeProductId(currentProduct?.id);
+        if (!list.length || (!ch && !currentId && !currentProduct?.title)) return false;
         const hit = list.some((entry) => {
+          const entryId = productIdFromEntry(entry);
+          if (entryId && currentId && entryId === currentId) return true;
           const h = productHandleFromEntry(entry);
           if (h && String(h).toLowerCase() === String(ch).toLowerCase()) return true;
           const t = productTitleFromEntry(entry);
@@ -2522,7 +2565,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       for (const prod of Array.isArray(list) ? list : []) {
         if (!prod) continue;
         const key = String(
-          prod.handle || prod.url || prod.title || Math.random()
+          normalizeProductId(prod.id) ||
+            prod.handle ||
+            prod.url ||
+            prod.title ||
+            Math.random()
         ).toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -2630,8 +2677,24 @@ document.addEventListener("DOMContentLoaded", async function () {
       return count > 0;
     };
     const fetchProductByHandle = async (handle) => {
-      const h = String(handle || "").trim();
-      if (!h || h.startsWith("gid://")) return null;
+      const raw = String(handle || "").trim();
+      if (!raw) return null;
+
+      const rawId = normalizeProductId(raw);
+      if (rawId) {
+        const storeProducts = await fetchStoreProductsForLowStock();
+        if (Array.isArray(storeProducts)) {
+          const byId = storeProducts.find(
+            (p) => normalizeProductId(p?.id) === rawId
+          );
+          if (byId) return byId;
+        }
+      }
+
+      const parsedHandle =
+        productHandleFromUrl(raw) || raw.replace(/^\/?products\//i, "");
+      const h = String(parsedHandle || "").trim();
+      if (!h || /^gid:\/\//i.test(h)) return null;
       if (productCache.has(h)) return productCache.get(h);
       const p = await fetchJson(`/products/${h}.js`, `prod:${h}`, 600000);
       const normalized = normalizeProduct(p) || {
@@ -2713,20 +2776,22 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
         // Old saved records may not have handle/price/compareAt. Backfill from
         // storefront catalog cache using id/title/handle matching.
-        if (!hasPrice || !hasCompare || !local?.image) {
+        if (!hasPrice || !hasCompare || !local?.image || !hasInventory) {
           try {
             const storeProducts = await fetchStoreProductsForLowStock();
-            const localId = Number(entry?.id ?? entry?.productId ?? local?.id ?? 0);
+            const localId = normalizeProductId(
+              entry?.id ?? entry?.productId ?? local?.id
+            );
             const localTitle = String(local?.title || entry?.title || "")
               .trim()
               .toLowerCase();
             const localHandle = String(handle || "").trim().toLowerCase();
             const matched = Array.isArray(storeProducts)
               ? storeProducts.find((p) => {
-                const pid = Number(p?.id ?? 0);
+                const pid = normalizeProductId(p?.id);
                 const pTitle = String(p?.title || "").trim().toLowerCase();
                 const pHandle = String(p?.handle || "").trim().toLowerCase();
-                if (Number.isFinite(localId) && localId > 0 && pid === localId) return true;
+                if (localId && pid && pid === localId) return true;
                 if (localHandle && pHandle && pHandle === localHandle) return true;
                 if (localTitle && pTitle && pTitle === localTitle) return true;
                 return false;
