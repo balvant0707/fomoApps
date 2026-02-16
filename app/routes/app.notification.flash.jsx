@@ -578,8 +578,11 @@ const posToFlex = (pos) => {
 function NotificationPreview({ form, isMobile = false }) {
   const animStyle = useMemo(() => getAnimationStyle(form.animation), [form.animation]);
   const isPortrait = form.layout === "portrait";
-  const imageAppearance = String(form.imageAppearance || "cover").toLowerCase();
-  const isContain = imageAppearance === "contain";
+  const imageAppearance = String(form.imageAppearance || "cover")
+    .trim()
+    .toLowerCase();
+  const isContain =
+    imageAppearance === "contain" || imageAppearance.includes("fit");
   const iconDim = isPortrait ? 56 : 60;
   const iconSize = isContain ? 48 : iconDim;
 

@@ -808,9 +808,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
-    const isPortrait = String(cfg.layout || "landscape").toLowerCase() === "portrait";
-    const imageAppearance = String(cfg.imageAppearance || "cover").toLowerCase();
-    const isContain = imageAppearance === "contain";
+    const isPortrait =
+      String(cfg.layout || "landscape").toLowerCase() === "portrait";
+    const imageAppearance = String(cfg.imageAppearance || "cover")
+      .trim()
+      .toLowerCase();
+    const isContain =
+      imageAppearance === "contain" || imageAppearance.includes("fit");
     const imageOverflow = !isContain && !isPortrait;
     const bgFlash =
       String(cfg.template || "solid").toLowerCase() === "gradient"
@@ -1769,7 +1773,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // App config
     let data = { records: [] };
-    const cachedConfig = await fetchJson(ENDPOINT, "config", 60000);
+    const cachedConfig = await fetchJson(ENDPOINT, "config", 5000);
     if (cachedConfig) data = cachedConfig;
     window.FOMOIFY = window.FOMOIFY || {};
     window.FOMOIFY.popupTables = data?.tables || {};
