@@ -613,7 +613,7 @@ function NotificationPreview({ form, isMobile = false }) {
         background, color: form.textColor, 
         borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-        padding: "15px 20px 15px 40px", 
+        padding: "25px 30px 25px 50px", 
         border: "1px solid rgba(17,24,39,0.06)",
         display: "flex",
         alignItems: isPortrait ? "center" : "center",
