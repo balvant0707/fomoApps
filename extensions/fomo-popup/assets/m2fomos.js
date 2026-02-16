@@ -909,10 +909,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     const rightPad = 44;
     const iSize = mode === "mobile" ? mt.img : 50;
     const iRad = Math.round(iSize * 0.18);
+    const portraitImageSize = mode === "mobile" ? 120 : 160;
+    const inlineImageSize = isPortrait ? portraitImageSize : iSize;
+    const inlineImageRadius = isPortrait ? 14 : iRad;
     const imageTextGap = mode === "mobile" ? 10 : 12;
     const leftPad = imageOverflow
       ? pad + Math.round(iSize / 2) + imageTextGap
       : pad;
+    const imageSrc = isPortrait
+      ? cfg.uploadedImage || cfg.image || cfg.productImage || ""
+      : cfg.image || cfg.productImage || cfg.uploadedImage || "";
 
     const wrap = document.createElement("div");
     wrap.style.cssText = `
@@ -928,13 +934,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const card = document.createElement("div");
     card.style.cssText = `
-    display:flex; gap:12px; align-items:flex-start; position:relative;
+    display:flex; gap:${isPortrait ? 10 : 12}px; align-items:flex-start; position:relative;
+    flex-direction:${isPortrait ? "column" : "row"};
     padding:${pad}px ${rightPad}px ${pad}px ${leftPad}px;
     font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)}px; line-height:1.35;
   `;
 
     const img = document.createElement("img");
-    img.src = cfg.image || cfg.productImage || cfg.uploadedImage || "";
+    img.src = imageSrc;
     img.alt = safe(cfg.productTitle, "Product");
     img.style.cssText = `width:100%;height:100%;object-fit:${imageFit};`;
     img.onerror = () => {
@@ -957,11 +964,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       `;
     } else {
       imgWrap.style.cssText = `
-        width:${iSize}px;height:${iSize}px;
-        border-radius:${iRad}px;overflow:hidden;background:#f3f4f6;
-        flex:0 0 ${iSize}px;display:${showImage ? "grid" : "none"};
+        width:${inlineImageSize}px;height:${inlineImageSize}px;
+        border-radius:${inlineImageRadius}px;overflow:hidden;background:#f3f4f6;
+        flex:0 0 ${inlineImageSize}px;display:${showImage ? "grid" : "none"};
         place-items:center;pointer-events:none;
-        box-shadow:0 6px 14px rgba(0,0,0,0.12);
+        align-self:${isPortrait ? "center" : "auto"};
+        box-shadow:${isPortrait ? "0 10px 22px rgba(0,0,0,0.12)" : "0 6px 14px rgba(0,0,0,0.12)"};
         border:1px solid rgba(15,23,42,0.08);
       `;
     }
@@ -1791,7 +1799,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
             const fn = safe(o?.customer?.first_name, "").trim();
             const ln = safe(o?.customer?.last_name, "").trim();
-            const name = fn ? (ln ? `${fn} ${ln[0].toUpperCase()}.` : fn) : "Someone";
+            const name = [fn, ln].filter(Boolean).join(" ").trim() || "Someone";
 
             const s = o?.shipping_address || {};
             const b = o?.billing_address || {};
@@ -2539,7 +2547,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
               const fn = safe(o?.customer?.first_name, "").trim();
               const ln = safe(o?.customer?.last_name, "").trim();
-              const name = fn ? (ln ? `${fn} ${ln[0].toUpperCase()}.` : fn) : "Someone";
+              const name = [fn, ln].filter(Boolean).join(" ").trim() || "Someone";
 
               const s = o?.shipping_address || {};
               const b = o?.billing_address || {};
