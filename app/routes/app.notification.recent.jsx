@@ -307,11 +307,15 @@ const DEFAULT_PREVIEW = {
   createdAt: new Date().toISOString(),
   productTitle: "Your product will show here",
   productImage: null,
+  productPrice: "99.00",
+  productCompareAt: "129.00",
   products: [
     {
       title: "Your product will show here",
       image: null,
       handle: "",
+      price: "99.00",
+      compareAt: "129.00",
     },
   ],
 };
@@ -410,6 +414,7 @@ const Q_ORDERS_FULL = `
             edges {
               node {
                 title
+                variant { price compareAtPrice }
                 product { handle title featuredImage { url } }
               }
             }
@@ -428,6 +433,8 @@ function mapEdgesToOrders(edges) {
       title: li?.node?.product?.title || li?.node?.title || "",
       image: li?.node?.product?.featuredImage?.url || null,
       handle: li?.node?.product?.handle || "",
+      price: li?.node?.variant?.price || "",
+      compareAt: li?.node?.variant?.compareAtPrice || "",
     }));
     return {
       id: o.id,
@@ -718,6 +725,8 @@ export async function loader({ request }) {
           ...strictOrders[0],
           productTitle: p0.title,
           productImage: p0.image,
+          productPrice: p0.price || "",
+          productCompareAt: p0.compareAt || "",
         };
       } else {
         const latestAnyTime = await fetchLatestOrderAnyTime(admin);
@@ -727,6 +736,8 @@ export async function loader({ request }) {
             ...latestAnyTime,
             productTitle: p0.title,
             productImage: p0.image,
+            productPrice: p0.price || "",
+            productCompareAt: p0.compareAt || "",
           };
         }
       }
@@ -1127,6 +1138,12 @@ function Bubble({ form, order, isMobile = false }) {
   const productImg = hide.has("productImage")
     ? null
     : first?.image || order?.productImage || null;
+  const priceText = String(first?.price || order?.productPrice || "").trim();
+  const compareCandidate = String(
+    first?.compareAt || order?.productCompareAt || ""
+  ).trim();
+  const compareText =
+    compareCandidate && compareCandidate !== priceText ? compareCandidate : "";
   const moreCount = Math.max(0, products.length - 1);
   const showImage = !!productImg;
   const imageOverflow =
@@ -1324,6 +1341,47 @@ function Bubble({ form, order, isMobile = false }) {
               ? ` +${moreCount} more`
               : ""}
           </span>
+          {(priceText || compareText) && (
+            <>
+              <br />
+              <span
+                style={{
+                  display: "inline-flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  marginTop: 6,
+                }}
+              >
+                {compareText && (
+                  <span
+                    style={{
+                      color: form.priceTagAlt,
+                      textDecoration: "line-through",
+                      fontSize: Math.max(10, sized - 2),
+                      fontWeight: 600,
+                    }}
+                  >
+                    {compareText}
+                  </span>
+                )}
+                {priceText && (
+                  <span
+                    style={{
+                      background: form.priceTagBg,
+                      color: form.priceColor,
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      fontSize: Math.max(10, sized - 1),
+                      fontWeight: 700,
+                    }}
+                  >
+                    {priceText}
+                  </span>
+                )}
+              </span>
+            </>
+          )}
           {showTime && (
             <>
               <br />

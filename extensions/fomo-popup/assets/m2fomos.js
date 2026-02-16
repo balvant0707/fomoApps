@@ -1035,6 +1035,44 @@ document.addEventListener("DOMContentLoaded", async function () {
     line2.style.cssText = `opacity:.95;margin:0 0 6px 0;`;
     body.appendChild(line2);
 
+    const priceText = safe(cfg.price, "").trim();
+    const compareCandidate = safe(
+      cfg.compareAt || cfg.compareAtPrice,
+      ""
+    ).trim();
+    const compareText =
+      compareCandidate && compareCandidate !== priceText ? compareCandidate : "";
+    if (priceText || compareText) {
+      const priceLine = document.createElement("div");
+      priceLine.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px 0;`;
+
+      if (compareText) {
+        const compareEl = document.createElement("span");
+        compareEl.textContent = compareText;
+        compareEl.style.cssText = `
+          color:${cfg.priceTagAlt || "rgba(17,24,39,0.7)"};
+          font-size:${Math.max(10, (Number(cfg.baseFontSize) || 14) - 2)}px;
+          text-decoration:line-through;
+          font-weight:600;
+        `;
+        priceLine.appendChild(compareEl);
+      }
+
+      if (priceText) {
+        const priceEl = document.createElement("span");
+        priceEl.textContent = priceText;
+        priceEl.style.cssText = `
+          background:${cfg.priceTagBg || "#111"};
+          color:${cfg.priceColor || "#fff"};
+          font-size:${Math.max(10, (Number(cfg.baseFontSize) || 14) - 1)}px;
+          padding:2px 8px;border-radius:6px;font-weight:700;
+        `;
+        priceLine.appendChild(priceEl);
+      }
+
+      body.appendChild(priceLine);
+    }
+
     // Time
     if (!cfg.hideTime) {
       const line3 = document.createElement("div");
@@ -2587,6 +2625,31 @@ document.addEventListener("DOMContentLoaded", async function () {
                 lineImage || resolvedProduct?.image,
                 ""
               );
+              const pPrice = safe(
+                normalizePrice(
+                  line?.price_set?.shop_money?.amount ||
+                    line?.price ||
+                    line?.final_price_set?.shop_money?.amount ||
+                    line?.final_price ||
+                    resolvedProduct?.price ||
+                    ""
+                ),
+                ""
+              );
+              const pCompareCandidate = safe(
+                normalizePrice(
+                  line?.compare_at_price ||
+                    line?.compareAtPrice ||
+                    resolvedProduct?.compareAt ||
+                    resolvedProduct?.compare_at_price ||
+                    ""
+                ),
+                ""
+              );
+              const pCompareAt =
+                pCompareCandidate && pCompareCandidate !== pPrice
+                  ? pCompareCandidate
+                  : "";
               const productUrl = safe(
                 pHandle
                   ? `/products/${pHandle}`
@@ -2605,6 +2668,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                 location: locJoin || "—",
                 message: msgTxt,
                 image: pImg,
+                price: pPrice,
+                compareAt: pCompareAt,
                 productUrl,
                 uploadedImage: iconSrc,
                 createOrderTime: safe(when || o?.createOrderTime || it?.createOrderTime, ""),
@@ -2653,6 +2718,13 @@ document.addEventListener("DOMContentLoaded", async function () {
             const locPartsI = parseLocationParts(
               pickRaw(locsArrRaw, i, "")
             );
+            const normalizedProduct = normalizeProduct(p);
+            const pPrice = safe(normalizedProduct?.price, "");
+            const pCompareCandidate = safe(normalizedProduct?.compareAt, "");
+            const pCompareAt =
+              pCompareCandidate && pCompareCandidate !== pPrice
+                ? pCompareCandidate
+                : "";
             recentConfigs.push({
               ...COMMON_RECENT,
               productTitle: p?.title || handle || "Product",
@@ -2663,6 +2735,8 @@ document.addEventListener("DOMContentLoaded", async function () {
               location: formatLocationEntry(locPartsI),
               message: msgTxt,
               image: (p?.images && p.images[0]) || "",
+              price: pPrice,
+              compareAt: pCompareAt,
               productUrl: p?.url || (handle ? `/products/${handle}` : "#"),
               uploadedImage: iconSrc,
               createOrderTime: safe(it.createOrderTime, ""),
