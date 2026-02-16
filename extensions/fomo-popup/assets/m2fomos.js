@@ -825,7 +825,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.className = "fomo-flash";
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
-      width:${mode === "mobile" ? mt.w : ""}; overflow:hidden; cursor:pointer;
+      width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
       border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
