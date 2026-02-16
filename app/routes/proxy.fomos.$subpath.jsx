@@ -395,6 +395,100 @@ const clean = (v, max = 255) => {
   return s.length > max ? s.slice(0, max) : s;
 };
 
+const toInt = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+};
+
+const normalizeImageUrl = (img) => {
+  if (!img) return "";
+  if (typeof img === "string") return img;
+  if (typeof img === "object") {
+    return String(img.src || img.url || img.originalSrc || "").trim();
+  }
+  return "";
+};
+
+const uniqueProductIdsFromOrders = (orders) => {
+  const ids = new Set();
+  for (const order of Array.isArray(orders) ? orders : []) {
+    const lines = Array.isArray(order?.line_items) ? order.line_items : [];
+    for (const line of lines) {
+      const id = toInt(line?.product_id);
+      if (id && id > 0) ids.add(id);
+    }
+  }
+  return Array.from(ids);
+};
+
+async function fetchProductsByIds({ shop, accessToken, productIds }) {
+  const ids = Array.isArray(productIds)
+    ? productIds
+        .map((id) => toInt(id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    : [];
+  const out = new Map();
+  if (!ids.length) return out;
+
+  const CHUNK = 100;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const endpoint = `https://${shop}/admin/api/2025-01/products.json?ids=${chunk.join(",")}&fields=id,handle,image`;
+    try {
+      const resp = await fetch(endpoint, {
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!resp.ok) {
+        const body = await resp.text();
+        console.warn("[FOMO Orders API] products lookup non-OK:", resp.status, body);
+        continue;
+      }
+      const payload = await resp.json();
+      const products = Array.isArray(payload?.products) ? payload.products : [];
+      for (const product of products) {
+        const productId = toInt(product?.id);
+        if (!productId || productId <= 0) continue;
+        out.set(productId, {
+          handle: String(product?.handle || "").trim(),
+          image: normalizeImageUrl(product?.image),
+        });
+      }
+    } catch (err) {
+      console.warn("[FOMO Orders API] products lookup failed:", err);
+    }
+  }
+
+  return out;
+}
+
+const enrichOrdersLineItems = (orders, productMap) =>
+  (Array.isArray(orders) ? orders : []).map((order) => {
+    const lines = Array.isArray(order?.line_items) ? order.line_items : [];
+    if (!lines.length) return order;
+
+    const nextLines = lines.map((line) => {
+      if (!line || typeof line !== "object") return line;
+
+      const productId = toInt(line.product_id);
+      const product = productId ? productMap.get(productId) : null;
+      const image = normalizeImageUrl(line.image) || product?.image || "";
+      const productHandle = String(
+        line.product_handle || line.handle || product?.handle || ""
+      ).trim();
+
+      return {
+        ...line,
+        ...(productHandle ? { product_handle: productHandle } : {}),
+        ...(image ? { image } : {}),
+      };
+    });
+
+    return { ...order, line_items: nextLines };
+  });
+
 async function saveTrackEvent({ shop, body }) {
   const model = analyticsModel();
   if (!model) return { ok: false, skipped: "model_missing" };
@@ -499,8 +593,17 @@ export const loader = async ({ request, params }) => {
       }
 
       const payload = await resp.json();
+      const rawOrders = Array.isArray(payload?.orders) ? payload.orders : [];
+      const productIds = uniqueProductIdsFromOrders(rawOrders);
+      const productMap = await fetchProductsByIds({
+        shop,
+        accessToken: shopRecord.accessToken,
+        productIds,
+      });
+      const orders = enrichOrdersLineItems(rawOrders, productMap);
+
       return ok({
-        orders: Array.isArray(payload?.orders) ? payload.orders : [],
+        orders,
         sessionReady: true,
         shop,
         timestamp,

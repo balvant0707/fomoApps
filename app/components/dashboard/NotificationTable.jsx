@@ -34,6 +34,8 @@ const TITLES = {
   addtocart: "Add to Cart Popup",
   review: "Review Notification",
 };
+const ALLOWED_TYPES = new Set(["all", ...Object.keys(TITLES)]);
+const ALLOWED_STATUSES = new Set(["all", "enabled", "disabled"]);
 
 const pageOptions = [
   { label: "All Pages", value: "allpage" },
@@ -275,8 +277,10 @@ export default function NotificationTable({
     { label: "Inactive", value: "disabled" },
   ];
 
-  const currentType = filters?.type || "all";
-  const currentStatus = filters?.status || "all";
+  const currentType = ALLOWED_TYPES.has(filters?.type) ? filters.type : "all";
+  const currentStatus = ALLOWED_STATUSES.has(filters?.status)
+    ? filters.status
+    : "all";
   const initialQ = filters?.q || "";
 
   const [query, setQuery] = useState(initialQ);

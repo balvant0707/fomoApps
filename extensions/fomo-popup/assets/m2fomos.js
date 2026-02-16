@@ -746,7 +746,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
-      font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+      font-family:${cfg.fontFamily};
       animation:${inAnim} ${DUR.in}ms ease-out both;
     `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
@@ -919,7 +919,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
     background:${bgRecent}; color:${cfg.fontColor || "#111"};
     box-shadow:0 10px 30px rgba(0,0,0,.12);
-    font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+    font-family:${cfg.fontFamily };
     animation:${inAnim} ${DUR.in}ms ease-out both;
   `;
     (mode === "mobile" ? posMobile : posDesktop)(wrap, cfg);
@@ -932,7 +932,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   `;
 
     const img = document.createElement("img");
-    img.src = cfg.uploadedImage || cfg.image || "";
+    img.src = cfg.image || cfg.productImage || cfg.uploadedImage || "";
     img.alt = safe(cfg.productTitle, "Product");
     img.style.cssText = `width:100%;height:100%;object-fit:${imageFit};`;
     img.onerror = () => {
@@ -1158,7 +1158,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${mode === "mobile" ? "min(92vw,420px)" : ""};
       overflow:visible; cursor:pointer;
-      font-family:${cfg.fontFamily || "system-ui,-apple-system,Segoe UI,Roboto,sans-serif"};
+      font-family:${cfg.fontFamily };
       animation:${inAnim} ${DUR.in}ms ease-out both;
       transform-origin:${transformOrigin};
     `;

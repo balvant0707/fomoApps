@@ -209,12 +209,27 @@ async function fetchRows(shop) {
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const shop = session?.shop || "";
-  const slug = shop.replace(".myshopify.com", "");
-
   const url = new URL(request.url);
-  const type = url.searchParams.get("type") || "all";
-  const status = url.searchParams.get("status") || "all";
+  const normalizeShop = (value) => String(value || "").trim().toLowerCase();
+  const shop =
+    normalizeShop(session?.shop) ||
+    normalizeShop(url.searchParams.get("shop"));
+  if (!shop) throw new Response("Unauthorized", { status: 401 });
+  const slug = shop.replace(".myshopify.com", "");
+  const rawType = (url.searchParams.get("type") || "all").toLowerCase();
+  const rawStatus = (url.searchParams.get("status") || "all").toLowerCase();
+  const allowedTypes = new Set([
+    "all",
+    "recent",
+    "flash",
+    "visitor",
+    "lowstock",
+    "addtocart",
+    "review",
+  ]);
+  const allowedStatuses = new Set(["all", "enabled", "disabled"]);
+  const type = allowedTypes.has(rawType) ? rawType : "all";
+  const status = allowedStatuses.has(rawStatus) ? rawStatus : "all";
   const q = (url.searchParams.get("q") || "").trim();
   const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
   const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
