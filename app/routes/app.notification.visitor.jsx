@@ -1112,7 +1112,7 @@ export default function VisitorPopupPage() {
       }
       const endpoint = `${location.pathname}${location.search || ""}`;
       const form = {
-        enabled: false,
+        enabled: true,
         design,
         textSize,
         content,

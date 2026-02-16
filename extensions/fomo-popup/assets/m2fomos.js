@@ -839,7 +839,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.className = "fomo-card";
     const coverBoxSize = mode === "mobile" ? Math.max(mt.img, 52) : 60;
     const containIconSize = mode === "mobile" ? Math.max(42, mt.img - 6) : 48;
-    const portraitIconSize = mode === "mobile" ? 84 : 96;
+    const portraitIconSize = mode === "mobile" ? 50 : 70;
     const mobileLeftPad = imageOverflow
       ? 12 + Math.round(coverBoxSize * 0.45)
       : 14;
@@ -3038,9 +3038,10 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
                 : stockUnder;
 
-          const useShopifyCustomerData =
-            type !== "addtocart" ||
-            String(row.customerInfo || "shopify").toLowerCase() !== "manual";
+          const useShopifyCustomerData = !(
+            (type === "visitor" || type === "addtocart") &&
+            String(row.customerInfo || "shopify").toLowerCase() === "manual"
+          );
           const customer = useShopifyCustomerData
             ? pickCustomer(customerPool, i)
             : null;
