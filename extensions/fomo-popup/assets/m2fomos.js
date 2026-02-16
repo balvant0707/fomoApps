@@ -1402,7 +1402,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     `;
 
     const card = document.createElement("div");
-    const verticalPad = popupType === "lowstock" ? pad + 5 : pad;
     const leftPad = imageOverflow ? pad + imgOffset : pad;
     const alignItems = portraitVisitor
       ? "stretch"
@@ -1414,11 +1413,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.style.cssText = `
       display:flex; gap:${gap}px; align-items:${alignItems};
       flex-direction:${isPortrait ? "column" : "row"};
-      position:relative;
+      position:relative; padding:${pad}px;
       font-size:${fontSize}px; line-height:1.35;
-      padding-top:${verticalPad}px;
-      padding-right:${pad}px;
-      padding-bottom:${verticalPad}px;
       padding-left:${leftPad}px;
     `;
 
