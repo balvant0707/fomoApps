@@ -645,6 +645,7 @@ export async function loader({ request }) {
         usedDays: 1,
         hasUsableOrders: false,
         loaderError: `auth-failed: ${String(e?.message || e)}`,
+        editingId: null,
       },
       { status: 200 }
     );
@@ -662,6 +663,7 @@ export async function loader({ request }) {
         usedDays: 1,
         hasUsableOrders: false,
         loaderError: "Unauthorized - missing shop in session",
+        editingId: null,
       },
       { status: 200 }
     );
@@ -670,21 +672,34 @@ export async function loader({ request }) {
   try {
     const url = new URL(request.url);
     const daysParam = url.searchParams.get("days");
+    const editIdRaw =
+      url.searchParams.get("editId") || url.searchParams.get("id");
+    const editIdNum = Number(editIdRaw);
+    const editId =
+      Number.isInteger(editIdNum) && editIdNum > 0 ? editIdNum : null;
 
-    let last = null;
+    let source = null;
+    let editingId = editId;
     try {
       const recentModel =
         prisma?.recentpopupconfig || prisma?.recentPopupConfig || null;
       if (recentModel?.findFirst) {
-        last = await recentModel.findFirst({
-          where: { shop },
-          orderBy: { id: "desc" },
-        });
+        if (editId) {
+          source = await recentModel.findFirst({
+            where: { id: editId, shop },
+          });
+        }
+        if (!source) {
+          source = await recentModel.findFirst({
+            where: { shop },
+            orderBy: { id: "desc" },
+          });
+        }
+        editingId = source?.id ?? editId ?? null;
       }
     } catch (e) {
       console.error("[Fomoify] recentpopupconfig findFirst failed (loader).", e);
     }
-    const source = last;
 
     const parseArr = (s) => {
       if (Array.isArray(s)) return s;
@@ -816,6 +831,7 @@ export async function loader({ request }) {
       usedDays: orderDays,
       hasUsableOrders,
       loaderError: null,
+      editingId,
     });
   } catch (e) {
     console.error("[Fomoify] loader fatal error:", e);
@@ -830,6 +846,7 @@ export async function loader({ request }) {
         usedDays: 1,
         hasUsableOrders: false,
         loaderError: String(e?.message || e),
+        editingId: null,
       },
       { status: 200 }
     );
@@ -865,6 +882,17 @@ export async function action({ request }) {
 
   const url = new URL(request.url);
   const urlDays = Number(url.searchParams.get("days"));
+  const queryEditIdRaw =
+    url.searchParams.get("editId") || url.searchParams.get("id");
+  const queryEditIdNum = Number(queryEditIdRaw);
+  const queryEditId =
+    Number.isInteger(queryEditIdNum) && queryEditIdNum > 0
+      ? queryEditIdNum
+      : null;
+  const formEditIdNum = Number(form?.editId);
+  const formEditId =
+    Number.isInteger(formEditIdNum) && formEditIdNum > 0 ? formEditIdNum : null;
+  const editId = queryEditId ?? formEditId;
   const fetchDays =
     intOrNull(form?.orderDays, 1, 60) ??
     (Number.isFinite(urlDays) && urlDays >= 1 && urlDays <= 60 ? urlDays : 1);
@@ -913,6 +941,7 @@ export async function action({ request }) {
 
   const recentForm = {
     ...form,
+    editId,
     messageTitlesJson: customerNames || [],
     locationsJson: locations || [],
     namesJson: Array.isArray(form?.namesJson) ? form.namesJson : [],
@@ -1565,6 +1594,7 @@ export default function RecentOrdersPopupPage() {
     hasUsableOrders,
     newestCreatedAt,
     loaderError,
+    editingId,
   } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1593,6 +1623,10 @@ export default function RecentOrdersPopupPage() {
   );
 
   const [form, setForm] = useState(() => ({
+    editId:
+      Number.isInteger(Number(editingId)) && Number(editingId) > 0
+        ? Number(editingId)
+        : null,
     enabled: saved.enabled ? ["enabled"] : ["disabled"],
     showType: saved.showType,
     messageText: saved.messageText ?? "bought this product recently",

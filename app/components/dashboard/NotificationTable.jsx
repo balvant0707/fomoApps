@@ -46,20 +46,6 @@ const pageOptions = [
   { label: "Cart Page", value: "cart" },
 ];
 
-const getAdminQS = () => {
-  try {
-    return typeof window !== "undefined" ? window.location.search || "" : "";
-  } catch {
-    return "";
-  }
-};
-
-const appendQS = (url) => {
-  const qs = getAdminQS();
-  if (!qs) return url;
-  return url.includes("?") ? `${url}&${qs.slice(1)}` : `${url}${qs}`;
-};
-
 function pretty(str) {
   return String(str || "")
     .replace(/_/g, " ")
@@ -533,9 +519,7 @@ export default function NotificationTable({
                           <Button
                             onClick={() =>
                               navigate(
-                                appendQS(
-                                  `/app/notification/${row.key}?editId=${row.id}`
-                                )
+                                `/app/notification/${row.key}?editId=${row.id}`
                               )
                             }
                           >

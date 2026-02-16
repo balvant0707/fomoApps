@@ -541,6 +541,12 @@ export async function saveReviewPopup(shop, form) {
 }
 
 export async function saveRecentPopup(shop, form) {
+  const table =
+    prisma?.recentpopupconfig || prisma?.recentPopupConfig || null;
+  if (!table) {
+    throw new Error("Prisma model missing: recentpopupconfig");
+  }
+
   const data = {
     enabled: form?.enabled?.includes?.("enabled") ?? false,
     showType: toStr(form?.showType),
@@ -581,8 +587,9 @@ export async function saveRecentPopup(shop, form) {
     namesJson: JSON.stringify(form?.namesJson ?? []),
     selectedProductsJson: JSON.stringify(form?.selectedProductsJson ?? []),
   };
+  const preferredId = toInt(form?.editId ?? form?.id);
 
-  return upsertByShop(prisma.recentpopupconfig, shop, data, "recentpopupconfig");
+  return upsertByShop(table, shop, data, "recentpopupconfig", preferredId);
 }
 
 export async function saveFlashPopup(shop, form) {
