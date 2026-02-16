@@ -1477,7 +1477,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const compareText = shouldShowComparePrice(priceText, compareCandidate)
       ? compareCandidate
       : "";
-    if (cfg.showPriceTag && (priceText || compareText)) {
+    const shouldRenderPrice =
+      (isVisitor || cfg.showPriceTag) && (priceText || compareText);
+    if (shouldRenderPrice) {
       const line = document.createElement("div");
       line.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;`;
       if (priceText) {
@@ -1514,7 +1516,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       ts.textContent = cfg.timestamp || "Just now";
       footer.appendChild(ts);
       const brand = document.createElement("span");
-      brand.textContent = safe(cfg.brandText, "© WizzCommerce");
+      brand.textContent = safe(cfg.brandText, "");
       brand.style.opacity = ".9";
       footer.appendChild(brand);
       body.appendChild(footer);
@@ -2256,10 +2258,28 @@ document.addEventListener("DOMContentLoaded", async function () {
     const normalizePrice = (v) => {
       if (v === undefined || v === null || v === "") return "";
       if (typeof v === "string" && /[^\d.]/.test(v)) return v;
-      const n = Number(v?.amount ?? v);
+      const rawAmount = v?.amount ?? v;
+      const n = Number(rawAmount);
       if (!Number.isFinite(n)) return String(v);
-      if (Number.isInteger(n)) return formatMoney(n);
-      return String(n);
+      const activeCurrency = String(
+        window.Shopify?.currency?.active || window.Shopify?.currency?.current || ""
+      ).toUpperCase();
+
+      // GraphQL `amount` and decimal strings are major currency units.
+      const fromAmountField =
+        v && typeof v === "object" && v.amount !== undefined && v.amount !== null;
+      const fromDecimalString =
+        typeof rawAmount === "string" && String(rawAmount).includes(".");
+
+      if (fromAmountField || fromDecimalString || !Number.isInteger(n)) {
+        return (
+          formatCurrencyByCode(n, activeCurrency) ||
+          (Number.isFinite(n) ? n.toFixed(2) : "")
+        );
+      }
+
+      // Shopify AJAX `/products/*.js` typically returns integer cents.
+      return formatMoney(n);
     };
     const normalizeOrderPrice = (v) => {
       if (v === undefined || v === null || v === "") return "";
