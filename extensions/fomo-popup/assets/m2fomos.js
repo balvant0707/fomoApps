@@ -909,7 +909,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const rightPad = 44;
     const iSize = mode === "mobile" ? mt.img : 50;
     const iRad = Math.round(iSize * 0.18);
-    const portraitImageSize = mode === "mobile" ? 120 : 160;
+    const portraitImageSize = mode === "mobile" ? 80 : 100;
     const inlineImageSize = isPortrait ? portraitImageSize : iSize;
     const inlineImageRadius = isPortrait ? 14 : iRad;
     const imageTextGap = mode === "mobile" ? 10 : 12;
@@ -956,21 +956,17 @@ document.addEventListener("DOMContentLoaded", async function () {
         top:50%;
         transform:translate(-50%, -50%);
         width:${iSize}px;height:${iSize}px;
-        border-radius:${iRad}px;overflow:hidden;background:#f3f4f6;
-        box-shadow:0 8px 18px rgba(0,0,0,0.18);
-        border:2px solid rgba(255,255,255,0.75);
+        border-radius:${iRad}px;overflow:hidden;background:transparent;
         display:${showImage ? "grid" : "none"};
         place-items:center;pointer-events:none;
       `;
     } else {
       imgWrap.style.cssText = `
         width:${inlineImageSize}px;height:${inlineImageSize}px;
-        border-radius:${inlineImageRadius}px;overflow:hidden;background:#f3f4f6;
+        border-radius:${inlineImageRadius}px;overflow:hidden;background:transparent;
         flex:0 0 ${inlineImageSize}px;display:${showImage ? "grid" : "none"};
         place-items:center;pointer-events:none;
         align-self:${isPortrait ? "center" : "auto"};
-        box-shadow:${isPortrait ? "0 10px 22px rgba(0,0,0,0.12)" : "0 6px 14px rgba(0,0,0,0.12)"};
-        border:1px solid rgba(15,23,42,0.08);
       `;
     }
     imgWrap.appendChild(img);
@@ -1207,9 +1203,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         transform:${isPortrait ? "translate(-50%, 0)" : "translate(-50%, -50%)"};
         width:${imgSize}px;height:${imgSize}px;
         border-radius:${Math.round(imgSize * 0.22)}px;
-        overflow:hidden;background:#f3f4f6;
-        box-shadow:0 8px 18px rgba(0,0,0,0.18);
-        border:2px solid rgba(255,255,255,0.75);
+        overflow:hidden;background:transparent;
         display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;
         pointer-events:none;
@@ -1219,11 +1213,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       imgWrap.style.cssText = `
         width:${inlineSize}px;height:${inlineSize}px;
         border-radius:${Math.round(inlineSize * 0.22)}px;
-        overflow:hidden;background:#f3f4f6;
+        overflow:hidden;background:transparent;
         flex-shrink:0;display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;pointer-events:none;
-        box-shadow:0 6px 14px rgba(0,0,0,0.12);
-        border:1px solid rgba(15,23,42,0.08);
       `;
     }
 
