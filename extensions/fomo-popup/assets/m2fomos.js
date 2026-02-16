@@ -838,11 +838,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.className = "fomo-card";
     const coverBoxSize = mode === "mobile" ? Math.max(mt.img, 52) : 60;
     const containIconSize = mode === "mobile" ? Math.max(42, mt.img - 6) : 48;
-    const leftPad = imageOverflow ? 12 + Math.round(coverBoxSize * 0.45) : 14;
+    const mobileLeftPad = imageOverflow
+      ? 12 + Math.round(coverBoxSize * 0.45)
+      : 14;
+    const mobilePadding = `${mt.pad}px 44px ${mt.pad}px ${mobileLeftPad}px`;
+    const desktopPadding = "15px 44px 15px 44px";
     card.style.cssText = `
       display:flex; gap:12px; align-items:center; position:relative;
-      padding:${mode === "mobile" ? mt.pad : 12}px 44px ${mode === "mobile" ? mt.pad : 12
-      }px ${leftPad}px;
+      padding:${mode === "mobile" ? mobilePadding : desktopPadding};
       font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
       }px; line-height:1.35;
     `;
