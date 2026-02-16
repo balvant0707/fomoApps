@@ -1578,14 +1578,19 @@ document.addEventListener("DOMContentLoaded", async function () {
       footer.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:${Math.max(
         10,
         fontSize - 2
-      )}px;color:${cfg.timestampColor || "rgba(0,0,0,0.6)"};`;
+      )}px;color:${cfg.timestampColor || "rgba(0,0,0,0.62)"};margin-top:2px;`;
       const ts = document.createElement("span");
       ts.textContent = cfg.timestamp || "Just now";
       footer.appendChild(ts);
-      const brand = document.createElement("span");
-      brand.textContent = safe(cfg.brandText, "© WizzCommerce");
-      brand.style.opacity = ".9";
-      footer.appendChild(brand);
+      const brandText = String(cfg.brandText || "").trim();
+      if (brandText) {
+        const brand = document.createElement("span");
+        brand.textContent = brandText;
+        brand.style.cssText = "opacity:.88;font-size:0.95em;white-space:nowrap;";
+        footer.appendChild(brand);
+      } else {
+        footer.style.justifyContent = "flex-start";
+      }
       body.appendChild(footer);
     } else if (cfg.timestamp) {
       const ts = document.createElement("div");
@@ -2642,9 +2647,18 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (typeof entry === "string") return fetchProductByHandle(entry);
       if (typeof entry === "object") {
         const local = normalizeProduct(entry);
-        const handle = entry.handle || entry.productHandle;
+        const handle = entry.handle || entry.productHandle || local?.handle;
         const hasInventory = Number.isFinite(Number(local?.inventoryQty));
-        if (handle && (!local?.title || !local?.image || !hasInventory)) {
+        const hasPrice = !!String(local?.price || "").trim();
+        const hasCompare = !!String(local?.compareAt || "").trim();
+        if (
+          handle &&
+          (!local?.title ||
+            !local?.image ||
+            !hasInventory ||
+            !hasPrice ||
+            !hasCompare)
+        ) {
           const fetched = await fetchProductByHandle(handle);
           if (fetched) {
             return {
@@ -2658,6 +2672,41 @@ document.addEventListener("DOMContentLoaded", async function () {
               inventoryQty: hasInventory ? local.inventoryQty : fetched.inventoryQty,
             };
           }
+        }
+        // Old saved records may not have handle/price/compareAt. Backfill from
+        // storefront catalog cache using id/title/handle matching.
+        if (!hasPrice || !hasCompare || !local?.image) {
+          try {
+            const storeProducts = await fetchStoreProductsForLowStock();
+            const localId = Number(entry?.id ?? entry?.productId ?? local?.id ?? 0);
+            const localTitle = String(local?.title || entry?.title || "")
+              .trim()
+              .toLowerCase();
+            const localHandle = String(handle || "").trim().toLowerCase();
+            const matched = Array.isArray(storeProducts)
+              ? storeProducts.find((p) => {
+                const pid = Number(p?.id ?? 0);
+                const pTitle = String(p?.title || "").trim().toLowerCase();
+                const pHandle = String(p?.handle || "").trim().toLowerCase();
+                if (Number.isFinite(localId) && localId > 0 && pid === localId) return true;
+                if (localHandle && pHandle && pHandle === localHandle) return true;
+                if (localTitle && pTitle && pTitle === localTitle) return true;
+                return false;
+              })
+              : null;
+            if (matched) {
+              return {
+                ...matched,
+                ...(local || {}),
+                title: local?.title || matched.title,
+                image: local?.image || matched.image,
+                url: local?.url || matched.url,
+                price: local?.price || matched.price,
+                compareAt: local?.compareAt || matched.compareAt,
+                inventoryQty: hasInventory ? local.inventoryQty : matched.inventoryQty,
+              };
+            }
+          } catch { }
         }
         return local;
       }
@@ -3475,3 +3524,4 @@ document.addEventListener("DOMContentLoaded", async function () {
     return false;
   }
 });
+

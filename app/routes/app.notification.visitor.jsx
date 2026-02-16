@@ -1700,8 +1700,6 @@ export default function VisitorPopupPage() {
                           label="Rating source"
                           options={[
                             { label: "Judge.me", value: "judge_me" },
-                            { label: "Loox", value: "loox" },
-                            { label: "Okendo", value: "okendo" },
                           ]}
                           value={data.ratingSource}
                           onChange={(v) =>
