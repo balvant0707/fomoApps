@@ -563,9 +563,18 @@ function ColorField({ label, value, onChange, fallback }) {
 }
 
 function resolveTemplate(value, map) {
+  const normalized = {};
+  if (map && typeof map === "object") {
+    for (const [key, val] of Object.entries(map)) {
+      normalized[String(key || "").trim().toLowerCase()] = val;
+    }
+  }
   return String(value || "")
     .trim()
-    .replace(/\{(\w+)\}/g, (match, key) => map[key] ?? match);
+    .replace(/\{([^{}]+)\}/g, (match, rawKey) => {
+      const key = String(rawKey || "").trim().toLowerCase();
+      return normalized[key] ?? match;
+    });
 }
 
 function PreviewCard({

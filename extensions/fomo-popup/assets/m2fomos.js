@@ -121,10 +121,19 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (raw.length <= lim) return raw;
     return `${raw.slice(0, lim).trimEnd()}...`;
   };
-  const applyTokens = (tpl, tokens) =>
-    String(tpl || "").replace(/\{(\w+)\}/g, (m, k) =>
-      tokens[k] !== undefined && tokens[k] !== null ? String(tokens[k]) : m
-    );
+  const applyTokens = (tpl, tokens) => {
+    const normalized = {};
+    if (tokens && typeof tokens === "object") {
+      for (const [key, value] of Object.entries(tokens)) {
+        normalized[String(key || "").trim().toLowerCase()] = value;
+      }
+    }
+    return String(tpl || "").replace(/\{([^{}]+)\}/g, (m, rawKey) => {
+      const key = String(rawKey || "").trim().toLowerCase();
+      const value = normalized[key];
+      return value !== undefined && value !== null ? String(value) : m;
+    });
+  };
   const gapSeconds = (cfg) => {
     const base = Math.max(0, Number(cfg?.alternateSeconds ?? 0));
     if (!base) return 0;
@@ -1304,6 +1313,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       ? 1 -
         (Math.max(0, Math.min(100, Number(cfg.transparent))) / 100) * 0.7
       : 1;
+    const effectiveOpacity = isVisitor ? Math.max(0.92, opacity) : opacity;
     const isPortrait =
       String(cfg.layout || "landscape").toLowerCase() === "portrait";
 
@@ -1352,7 +1362,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const inner = document.createElement("div");
     inner.style.cssText = `
-      overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${opacity};
+      overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${effectiveOpacity};
       border-radius:${Math.round(18 * sizeScale)}px;
       background:${bg}; color:${cfg.textColor || "#111"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
@@ -1516,7 +1526,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       ts.textContent = cfg.timestamp || "Just now";
       footer.appendChild(ts);
       const brand = document.createElement("span");
-      brand.textContent = safe(cfg.brandText, "");
+      brand.textContent = safe(cfg.brandText, "© WizzCommerce");
       brand.style.opacity = ".9";
       footer.appendChild(brand);
       body.appendChild(footer);
@@ -3008,6 +3018,19 @@ document.addEventListener("DOMContentLoaded", async function () {
           const storeProducts = await fetchStoreProductsForLowStock();
           products = dedupeProducts([...(products || []), ...storeProducts]);
         }
+        if (
+          (type === "visitor" || type === "addtocart" || type === "review") &&
+          !products.length
+        ) {
+          const { visibilityProducts } = parseProductBuckets(row);
+          if (Array.isArray(visibilityProducts) && visibilityProducts.length) {
+            for (const entry of visibilityProducts) {
+              const product = await resolveProduct(entry);
+              if (product) products.push(product);
+            }
+            products = dedupeProducts(products);
+          }
+        }
         let pool = products.length
           ? products
           : [{ title: "Product", image: "", price: "", compareAt: "" }];
@@ -3092,10 +3115,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ? Math.max(1, stockUnder - randInt(Math.min(3, stockUnder - 1)))
                 : stockUnder;
 
-          const useShopifyCustomerData = !(
-            (type === "visitor" || type === "addtocart") &&
-            String(row.customerInfo || "shopify").toLowerCase() === "manual"
-          );
+          const useShopifyCustomerData =
+            type === "visitor" ||
+            !(
+              type === "addtocart" &&
+              String(row.customerInfo || "shopify").toLowerCase() === "manual"
+            );
           const customer = useShopifyCustomerData
             ? pickCustomer(customerPool, i)
             : null;
