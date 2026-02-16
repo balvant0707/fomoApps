@@ -133,7 +133,9 @@ model visitorpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  /// Data tab product pool used for popup content generation.
   selectedDataProductsJson String?  @db.LongText
+  /// Display tab product scope used to decide where popup may appear.
   selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText
@@ -195,7 +197,9 @@ model lowstockpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  /// Data tab product pool used for low-stock popup content generation.
   selectedDataProductsJson String?  @db.LongText
+  /// Display tab product scope used to decide where low-stock popup may appear.
   selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText

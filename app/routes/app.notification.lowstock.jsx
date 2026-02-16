@@ -102,22 +102,42 @@ export async function loader({ request }) {
     const parsed = parseJsonLoose(raw);
     return Array.isArray(parsed) ? parsed : [];
   };
-  const parseSelectedProducts = (source) => {
-    const split = parseArr(source?.selectedDataProductsJson);
-    if (split.length) return split;
+  const parseProductSelections = (source) => {
+    const dataProducts = parseArr(source?.selectedDataProductsJson);
+    const visibilityProducts = parseArr(source?.selectedVisibilityProductsJson);
 
-    const raw = source?.selectedProductsJson;
-    if (Array.isArray(raw)) return raw;
-    try {
-      const parsed = JSON.parse(raw || "[]");
-      if (Array.isArray(parsed)) return parsed;
-      if (parsed && typeof parsed === "object") {
-        const nested =
-          parsed.dataProducts ?? parsed.selectedProducts ?? parsed.products;
-        return Array.isArray(nested) ? nested : [];
-      }
-    } catch {}
-    return [];
+    if (dataProducts.length || visibilityProducts.length) {
+      return {
+        dataProducts,
+        visibilityProducts: visibilityProducts.length
+          ? visibilityProducts
+          : dataProducts,
+      };
+    }
+
+    const legacy = parseJsonLoose(source?.selectedProductsJson);
+    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      const legacyData = parseArr(
+        legacy.dataProducts ?? legacy.selectedProducts ?? legacy.products
+      );
+      const legacyVisibility = parseArr(
+        legacy.visibilityProducts ?? legacy.visibility ?? legacy.showOnProducts
+      );
+      return {
+        dataProducts: legacyData,
+        visibilityProducts: legacyVisibility.length
+          ? legacyVisibility
+          : legacyData,
+      };
+    }
+
+    const legacyList = Array.isArray(legacy)
+      ? legacy
+      : parseArr(source?.selectedProductsJson);
+    return {
+      dataProducts: legacyList,
+      visibilityProducts: legacyList,
+    };
   };
   const toBool = (v, fallback = false) => {
     if (v === undefined || v === null) return fallback;
@@ -196,6 +216,7 @@ export async function loader({ request }) {
     }
 
     if (source) {
+      const { dataProducts, visibilityProducts } = parseProductSelections(source);
       saved = {
         design: {
           layout: toStr(source.layout, "landscape"),
@@ -253,7 +274,10 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseSelectedProducts(source),
+        selectedDataProducts: dataProducts,
+        selectedVisibilityProducts: visibilityProducts,
+        // Keep legacy key for backward compatibility with older client payloads.
+        selectedProducts: dataProducts,
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
@@ -345,6 +369,10 @@ const CONTENT_TOKENS = [
 const TIME_TOKENS = ["time", "unit"];
 const TOKEN_OPTIONS = [...CONTENT_TOKENS, "stock_count"];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
+const PRODUCT_PICKER_TARGETS = {
+  data: "data",
+  visibility: "visibility",
+};
 
 const LOW_STOCK_STYLES = `
 .lowstock-shell {
@@ -931,6 +959,9 @@ export default function LowStockPopupPage() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
+  const [productPickerTarget, setProductPickerTarget] = useState(
+    PRODUCT_PICKER_TARGETS.data
+  );
   const [search, setSearch] = useState("");
   const [collectionSearch, setCollectionSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -938,7 +969,8 @@ export default function LowStockPopupPage() {
   const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
   const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
 
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedDataProducts, setSelectedDataProducts] = useState([]);
+  const [selectedVisibilityProducts, setSelectedVisibilityProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
 
   useEffect(() => {
@@ -956,7 +988,20 @@ export default function LowStockPopupPage() {
       setProductNameLimit(String(saved.productNameLimit));
     }
 
-    setSelectedProducts(Array.isArray(saved.selectedProducts) ? saved.selectedProducts : []);
+    setSelectedDataProducts(
+      Array.isArray(saved.selectedDataProducts)
+        ? saved.selectedDataProducts
+        : Array.isArray(saved.selectedProducts)
+          ? saved.selectedProducts
+          : []
+    );
+    setSelectedVisibilityProducts(
+      Array.isArray(saved.selectedVisibilityProducts)
+        ? saved.selectedVisibilityProducts
+        : Array.isArray(saved.selectedProducts)
+          ? saved.selectedProducts
+          : []
+    );
     setSelectedCollections(
       Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
     );
@@ -1034,17 +1079,19 @@ export default function LowStockPopupPage() {
 
   const products = storeProducts.length ? storeProducts : fallbackProducts;
 
-  const needsProductSelection =
-    (visibility.productScope === "specific" && selectedProducts.length === 0) ||
-    (data.dataSource === "manual" && selectedProducts.length === 0);
+  const needsDataProductSelection =
+    data.dataSource === "manual" && selectedDataProducts.length === 0;
+  const needsVisibilityProductSelection =
+    visibility.productScope === "specific" &&
+    selectedVisibilityProducts.length === 0;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
   const manualScopedProduct =
-    data.dataSource === "manual" ? selectedProducts[0] : null;
+    data.dataSource === "manual" ? selectedDataProducts[0] : null;
   const scopedProduct =
-    visibility.productScope === "specific" ? selectedProducts[0] : null;
+    visibility.productScope === "specific" ? selectedVisibilityProducts[0] : null;
   const scopedCollectionProduct =
     visibility.collectionScope === "specific"
       ? selectedCollections[0]?.sampleProduct
@@ -1055,18 +1102,45 @@ export default function LowStockPopupPage() {
     scopedCollectionProduct ||
     storeProducts[0] ||
     null;
-  const previewMessage = needsProductSelection
-    ? "Select a product to preview."
+  const previewMessage = needsDataProductSelection
+    ? "Select data products to preview low stock popup."
+    : needsVisibilityProductSelection
+      ? "Select display products for product page visibility."
     : needsCollectionSelection
       ? "Select a collection to preview."
       : !previewProduct
         ? "Preview will appear once a product is available."
         : null;
 
+  const productKey = (item) =>
+    String(item?.handle || item?.id || item?.title || "")
+      .trim()
+      .toLowerCase();
+  const sameProduct = (a, b) => {
+    const ka = productKey(a);
+    const kb = productKey(b);
+    return Boolean(ka && kb && ka === kb);
+  };
+  const pickerProducts =
+    productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+      ? selectedVisibilityProducts
+      : selectedDataProducts;
+  const openDataProductPicker = () => {
+    setProductPickerTarget(PRODUCT_PICKER_TARGETS.data);
+    setPickerOpen(true);
+  };
+  const openVisibilityProductPicker = () => {
+    setProductPickerTarget(PRODUCT_PICKER_TARGETS.visibility);
+    setPickerOpen(true);
+  };
   const togglePick = (item) => {
-    setSelectedProducts((prev) => {
-      const exists = prev.some((p) => p.id === item.id);
-      if (exists) return prev.filter((p) => p.id !== item.id);
+    const setter =
+      productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+        ? setSelectedVisibilityProducts
+        : setSelectedDataProducts;
+    setter((prev) => {
+      const exists = prev.some((p) => sameProduct(p, item));
+      if (exists) return prev.filter((p) => !sameProduct(p, item));
       return [...prev, item];
     });
   };
@@ -1103,7 +1177,10 @@ export default function LowStockPopupPage() {
         data,
         visibility,
         behavior,
-        selectedProducts,
+        selectedDataProducts,
+        selectedVisibilityProducts,
+        // Keep legacy field populated for backward compatibility.
+        selectedProducts: selectedDataProducts,
         selectedCollections,
       };
       const res = await fetch(endpoint, {
@@ -1517,11 +1594,11 @@ export default function LowStockPopupPage() {
                                 wrap
                                 style={{ marginTop: 6 }}
                               >
-                                <Button onClick={() => setPickerOpen(true)}>
+                                <Button onClick={openDataProductPicker}>
                                   Browse products
                                 </Button>
                                 <Text tone="subdued">
-                                  {selectedProducts.length} products selected
+                                  {selectedDataProducts.length} products selected
                                 </Text>
                               </InlineStack>
                             )}
@@ -1646,11 +1723,11 @@ export default function LowStockPopupPage() {
                                   wrap
                                   style={{ marginTop: 6 }}
                                 >
-                                  <Button onClick={() => setPickerOpen(true)}>
+                                  <Button onClick={openVisibilityProductPicker}>
                                     Browse products
                                   </Button>
                                   <Text tone="subdued">
-                                    {selectedProducts.length} products selected
+                                    {selectedVisibilityProducts.length} products selected
                                   </Text>
                                 </InlineStack>
                               )}
@@ -1912,7 +1989,11 @@ export default function LowStockPopupPage() {
       <Modal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Select products"
+        title={
+          productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+            ? "Select display products"
+            : "Select data products"
+        }
         primaryAction={{ content: "Select", onAction: () => setPickerOpen(false) }}
         secondaryActions={[
           { content: "Cancel", onAction: () => setPickerOpen(false) },
@@ -1957,7 +2038,7 @@ export default function LowStockPopupPage() {
               ]}
             >
               {products.map((item, index) => {
-                const checked = selectedProducts.some((p) => p.id === item.id);
+                const checked = pickerProducts.some((p) => sameProduct(p, item));
                 return (
                   <IndexTable.Row id={item.id} key={item.id} position={index}>
                     <IndexTable.Cell>
@@ -1987,7 +2068,7 @@ export default function LowStockPopupPage() {
 
             <InlineStack gap="200" align="space-between" blockAlign="center">
               <Text tone="subdued">
-                {selectedProducts.length} products selected
+                {pickerProducts.length} products selected
               </Text>
               <InlineStack gap="200">
                 <Button
