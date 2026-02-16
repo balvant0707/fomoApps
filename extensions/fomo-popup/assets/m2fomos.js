@@ -909,8 +909,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const rightPad = 44;
     const iSize = mode === "mobile" ? mt.img : 50;
     const iRad = Math.round(iSize * 0.18);
-    const iOffset = Math.round(iSize * 0.45);
-    const leftPad = imageOverflow ? pad + iOffset : pad;
+    const imageTextGap = mode === "mobile" ? 10 : 12;
+    const leftPad = imageOverflow
+      ? pad + Math.round(iSize / 2) + imageTextGap
+      : pad;
 
     const wrap = document.createElement("div");
     wrap.style.cssText = `
