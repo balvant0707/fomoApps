@@ -670,15 +670,25 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
-  const imageMode = imageAppearance || "cover";
-  const imageFit = imageMode === "contain" ? "contain" : "cover";
+  const imageModeRaw = String(imageAppearance || "cover")
+    .toLowerCase()
+    .trim();
+  const isContainMode =
+    imageModeRaw === "contain" ||
+    imageModeRaw === "contaion" ||
+    imageModeRaw.includes("contain") ||
+    imageModeRaw.includes("fit");
+  const imageFit = isContainMode ? "contain" : "cover";
   const avatarSize = isPortrait ? 56 : 64;
   const avatarOffset = Math.round(avatarSize * 0.45);
   const pad = 16;
-  const imageOverflow = showProductImage && imageMode === "cover" && !isPortrait;
+  const imageOverflow = showProductImage && !isContainMode && !isPortrait;
   const rawName = product?.title || "Your product will show here";
   const safeName = formatProductName(rawName, productNameMode, productNameLimit);
-  const hasProductToken = /\{product_name\}/.test(String(contentText || ""));
+  const templateContent = String(
+    contentText || "{full_name} from {country} just viewed this {product_name}"
+  );
+  const hasProductToken = /\{\s*product_name\s*\}/i.test(templateContent);
   const toText = (v) => String(v ?? "").trim();
   const previewFirst = toText(previewCustomer?.first_name);
   const previewLast = toText(previewCustomer?.last_name);
@@ -709,36 +719,55 @@ function PreviewCard({
     full_name: resolvedFullName,
     first_name: resolvedFirstName,
     last_name: resolvedLastName,
-    product_name: "__PRODUCT__",
+    product_name: safeName,
     country: hasRealCustomer ? previewCountry : "United States",
     city: hasRealCustomer ? previewCity : "New York",
     price: product?.price || "Rs. 299.00",
     time: String(avgTime || "2"),
     unit: String(avgUnit || "mins"),
   };
-  const resolvedContent = resolveTemplate(
-    contentText ||
-      "{full_name} from {country} just viewed this {product_name}",
-    tokenValues
-  );
+  const resolvedContent = resolveTemplate(templateContent, tokenValues);
   const resolvedTimestamp = resolveTemplate(
     timestampText || "Just now",
     tokenValues
   );
-  const contentParts = resolvedContent.split(/(__PRODUCT__)/);
-  const contentNode = contentParts.map((part, idx) => {
-    if (part === "__PRODUCT__") {
-      return (
-        <span
-          key={`product-${idx}`}
-          style={{ fontWeight: 600, textDecoration: "underline" }}
-        >
-          {safeName}
+  const contentNode = (() => {
+    const normalized = {};
+    Object.entries(tokenValues).forEach(([k, v]) => {
+      normalized[String(k || "").trim().toLowerCase()] = v;
+    });
+    const rx = /\{([^{}]+)\}/g;
+    const out = [];
+    let idx = 0;
+    let last = 0;
+    let found = false;
+    let m = null;
+    while ((m = rx.exec(templateContent))) {
+      found = true;
+      const before = templateContent.slice(last, m.index);
+      if (before) out.push(<span key={`t-${idx++}`}>{before}</span>);
+      const key = String(m[1] || "").trim().toLowerCase();
+      const rawVal = normalized[key];
+      const valueText =
+        rawVal === undefined || rawVal === null || rawVal === ""
+          ? m[0]
+          : String(rawVal);
+      const tokenStyle =
+        key === "product_name"
+          ? { fontWeight: 700, textDecoration: "underline" }
+          : { fontWeight: 700 };
+      out.push(
+        <span key={`v-${idx++}`} style={tokenStyle}>
+          {valueText}
         </span>
       );
+      last = m.index + m[0].length;
     }
-    return <span key={`text-${idx}`}>{part}</span>;
-  });
+    if (!found) return resolvedContent;
+    const tail = templateContent.slice(last);
+    if (tail) out.push(<span key={`t-${idx++}`}>{tail}</span>);
+    return out;
+  })();
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -861,7 +890,7 @@ function PreviewCard({
             </span>
           </div>
         )}
-        <div style={{ fontSize: textSizeContent, fontWeight: 600 }}>
+        <div style={{ fontSize: textSizeContent, fontWeight: 400 }}>
           {contentNode}
         </div>
         {!hasProductToken && (

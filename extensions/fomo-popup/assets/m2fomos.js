@@ -1329,15 +1329,17 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const baseFont = Number(cfg.textSizeContent) || (mode === "mobile" ? 13 : 14);
     const fontSize = Math.max(11, Math.round(baseFont));
-    const imageFit =
-      String(cfg.imageAppearance || "cover").toLowerCase() === "contain"
-        ? "contain"
-        : "cover";
-    const imageOverflowRaw =
-      imageFit === "cover" && !isPortrait && cfg.showProductImage !== false;
-    const imageOverflow = isVisitor
-      ? !isPortrait && cfg.showProductImage !== false
-      : imageOverflowRaw;
+    const imageAppearance = String(cfg.imageAppearance || "cover")
+      .toLowerCase()
+      .trim();
+    const isContain =
+      imageAppearance === "contain" ||
+      imageAppearance === "contaion" ||
+      imageAppearance.includes("contain") ||
+      imageAppearance.includes("fit");
+    const imageFit = isContain ? "contain" : "cover";
+    const imageOverflow =
+      !isContain && !isPortrait && cfg.showProductImage !== false;
     const pad = Math.round(
       imageOverflow
         ? mode === "mobile"
@@ -1455,38 +1457,82 @@ document.addEventListener("DOMContentLoaded", async function () {
         ? `color:${cfg.textColor || "#111"};font-size:${Math.max(
             12,
             fontSize
-          )}px;line-height:1.5;font-weight:600;`
+          )}px;line-height:1.5;font-weight:400;`
         : `color:${cfg.textColor || "#111"};`;
       const messageText = String(cfg.message || "");
+      const messageTemplate = String(cfg.messageTemplate || "");
+      const messageTokens =
+        cfg.messageTokens && typeof cfg.messageTokens === "object"
+          ? cfg.messageTokens
+          : null;
       const productName = String(cfg.productTitle || "").trim();
       const countValue = cfg.stockCountValue ? String(cfg.stockCountValue) : "";
-      let templ = messageText;
-      if (productName) templ = templ.replace(productName, "__FOMO_PROD__");
-      if (countValue) templ = templ.replace(countValue, "__FOMO_COUNT__");
-      const parts = templ.split(/(__FOMO_PROD__|__FOMO_COUNT__)/);
-      parts.forEach((part) => {
-        if (part === "__FOMO_PROD__") {
+      const appendTemplateWithBoldTokens = (templateText, tokenMap) => {
+        const tpl = String(templateText || "");
+        if (!tpl || !tokenMap || typeof tokenMap !== "object") return false;
+        const normalized = {};
+        for (const [key, value] of Object.entries(tokenMap)) {
+          normalized[String(key || "").trim().toLowerCase()] = value;
+        }
+        const rx = /\{([^{}]+)\}/g;
+        let hasToken = false;
+        let last = 0;
+        let m = null;
+        while ((m = rx.exec(tpl))) {
+          hasToken = true;
+          const before = tpl.slice(last, m.index);
+          if (before) msg.appendChild(document.createTextNode(before));
+          const key = String(m[1] || "").trim().toLowerCase();
+          const rawVal = normalized[key];
+          const text =
+            rawVal === undefined || rawVal === null || rawVal === ""
+              ? m[0]
+              : String(rawVal);
           const span = document.createElement("span");
-          span.textContent = productName;
-          if (cfg.productHighlightStyle === "upper") {
-            span.style.cssText = "font-weight:700;text-transform:uppercase;";
-          } else {
-            span.style.cssText = "font-weight:600;text-decoration:underline;";
+          span.textContent = text;
+          span.style.cssText =
+            key === "product_name"
+              ? "font-weight:700;text-decoration:underline;"
+              : "font-weight:700;";
+          msg.appendChild(span);
+          last = m.index + m[0].length;
+        }
+        if (!hasToken) return false;
+        const tail = tpl.slice(last);
+        if (tail) msg.appendChild(document.createTextNode(tail));
+        return true;
+      };
+      const renderedByTemplate =
+        isVisitor && appendTemplateWithBoldTokens(messageTemplate, messageTokens);
+      if (!renderedByTemplate) {
+        let templ = messageText;
+        if (productName) templ = templ.replace(productName, "__FOMO_PROD__");
+        if (countValue) templ = templ.replace(countValue, "__FOMO_COUNT__");
+        const parts = templ.split(/(__FOMO_PROD__|__FOMO_COUNT__)/);
+        parts.forEach((part) => {
+          if (part === "__FOMO_PROD__") {
+            const span = document.createElement("span");
+            span.textContent = productName;
+            if (cfg.productHighlightStyle === "upper") {
+              span.style.cssText = "font-weight:700;text-transform:uppercase;";
+            } else {
+              span.style.cssText = "font-weight:600;text-decoration:underline;";
+            }
+            msg.appendChild(span);
+            return;
           }
-          msg.appendChild(span);
-          return;
-        }
-        if (part === "__FOMO_COUNT__") {
-          const span = document.createElement("span");
-          span.textContent = countValue;
-          span.style.cssText = `font-weight:700;color:${
-            cfg.stockCountColor || cfg.textColor || "#111"
-          };`;
-          msg.appendChild(span);
-          return;
-        }
-        msg.appendChild(document.createTextNode(part));
-      });
+          if (part === "__FOMO_COUNT__") {
+            const span = document.createElement("span");
+            span.textContent = countValue;
+            span.style.cssText = `font-weight:700;color:${
+              cfg.stockCountColor || cfg.textColor || "#111"
+            };`;
+            msg.appendChild(span);
+            return;
+          }
+          msg.appendChild(document.createTextNode(part));
+        });
+      }
       body.appendChild(msg);
     }
 
@@ -3230,6 +3276,8 @@ document.addEventListener("DOMContentLoaded", async function () {
           target.push({
             ...baseCfg,
             message,
+            messageTemplate: msgTpl,
+            messageTokens: { ...tokens },
             timestamp,
             productTitle,
             productImage: prod.image,
