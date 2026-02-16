@@ -1313,7 +1313,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       ? 1 -
         (Math.max(0, Math.min(100, Number(cfg.transparent))) / 100) * 0.7
       : 1;
-    const effectiveOpacity = isVisitor ? Math.max(0.92, opacity) : opacity;
+    const effectiveSizeScale = isVisitor ? 1 : sizeScale;
+    const effectiveOpacity = isVisitor ? 1 : opacity;
     const isPortrait =
       String(cfg.layout || "landscape").toLowerCase() === "portrait";
 
@@ -1328,8 +1329,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       String(cfg.imageAppearance || "cover").toLowerCase() === "contain"
         ? "contain"
         : "cover";
-    const imageOverflow =
+    const imageOverflowRaw =
       imageFit === "cover" && !isPortrait && cfg.showProductImage !== false;
+    const imageOverflow = isVisitor
+      ? !isPortrait && cfg.showProductImage !== false
+      : imageOverflowRaw;
     const pad = Math.round(
       imageOverflow
         ? mode === "mobile"
@@ -1363,13 +1367,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const inner = document.createElement("div");
     inner.style.cssText = `
       overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${effectiveOpacity};
-      border-radius:${Math.round(18 * sizeScale)}px;
+      border-radius:${Math.round(18 * effectiveSizeScale)}px;
       background:${bg}; color:${cfg.textColor || "#111"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
       border:1px solid rgba(0,0,0,0.06);
-      transform:scale(${sizeScale});
+      transform:scale(${effectiveSizeScale});
       transform-origin:${transformOrigin};
-      max-width:${isPortrait ? 320 : 460}px;
+      max-width:${isPortrait ? 320 : isVisitor ? 520 : 460}px;
     `;
 
     const card = document.createElement("div");
@@ -1444,7 +1448,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (cfg.message) {
       const msg = document.createElement("div");
       msg.style.cssText = isVisitor
-        ? `color:${cfg.textColor || "#111"};font-size:${Math.max(12, fontSize)}px;line-height:1.45;`
+        ? `color:${cfg.textColor || "#111"};font-size:${Math.max(
+            12,
+            fontSize
+          )}px;line-height:1.5;font-weight:600;`
         : `color:${cfg.textColor || "#111"};`;
       const messageText = String(cfg.message || "");
       const productName = String(cfg.productTitle || "").trim();
@@ -1498,7 +1505,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         p.style.cssText = `
           background:${cfg.priceTagBg || "#111"};
           color:${cfg.priceColor || "#fff"};
-          font-size:${Math.max(10, Math.round((Number(cfg.textSizePrice) || fontSize - 2) * sizeScale))}px;
+          font-size:${Math.max(10, Math.round((Number(cfg.textSizePrice) || fontSize - 2) * effectiveSizeScale))}px;
           padding:2px 8px;border-radius:6px;font-weight:600;
         `;
         line.appendChild(p);
@@ -1508,7 +1515,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         c.textContent = compareText;
         c.style.cssText = `
           color:${cfg.priceTagAlt || "#666"};
-          font-size:${Math.max(10, Math.round((Number(cfg.textSizeCompareAt) || fontSize - 3) * sizeScale))}px;
+          font-size:${Math.max(10, Math.round((Number(cfg.textSizeCompareAt) || fontSize - 3) * effectiveSizeScale))}px;
           text-decoration:line-through;
         `;
         line.appendChild(c);
@@ -3121,17 +3128,22 @@ document.addEventListener("DOMContentLoaded", async function () {
               type === "addtocart" &&
               String(row.customerInfo || "shopify").toLowerCase() === "manual"
             );
+          const customerPoolWithCountry = Array.isArray(customerPool)
+            ? customerPool.filter((c) => safe(c?.country, "").trim())
+            : [];
           const customer = useShopifyCustomerData
-            ? pickCustomer(customerPool, i)
+            ? type === "visitor" && customerPoolWithCountry.length
+              ? pickCustomer(customerPoolWithCountry, i)
+              : pickCustomer(customerPool, i)
             : null;
           const customerTokens = customer
             ? {
-              full_name: customer.full_name || baseTokens.full_name,
-              first_name: customer.first_name || baseTokens.first_name,
-              last_name: customer.last_name || baseTokens.last_name,
-              city: customer.city || baseTokens.city,
-              country: customer.country || baseTokens.country,
-            }
+                full_name: customer.full_name || baseTokens.full_name,
+                first_name: customer.first_name || baseTokens.first_name,
+                last_name: customer.last_name || baseTokens.last_name,
+                city: customer.city || "",
+                country: customer.country || "",
+              }
             : null;
 
           const tokens = {
