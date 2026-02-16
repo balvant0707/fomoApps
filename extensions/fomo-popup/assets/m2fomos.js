@@ -3213,32 +3213,31 @@ document.addEventListener("DOMContentLoaded", async function () {
         const stockUnder = Math.max(1, toNum(row.stockUnder, 10));
 
         let products = [];
-        if (type === "lowstock" && lowStockSource === "manual") {
-          const { dataProducts: manualProducts } = parseProductBuckets(row);
-          if (!manualProducts.length) continue;
-          for (const entry of manualProducts) {
-            const product = await resolveProduct(entry);
-            if (product) products.push(product);
-          }
-          products = dedupeProducts(products);
-        } else {
-          products = await collectProducts(row);
-        }
-        if (type === "lowstock" && lowStockSource === "shopify") {
-          const storeProducts = await fetchStoreProductsForLowStock();
-          products = dedupeProducts([...(products || []), ...storeProducts]);
-        }
-        if (
-          (type === "visitor" || type === "addtocart" || type === "review") &&
-          !products.length
-        ) {
-          const { visibilityProducts } = parseProductBuckets(row);
-          if (Array.isArray(visibilityProducts) && visibilityProducts.length) {
-            for (const entry of visibilityProducts) {
+        if (type === "lowstock") {
+          if (lowStockSource === "manual") {
+            // Manual low-stock data source must use only selectedDataProductsJson.
+            const { dataProducts: manualProducts } = parseProductBuckets(row);
+            if (!manualProducts.length) continue;
+            for (const entry of manualProducts) {
               const product = await resolveProduct(entry);
               if (product) products.push(product);
             }
             products = dedupeProducts(products);
+          } else {
+            // Shopify low-stock data source must evaluate all store products.
+            products = await fetchStoreProductsForLowStock();
+          }
+        } else {
+          products = await collectProducts(row);
+          if (!products.length) {
+            const { visibilityProducts } = parseProductBuckets(row);
+            if (Array.isArray(visibilityProducts) && visibilityProducts.length) {
+              for (const entry of visibilityProducts) {
+                const product = await resolveProduct(entry);
+                if (product) products.push(product);
+              }
+              products = dedupeProducts(products);
+            }
           }
         }
         let pool = products.length
