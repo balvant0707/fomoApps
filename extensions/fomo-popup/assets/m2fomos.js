@@ -536,12 +536,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!entry || typeof entry !== "object") return null;
     const first = safe(entry.first_name || entry.firstName, "").trim();
     const last = safe(entry.last_name || entry.lastName, "").trim();
-    const full = first || last ? `${first} ${last}`.trim() : "";
+    const explicitFull = safe(
+      entry.full_name || entry.fullName || entry.name,
+      ""
+    ).trim();
+    const full = explicitFull || (first || last ? `${first} ${last}`.trim() : "");
     const addr =
       entry.default_address || entry.defaultAddress || entry.address || {};
-    const city = safe(addr.city, "").trim();
-    const state = safe(addr.province || addr.state, "").trim();
-    const country = safe(addr.country, "").trim();
+    const city = safe(entry.city || addr.city, "").trim();
+    const state = safe(entry.state || entry.province || addr.province || addr.state, "").trim();
+    const country = safe(entry.country || addr.country, "").trim();
     if (!full && !city && !country) return null;
     return { first_name: first, last_name: last, full_name: full, city, state, country };
   }
@@ -3128,19 +3132,38 @@ document.addEventListener("DOMContentLoaded", async function () {
               type === "addtocart" &&
               String(row.customerInfo || "shopify").toLowerCase() === "manual"
             );
+          const strictVisitorIdentity = type === "visitor";
           const customerPoolWithCountry = Array.isArray(customerPool)
-            ? customerPool.filter((c) => safe(c?.country, "").trim())
+            ? customerPool.filter((c) => {
+              const fullName = safe(
+                c?.full_name ||
+                [c?.first_name, c?.last_name].filter(Boolean).join(" "),
+                ""
+              ).trim();
+              return Boolean(fullName && safe(c?.country, "").trim());
+            })
             : [];
           const customer = useShopifyCustomerData
-            ? type === "visitor" && customerPoolWithCountry.length
+            ? type === "visitor"
               ? pickCustomer(customerPoolWithCountry, i)
               : pickCustomer(customerPool, i)
             : null;
+          if (strictVisitorIdentity && useShopifyCustomerData && !customer) {
+            // Do not render visitor popup with fake identity when Shopify
+            // customer data is unavailable.
+            continue;
+          }
           const customerTokens = customer
             ? {
-                full_name: customer.full_name || baseTokens.full_name,
-                first_name: customer.first_name || baseTokens.first_name,
-                last_name: customer.last_name || baseTokens.last_name,
+                full_name:
+                  customer.full_name ||
+                  [customer.first_name, customer.last_name]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim() ||
+                  "Someone",
+                first_name: customer.first_name || "",
+                last_name: customer.last_name || "",
                 city: customer.city || "",
                 country: customer.country || "",
               }
