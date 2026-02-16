@@ -1,5 +1,5 @@
 // app/routes/app.jsx
-import { Link, Outlet, useLoaderData, useRouteError, useLocation } from "@remix-run/react";
+import { Outlet, useLoaderData, useRouteError, useLocation } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
@@ -48,15 +48,16 @@ export default function App() {
   const { apiKey } = useLoaderData();
   const location = useLocation();
   const search = location.search || "";
+  const appUrl = (path) => `${path}${search}`;
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to={`/app${search}`} rel="home" prefetch="intent">Home</Link>
-        <Link to={`/app/notification${search}`} prefetch="intent">Notification</Link>
-        <Link to={`/app/dashboard${search}`} prefetch="intent">Analytics</Link>
-        <Link to={`/app/integrations${search}`} prefetch="intent">Integrations</Link>
-        <Link to={`/app/documents${search}`} prefetch="intent">Documents</Link>
-        <Link to={`/app/help${search}`} prefetch="intent">Help</Link>
+        <a href={appUrl("/app")} rel="home">Home</a>
+        <a href={appUrl("/app/notification")}>Notification</a>
+        <a href={appUrl("/app/dashboard")}>Analytics</a>
+        <a href={appUrl("/app/integrations")}>Integrations</a>
+        <a href={appUrl("/app/documents")}>Documents</a>
+        <a href={appUrl("/app/help")}>Help</a>
       </NavMenu>
       <LcpObserver />
       <Outlet />
