@@ -1142,8 +1142,9 @@ function Bubble({ form, order, isMobile = false }) {
   const compareCandidate = formatPreviewMoney(
     first?.compareAt || order?.productCompareAt || ""
   );
-  const compareText =
-    compareCandidate && compareCandidate !== priceText ? compareCandidate : "";
+  const compareText = shouldShowPreviewCompare(priceText, compareCandidate)
+    ? alignPreviewCompareCurrency(priceText, compareCandidate)
+    : "";
   const moreCount = Math.max(0, products.length - 1);
   const showImage = !!productImg;
   const imageOverflow =
@@ -1494,6 +1495,48 @@ function formatPreviewMoney(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function parsePreviewMoneyValue(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return NaN;
+  let cleaned = raw.replace(/[^0-9.,-]/g, "");
+  if (!cleaned) return NaN;
+  if (cleaned.includes(".") && cleaned.includes(",")) {
+    cleaned = cleaned.replace(/,/g, "");
+  } else if (cleaned.includes(",") && !cleaned.includes(".")) {
+    if (/,\d{1,2}$/.test(cleaned)) {
+      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+  } else {
+    cleaned = cleaned.replace(/,/g, "");
+  }
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function alignPreviewCompareCurrency(priceText, compareText) {
+  const price = String(priceText || "").trim();
+  const compare = String(compareText || "").trim();
+  if (!compare) return "";
+  if (/[^\d\s,.-]/.test(compare)) return compare;
+  const prefix = (price.match(/^[^\d-]+/) || [])[0] || "";
+  return prefix ? `${prefix}${compare}` : compare;
+}
+
+function shouldShowPreviewCompare(priceText, compareText) {
+  const price = String(priceText || "").trim();
+  const compare = String(compareText || "").trim();
+  if (!compare) return false;
+  if (!price) return true;
+  const priceNum = parsePreviewMoneyValue(price);
+  const compareNum = parsePreviewMoneyValue(compare);
+  if (Number.isFinite(priceNum) && Number.isFinite(compareNum)) {
+    return compareNum > priceNum;
+  }
+  return compare !== price;
 }
 
 function LivePreview({ form, order }) {

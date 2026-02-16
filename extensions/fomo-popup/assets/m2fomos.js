@@ -225,14 +225,89 @@ document.addEventListener("DOMContentLoaded", async function () {
     const list = parseProductList(decoded);
     return { dataProducts: list, visibilityProducts: list };
   };
+  const formatCurrencyByCode = (amountMajor, currencyCode) => {
+    const n = Number(amountMajor);
+    if (!Number.isFinite(n)) return "";
+    const code = String(currencyCode || "").trim().toUpperCase();
+    if (!code) return "";
+    if (code === "INR") {
+      return `Rs. ${n.toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: "currency",
+        currency: code,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(n);
+    } catch {
+      return `${code} ${n.toFixed(2)}`;
+    }
+  };
+  const parseMoneyValue = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return NaN;
+    let cleaned = raw.replace(/[^0-9.,-]/g, "");
+    if (!cleaned) return NaN;
+    if (cleaned.includes(".") && cleaned.includes(",")) {
+      cleaned = cleaned.replace(/,/g, "");
+    } else if (cleaned.includes(",") && !cleaned.includes(".")) {
+      if (/,\d{1,2}$/.test(cleaned)) {
+        cleaned = cleaned.replace(/\./g, "").replace(",", ".");
+      } else {
+        cleaned = cleaned.replace(/,/g, "");
+      }
+    } else {
+      cleaned = cleaned.replace(/,/g, "");
+    }
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  };
+  const extractMoneyPrefix = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const match = raw.match(/^[^\d-]+/);
+    return match?.[0] || "";
+  };
+  const hasMoneySymbol = (value) =>
+    /[^\d\s,.-]/.test(String(value || ""));
+  const alignCompareCurrency = (priceText, compareText) => {
+    const price = String(priceText || "").trim();
+    const compare = String(compareText || "").trim();
+    if (!compare) return "";
+    if (hasMoneySymbol(compare)) return compare;
+    const prefix = extractMoneyPrefix(price);
+    return prefix ? `${prefix}${compare}` : compare;
+  };
+  const shouldShowComparePrice = (priceText, compareText) => {
+    const price = String(priceText || "").trim();
+    const compare = String(compareText || "").trim();
+    if (!compare) return false;
+    if (!price) return true;
+    const priceNum = parseMoneyValue(price);
+    const compareNum = parseMoneyValue(compare);
+    if (Number.isFinite(priceNum) && Number.isFinite(compareNum)) {
+      return compareNum > priceNum;
+    }
+    return compare !== price;
+  };
   const formatMoney = (cents) => {
     const n = Number(cents);
     if (!Number.isFinite(n)) return String(cents || "");
+    const major = n / 100;
+    const activeCurrency = String(
+      window.Shopify?.currency?.active || window.Shopify?.currency?.current || ""
+    ).toUpperCase();
     if (window.Shopify && typeof window.Shopify.formatMoney === "function") {
       const fmt = window.Shopify.money_format || "${{amount}}";
-      return window.Shopify.formatMoney(n, fmt);
+      const rendered = String(window.Shopify.formatMoney(n, fmt) || "").trim();
+      if (hasMoneySymbol(rendered)) return rendered;
+      return formatCurrencyByCode(major, activeCurrency) || rendered;
     }
-    return (n / 100).toFixed(2);
+    return formatCurrencyByCode(major, activeCurrency) || major.toFixed(2);
   };
 
   const cacheKey = (k) =>
@@ -1036,12 +1111,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     body.appendChild(line2);
 
     const priceText = safe(cfg.price, "").trim();
-    const compareCandidate = safe(
+    const compareCandidateRaw = safe(
       cfg.compareAt || cfg.compareAtPrice,
       ""
     ).trim();
-    const compareText =
-      compareCandidate && compareCandidate !== priceText ? compareCandidate : "";
+    const compareCandidate = alignCompareCurrency(priceText, compareCandidateRaw);
+    const compareText = shouldShowComparePrice(priceText, compareCandidate)
+      ? compareCandidate
+      : "";
     if (priceText || compareText) {
       const priceLine = document.createElement("div");
       priceLine.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 6px 0;`;
@@ -1324,12 +1401,20 @@ document.addEventListener("DOMContentLoaded", async function () {
       body.appendChild(msg);
     }
 
-    if (cfg.showPriceTag && (cfg.price || cfg.compareAt)) {
+    const priceText = safe(cfg.price, "").trim();
+    const compareCandidate = alignCompareCurrency(
+      priceText,
+      safe(cfg.compareAt || cfg.compareAtPrice, "").trim()
+    );
+    const compareText = shouldShowComparePrice(priceText, compareCandidate)
+      ? compareCandidate
+      : "";
+    if (cfg.showPriceTag && (priceText || compareText)) {
       const line = document.createElement("div");
       line.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;`;
-      if (cfg.price) {
+      if (priceText) {
         const p = document.createElement("span");
-        p.textContent = cfg.price;
+        p.textContent = priceText;
         p.style.cssText = `
           background:${cfg.priceTagBg || "#111"};
           color:${cfg.priceColor || "#fff"};
@@ -1338,9 +1423,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         `;
         line.appendChild(p);
       }
-      if (cfg.compareAt) {
+      if (compareText) {
         const c = document.createElement("span");
-        c.textContent = cfg.compareAt;
+        c.textContent = compareText;
         c.style.cssText = `
           color:${cfg.priceTagAlt || "#666"};
           font-size:${Math.max(10, Math.round((Number(cfg.textSizeCompareAt) || fontSize - 3) * sizeScale))}px;
@@ -2654,8 +2739,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ""
               );
               const pCompareAt =
-                pCompareCandidate && pCompareCandidate !== pPrice
-                  ? pCompareCandidate
+                shouldShowComparePrice(pPrice, pCompareCandidate)
+                  ? alignCompareCurrency(pPrice, pCompareCandidate)
                   : "";
               const productUrl = safe(
                 pHandle
@@ -2729,8 +2814,8 @@ document.addEventListener("DOMContentLoaded", async function () {
             const pPrice = safe(normalizedProduct?.price, "");
             const pCompareCandidate = safe(normalizedProduct?.compareAt, "");
             const pCompareAt =
-              pCompareCandidate && pCompareCandidate !== pPrice
-                ? pCompareCandidate
+              shouldShowComparePrice(pPrice, pCompareCandidate)
+                ? alignCompareCurrency(pPrice, pCompareCandidate)
                 : "";
             recentConfigs.push({
               ...COMMON_RECENT,
