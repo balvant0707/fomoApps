@@ -464,6 +464,134 @@ async function fetchProductsByIds({ shop, accessToken, productIds }) {
   return out;
 }
 
+const toProductNumericId = (gidOrId) => {
+  const raw = String(gidOrId || "").trim();
+  if (!raw) return null;
+  const gid = raw.match(/\/(\d+)$/);
+  const n = Number(gid?.[1] || raw);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+};
+
+const normalizeLowStockProductFromNode = (node) => {
+  const id = toProductNumericId(node?.id);
+  const handle = String(node?.handle || "").trim();
+  const title = String(node?.title || "").trim();
+  const image = normalizeImageUrl(node?.featuredImage);
+  const variants = Array.isArray(node?.variants?.nodes) ? node.variants.nodes : [];
+  const firstVariant = variants[0] || null;
+  const inventoryQtyRaw = Number(node?.totalInventory);
+
+  return {
+    id,
+    title,
+    handle,
+    image,
+    url: handle ? `/products/${handle}` : "",
+    price:
+      firstVariant?.price === undefined || firstVariant?.price === null
+        ? ""
+        : String(firstVariant.price),
+    compareAt:
+      firstVariant?.compareAtPrice === undefined || firstVariant?.compareAtPrice === null
+        ? ""
+        : String(firstVariant.compareAtPrice),
+    inventoryQty: Number.isFinite(inventoryQtyRaw)
+      ? Math.round(inventoryQtyRaw)
+      : null,
+  };
+};
+
+const LOW_STOCK_PRODUCTS_QUERY = `
+  query LowStockProducts($first: Int!, $after: String) {
+    products(first: $first, after: $after, sortKey: ID) {
+      edges {
+        cursor
+        node {
+          id
+          title
+          handle
+          totalInventory
+          featuredImage {
+            url
+          }
+          variants(first: 1) {
+            nodes {
+              price
+              compareAtPrice
+            }
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+      }
+    }
+  }
+`;
+
+async function fetchLowStockProductsFromAdmin({ shop, accessToken, limit = 1000 }) {
+  const endpoint = `https://${shop}/admin/api/2025-01/graphql.json`;
+  const maxItems = Number.isFinite(Number(limit))
+    ? Math.max(1, Math.min(2000, Math.trunc(Number(limit))))
+    : 1000;
+  const out = [];
+  let cursor = null;
+  let hasNextPage = true;
+
+  while (hasNextPage && out.length < maxItems) {
+    const first = Math.min(250, maxItems - out.length);
+    const resp = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        query: LOW_STOCK_PRODUCTS_QUERY,
+        variables: { first, after: cursor },
+      }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      throw new Error(`Products GraphQL failed (${resp.status}): ${body}`);
+    }
+
+    const payload = await resp.json();
+    const gqlErrors = Array.isArray(payload?.errors) ? payload.errors : [];
+    if (gqlErrors.length) {
+      const msg = gqlErrors
+        .map((e) => String(e?.message || "").trim())
+        .filter(Boolean)
+        .join("; ");
+      throw new Error(msg || "Products GraphQL errors");
+    }
+
+    const edges = Array.isArray(payload?.data?.products?.edges)
+      ? payload.data.products.edges
+      : [];
+    for (const edge of edges) {
+      const normalized = normalizeLowStockProductFromNode(edge?.node);
+      if (!normalized?.id && !normalized?.handle && !normalized?.title) continue;
+      out.push(normalized);
+    }
+
+    hasNextPage = Boolean(payload?.data?.products?.pageInfo?.hasNextPage);
+    cursor = edges.length ? edges[edges.length - 1]?.cursor || null : null;
+    if (!cursor) break;
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  for (const product of out) {
+    const key = String(product?.id || product?.handle || product?.title || "").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(product);
+  }
+  return deduped;
+}
+
 const enrichOrdersLineItems = (orders, productMap) =>
   (Array.isArray(orders) ? orders : []).map((order) => {
     const lines = Array.isArray(order?.line_items) ? order.line_items : [];
@@ -667,6 +795,50 @@ export const loader = async ({ request, params }) => {
         shop,
         timestamp,
       });
+    }
+
+    if (subpath === "products") {
+      const limitRaw = Number(url.searchParams.get("limit") || "1000");
+      const limit = Number.isFinite(limitRaw)
+        ? Math.max(1, Math.min(2000, limitRaw))
+        : 1000;
+
+      const shopRecord =
+        (await prisma.shop.findUnique({ where: { shop } })) ||
+        (await ensureShopRow(shop));
+
+      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+        return ok({
+          products: [],
+          sessionReady: false,
+          shop,
+          error: "Session not ready",
+          timestamp,
+        });
+      }
+
+      try {
+        const products = await fetchLowStockProductsFromAdmin({
+          shop,
+          accessToken: shopRecord.accessToken,
+          limit,
+        });
+        return ok({
+          products,
+          sessionReady: true,
+          shop,
+          timestamp,
+        });
+      } catch (err) {
+        console.warn("[FOMO Products API] failed:", err);
+        return ok({
+          products: [],
+          sessionReady: true,
+          shop,
+          error: "Products API failed",
+          timestamp,
+        });
+      }
     }
 
     if (subpath === "popup") {

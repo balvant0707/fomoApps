@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const res = await fetch(candidate, options);
         const isLast = i === candidates.length - 1;
         const contentType = res.headers?.get("content-type") || "";
-        const isProxyApi = /\/(session|popup|orders|customers|track)(\?|$)/.test(candidate);
+        const isProxyApi = /\/(session|popup|orders|customers|products|track)(\?|$)/.test(candidate);
 
         if (!res.ok && !isLast) continue;
         if (res.ok && isProxyApi && !contentType.includes("application/json") && !isLast) {
@@ -61,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const SESSION_ENDPOINT = `${PROXY_BASE}/session?shop=${SHOP}`;
   const ORDERS_ENDPOINT_BASE = `${PROXY_BASE}/orders`; // expects ?shop=&days=&limit=
   const CUSTOMERS_ENDPOINT_BASE = `${PROXY_BASE}/customers`; // expects ?shop=&limit=
+  const PRODUCTS_ENDPOINT_BASE = `${PROXY_BASE}/products`; // expects ?shop=&limit=
   const TRACK_ENDPOINT = `${PROXY_BASE}/track?shop=${SHOP}`;
   const ROOT = document.getElementById("fomo-embed-root");
   if (!ROOT) return;
@@ -2707,6 +2708,22 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
     const fetchStoreProductsForLowStock = async () => {
       if (storeProductsCache) return storeProductsCache;
+      if (SHOP) {
+        const proxyPayload = await fetchJson(
+          `${PRODUCTS_ENDPOINT_BASE}?shop=${encodeURIComponent(SHOP)}&limit=1000`,
+          "products:lowstock:proxy:1000",
+          300000
+        );
+        const proxyRows = Array.isArray(proxyPayload?.products)
+          ? proxyPayload.products
+          : [];
+        if (proxyRows.length) {
+          storeProductsCache = dedupeProducts(
+            proxyRows.map((row) => normalizeProduct(row)).filter(Boolean)
+          );
+          return storeProductsCache;
+        }
+      }
       const payload = await fetchJson(
         "/products.json?limit=250",
         "products:all:250",
