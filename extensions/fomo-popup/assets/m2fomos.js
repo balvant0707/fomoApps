@@ -839,11 +839,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     const mobileLeftPad = imageOverflow
       ? 12 + Math.round(coverBoxSize * 0.45)
       : 14;
-    const mobilePadding = `${mt.pad}px 44px ${mt.pad}px ${mobileLeftPad}px`;
-    const desktopPadding = "15px 44px 15px 44px";
+    const desktopLeftPad = imageOverflow ? 44 : 15;
+    const padTop = mode === "mobile" ? mt.pad : 15;
+    const padRight = 44;
+    const padBottom = mode === "mobile" ? mt.pad : 15;
+    const padLeft = mode === "mobile" ? mobileLeftPad : desktopLeftPad;
     card.style.cssText = `
       display:flex; gap:12px; align-items:center; position:relative;
-      padding:${mode === "mobile" ? mobilePadding : desktopPadding};
+      padding-top:${padTop}px;
+      padding-right:${padRight}px;
+      padding-bottom:${padBottom}px;
+      padding-left:${padLeft}px;
       font-size:${Number(cfg.baseFontSize) || (mode === "mobile" ? mt.fs : 14)
       }px; line-height:1.35;
     `;
