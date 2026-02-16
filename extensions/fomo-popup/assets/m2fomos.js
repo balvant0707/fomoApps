@@ -261,6 +261,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (!raw) return NaN;
     let cleaned = raw.replace(/[^0-9.,-]/g, "");
     if (!cleaned) return NaN;
+    const firstDigit = cleaned.search(/\d/);
+    if (firstDigit > 0) cleaned = cleaned.slice(firstDigit);
+    if (!cleaned) return NaN;
     if (cleaned.includes(".") && cleaned.includes(",")) {
       cleaned = cleaned.replace(/,/g, "");
     } else if (cleaned.includes(",") && !cleaned.includes(".")) {
@@ -1349,9 +1352,11 @@ document.addEventListener("DOMContentLoaded", async function () {
           ? 12
           : 14
     );
-    const gap = Math.round(mode === "mobile" ? 10 : 12);
+    const gap = Math.round(
+      mode === "mobile" ? (isVisitor ? 12 : 10) : isVisitor ? 14 : 12
+    );
     const imgSize = Math.round((mode === "mobile" ? 56 : 64));
-    const imgOffset = Math.round(imgSize * 0.45);
+    const imgOffset = Math.round(imgSize * (isVisitor ? 0.62 : 0.45));
     const inlineSize = isPortrait ? 56 : imgSize;
 
     const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
@@ -1480,9 +1485,15 @@ document.addEventListener("DOMContentLoaded", async function () {
         let m = null;
         while ((m = rx.exec(tpl))) {
           hasToken = true;
-          const before = tpl.slice(last, m.index);
-          if (before) msg.appendChild(document.createTextNode(before));
           const key = String(m[1] || "").trim().toLowerCase();
+          let before = tpl.slice(last, m.index);
+          if (isVisitor && key === "product_name" && before) {
+            before = before.replace(/\s+$/, "");
+          }
+          if (before) msg.appendChild(document.createTextNode(before));
+          if (isVisitor && key === "product_name") {
+            msg.appendChild(document.createElement("br"));
+          }
           const rawVal = normalized[key];
           const text =
             rawVal === undefined || rawVal === null || rawVal === ""
@@ -1511,6 +1522,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         const parts = templ.split(/(__FOMO_PROD__|__FOMO_COUNT__)/);
         parts.forEach((part) => {
           if (part === "__FOMO_PROD__") {
+            if (isVisitor) {
+              msg.appendChild(document.createElement("br"));
+            }
             const span = document.createElement("span");
             span.textContent = productName;
             if (cfg.productHighlightStyle === "upper") {
@@ -1532,6 +1546,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           }
           msg.appendChild(document.createTextNode(part));
         });
+      }
+      if (isVisitor) {
+        msg.style.maxWidth = "100%";
+        msg.style.wordBreak = "break-word";
       }
       body.appendChild(msg);
     }
@@ -3194,6 +3212,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           showProductImage: toBool(row.showProductImage, true),
           showPriceTag: toBool(row.showPriceTag, true),
           showRating: toBool(row.showRating, false),
+          ratingSource: String(row.ratingSource || "judge_me").toLowerCase(),
           showClose: toBool(row.showClose, true),
           directProductPage: toBool(row.directProductPage, true),
           durationSeconds: toNum(row.duration, 6),
@@ -3214,6 +3233,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           );
           const price = normalizePrice(prod.price);
           const compareAt = normalizePrice(prod.compareAt);
+          let effectiveShowRating = baseCfg.showRating;
+          if (effectiveShowRating && baseCfg.ratingSource === "judge_me") {
+            effectiveShowRating = await hasJudgeMeReview(prod);
+          }
 
           const stockCount =
             type === "lowstock"
@@ -3324,6 +3347,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
           target.push({
             ...baseCfg,
+            showRating: effectiveShowRating,
             message,
             messageTemplate: msgTpl,
             messageTokens: { ...tokens },

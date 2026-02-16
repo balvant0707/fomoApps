@@ -680,7 +680,7 @@ function PreviewCard({
     imageModeRaw.includes("fit");
   const imageFit = isContainMode ? "contain" : "cover";
   const avatarSize = isPortrait ? 56 : 64;
-  const avatarOffset = Math.round(avatarSize * 0.45);
+  const avatarOffset = Math.round(avatarSize * 0.62);
   const pad = 16;
   const imageOverflow = showProductImage && !isContainMode && !isPortrait;
   const rawName = product?.title || "Your product will show here";
@@ -744,9 +744,15 @@ function PreviewCard({
     let m = null;
     while ((m = rx.exec(templateContent))) {
       found = true;
-      const before = templateContent.slice(last, m.index);
-      if (before) out.push(<span key={`t-${idx++}`}>{before}</span>);
       const key = String(m[1] || "").trim().toLowerCase();
+      let before = templateContent.slice(last, m.index);
+      if (key === "product_name" && before) {
+        before = before.replace(/\s+$/, "");
+      }
+      if (before) out.push(<span key={`t-${idx++}`}>{before}</span>);
+      if (key === "product_name") {
+        out.push(<br key={`br-${idx++}`} />);
+      }
       const rawVal = normalized[key];
       const valueText =
         rawVal === undefined || rawVal === null || rawVal === ""
@@ -781,7 +787,7 @@ function PreviewCard({
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
-    gap: 12,
+    gap: isPortrait ? 12 : imageOverflow ? 14 : 12,
     alignItems: "flex-start",
     maxWidth: layout === "portrait" ? 320 : 460,
   };
