@@ -808,12 +808,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     const visibleMs = Math.max(1, visibleSec) * 1000;
     const { inAnim, outAnim } = getAnimPair(cfg, mode);
     const DUR = getAnimDur(cfg);
+    const isPortrait =
+      String(cfg.layout || "landscape").toLowerCase() === "portrait";
     const imageAppearance = String(cfg.imageAppearance || "cover")
       .trim()
       .toLowerCase();
     const isContain =
       imageAppearance === "contain" || imageAppearance.includes("fit");
-    const imageOverflow = !isContain;
+    const imageOverflow = !isContain && !isPortrait;
     const bgFlash =
       String(cfg.template || "solid").toLowerCase() === "gradient"
         ? `linear-gradient(135deg, ${cfg.bgColor || "#111"} 0%, ${cfg.bgAlt || cfg.bgColor || "#111"} 100%)`
@@ -821,9 +823,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const wrap = document.createElement("div");
     wrap.className = "fomo-flash";
+    const wrapWidth = mode === "mobile" ? mt.w : isPortrait ? "340px" : "";
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
-      width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
+      width:${wrapWidth}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
       border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
@@ -836,16 +839,25 @@ document.addEventListener("DOMContentLoaded", async function () {
     card.className = "fomo-card";
     const coverBoxSize = mode === "mobile" ? Math.max(mt.img, 52) : 60;
     const containIconSize = mode === "mobile" ? Math.max(42, mt.img - 6) : 48;
+    const portraitIconSize = mode === "mobile" ? 84 : 96;
     const mobileLeftPad = imageOverflow
       ? 12 + Math.round(coverBoxSize * 0.45)
       : 14;
     const desktopLeftPad = imageOverflow ? 44 : 15;
-    const padTop = mode === "mobile" ? mt.pad : 15;
-    const padRight = 44;
-    const padBottom = mode === "mobile" ? mt.pad : 15;
-    const padLeft = mode === "mobile" ? mobileLeftPad : desktopLeftPad;
+    const padTop = mode === "mobile" ? (isPortrait ? 18 : mt.pad) : isPortrait ? 24 : 15;
+    const padRight = isPortrait ? 24 : 44;
+    const padBottom =
+      mode === "mobile" ? (isPortrait ? 18 : mt.pad) : isPortrait ? 24 : 15;
+    const padLeft = isPortrait
+      ? 24
+      : mode === "mobile"
+        ? mobileLeftPad
+        : desktopLeftPad;
+    const cardDirection = isPortrait ? "column" : "row";
+    const cardGap = isPortrait ? 10 : 12;
     card.style.cssText = `
-      display:flex; gap:12px; align-items:center; position:relative;
+      display:flex; gap:${cardGap}px; align-items:center; position:relative;
+      flex-direction:${cardDirection};
       padding-top:${padTop}px;
       padding-right:${padRight}px;
       padding-bottom:${padBottom}px;
@@ -858,9 +870,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     img.className = "fomo-icon";
     img.alt = "Flash";
     img.src = cfg.uploadedImage || cfg.image || FLAME_SVG;
-    const iSize = imageOverflow ? coverBoxSize : containIconSize;
+    const iSize = isPortrait
+      ? portraitIconSize
+      : imageOverflow
+        ? coverBoxSize
+        : containIconSize;
     const iRad = mode === "mobile" ? Math.round(iSize * 0.17) : 12;
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
+    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${isPortrait ? 16 : iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.src = FLAME_SVG;
     };
@@ -893,7 +909,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const body = document.createElement("div");
     body.className = "fomo-body";
-    body.style.cssText = `flex:1;min-width:0;pointer-events:none;`;
+    body.style.cssText = isPortrait
+      ? "flex:1;min-width:0;pointer-events:none;text-align:center;width:100%;"
+      : "flex:1;min-width:0;pointer-events:none;";
 
     const ttl = document.createElement("div");
     ttl.className = "fomo-title";
@@ -906,8 +924,9 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const locLine = document.createElement("div");
     locLine.className = "fomo-locline";
-    locLine.style.cssText =
-      "opacity:.95;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;";
+    locLine.style.cssText = isPortrait
+      ? "opacity:.95;display:flex;gap:8px;align-items:baseline;justify-content:center;flex-wrap:wrap;"
+      : "opacity:.95;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;";
 
     const loc = document.createElement("span");
     loc.className = "fomo-location";

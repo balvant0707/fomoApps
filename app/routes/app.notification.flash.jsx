@@ -583,8 +583,8 @@ function NotificationPreview({ form, isMobile = false }) {
   const isContain =
     imageAppearance === "contain" || imageAppearance.includes("fit");
   const isPortrait = form.layout === "portrait";
-  const iconDim = isPortrait ? 56 : 60;
-  const iconSize = isContain ? 48 : iconDim;
+  const iconDim = isPortrait ? 96 : 60;
+  const iconSize = isPortrait ? 84 : isContain ? 48 : iconDim;
 
   const svgMarkup = useMemo(() => {
     const uploaded = extractFirstSvg(form.iconSvg || "");
@@ -597,8 +597,12 @@ function NotificationPreview({ form, isMobile = false }) {
   const scale = isMobile ? mobileSizeScale(form?.mobileSize) : 1;
   const sized = Math.max(10, Math.min(28, Math.round(base * scale)));
   const showIcon = !!svgMarkup;
-  const imageOverflow = showIcon && !isContain;
+  const imageOverflow = showIcon && !isContain && !isPortrait;
   const avatarOffset = Math.round(iconDim * 0.45);
+  const padTop = isPortrait ? 24 : 15;
+  const padRight = isPortrait ? 24 : 44;
+  const padBottom = isPortrait ? 24 : 15;
+  const padLeft = isPortrait ? 24 : imageOverflow ? 12 + avatarOffset : 15;
   const background =
     form.template === "gradient"
       ? `linear-gradient(135deg, ${form.bgColor} 0%, ${form.bgAlt} 100%)`
@@ -618,7 +622,10 @@ function NotificationPreview({ form, isMobile = false }) {
         background, color: form.textColor, 
         borderRadius: 14,
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-        padding: "25px 30px 25px 50px", 
+        paddingTop: padTop,
+        paddingRight: padRight,
+        paddingBottom: padBottom,
+        paddingLeft: padLeft,
         border: "1px solid rgba(17,24,39,0.06)",
         display: "flex",
         alignItems: isPortrait ? "center" : "center",
@@ -629,7 +636,6 @@ function NotificationPreview({ form, isMobile = false }) {
           : isPortrait
             ? 340
             : 560,
-        paddingLeft: imageOverflow ? 12 + avatarOffset : 12,
         position: "relative",
         ...animStyle
       }}>
