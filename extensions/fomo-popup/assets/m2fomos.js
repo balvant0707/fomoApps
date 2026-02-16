@@ -907,9 +907,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const imageOverflow = imageFit === "cover" && !isPortrait && showImage;
     const pad = mode === "mobile" ? mt.pad : 12;
     const rightPad = 44;
-    const iSize = mode === "mobile" ? mt.img : 50;
+    const iSize = mode === "mobile" ? Math.max(mt.img || 0, 52) : 62;
     const iRad = Math.round(iSize * 0.18);
-    const portraitImageSize = mode === "mobile" ? 80 : 100;
+    const portraitImageSize = mode === "mobile" ? 120 : 160;
     const inlineImageSize = isPortrait ? portraitImageSize : iSize;
     const inlineImageRadius = isPortrait ? 14 : iRad;
     const imageTextGap = mode === "mobile" ? 10 : 12;
