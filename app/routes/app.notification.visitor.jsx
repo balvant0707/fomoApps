@@ -103,6 +103,7 @@ export async function loader({ request }) {
   let customerCount = null;
   let saved = null;
   let judgeMeConnected = false;
+  let previewCustomer = null;
 
   try {
     const resp = await admin.graphql(
@@ -116,6 +117,54 @@ export async function loader({ request }) {
     }
   } catch (e) {
     console.warn("[Visitor Popup] customer count fetch failed:", e);
+  }
+
+  try {
+    const resp = await admin.graphql(`
+      query PreviewCustomers {
+        customers(first: 25, sortKey: UPDATED_AT, reverse: true) {
+          edges {
+            node {
+              firstName
+              lastName
+              defaultAddress {
+                city
+                country
+              }
+            }
+          }
+        }
+      }
+    `);
+    const payload = await resp.json();
+    const edges = Array.isArray(payload?.data?.customers?.edges)
+      ? payload.data.customers.edges
+      : [];
+    const customers = edges
+      .map((edge) => edge?.node)
+      .filter(Boolean)
+      .map((node) => {
+        const first_name = String(node?.firstName || "").trim();
+        const last_name = String(node?.lastName || "").trim();
+        const full_name = [first_name, last_name].filter(Boolean).join(" ").trim();
+        const city = String(node?.defaultAddress?.city || "").trim();
+        const country = String(node?.defaultAddress?.country || "").trim();
+        return { first_name, last_name, full_name, city, country };
+      })
+      .filter(
+        (c) =>
+          c.full_name || c.first_name || c.last_name || c.city || c.country
+      );
+
+    const preferred =
+      customers.find((c) => c.full_name && c.country) ||
+      customers.find((c) => c.full_name) ||
+      customers[0] ||
+      null;
+
+    previewCustomer = preferred;
+  } catch (e) {
+    console.warn("[Visitor Popup] preview customer fetch failed:", e);
   }
 
   try {
@@ -208,7 +257,13 @@ export async function loader({ request }) {
     console.warn("[Visitor Popup] saved config fetch failed:", e);
   }
 
-  return json({ title: "Visitor Popup", customerCount, saved, judgeMeConnected });
+  return json({
+    title: "Visitor Popup",
+    customerCount,
+    saved,
+    judgeMeConnected,
+    previewCustomer,
+  });
 }
 
 export async function action({ request }) {
@@ -605,6 +660,7 @@ function PreviewCard({
   template,
   productNameMode,
   productNameLimit,
+  previewCustomer,
 }) {
   const scale = 0.8 + (size / 100) * 0.4;
   const opacity = 1 - (transparency / 100) * 0.7;
@@ -623,13 +679,39 @@ function PreviewCard({
   const rawName = product?.title || "Your product will show here";
   const safeName = formatProductName(rawName, productNameMode, productNameLimit);
   const hasProductToken = /\{product_name\}/.test(String(contentText || ""));
+  const toText = (v) => String(v ?? "").trim();
+  const previewFirst = toText(previewCustomer?.first_name);
+  const previewLast = toText(previewCustomer?.last_name);
+  const previewFull = toText(previewCustomer?.full_name);
+  const previewCity = toText(previewCustomer?.city);
+  const previewCountry = toText(previewCustomer?.country);
+  const hasRealCustomer = Boolean(
+    previewFull ||
+      previewFirst ||
+      previewLast ||
+      previewCity ||
+      previewCountry
+  );
+  const resolvedFullName = hasRealCustomer
+    ? previewFull || [previewFirst, previewLast].filter(Boolean).join(" ").trim() || "Someone"
+    : "Jenna Doe";
+  const resolvedFirstName = hasRealCustomer
+    ? previewFirst || (resolvedFullName ? resolvedFullName.split(/\s+/)[0] : "")
+    : "Jenna";
+  const resolvedLastName = hasRealCustomer
+    ? previewLast ||
+      (() => {
+        const parts = resolvedFullName.split(/\s+/).filter(Boolean);
+        return parts.length > 1 ? parts.slice(1).join(" ") : "";
+      })()
+    : "Doe";
   const tokenValues = {
-    full_name: "Jenna Doe",
-    first_name: "Jenna",
-    last_name: "Doe",
+    full_name: resolvedFullName,
+    first_name: resolvedFirstName,
+    last_name: resolvedLastName,
     product_name: "__PRODUCT__",
-    country: "United States",
-    city: "New York",
+    country: hasRealCustomer ? previewCountry : "United States",
+    city: hasRealCustomer ? previewCity : "New York",
     price: product?.price || "Rs. 299.00",
     time: String(avgTime || "2"),
     unit: String(avgUnit || "mins"),
@@ -836,7 +918,7 @@ function PreviewCard({
   );
 }
 export default function VisitorPopupPage() {
-  const { customerCount, saved, judgeMeConnected } = useLoaderData();
+  const { customerCount, saved, judgeMeConnected, previewCustomer } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -1978,6 +2060,7 @@ export default function VisitorPopupPage() {
                         template={design.template}
                         productNameMode={productNameMode}
                         productNameLimit={productNameLimit}
+                        previewCustomer={previewCustomer}
                       />
                     )}
                   </div>

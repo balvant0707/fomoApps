@@ -2642,11 +2642,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     const baseTokens = {
-      full_name: "Jenna Doe",
-      first_name: "Jenna",
-      last_name: "Doe",
-      country: "United States",
-      city: "New York",
+      // Keep identity fields neutral so runtime shows actual customer data only.
+      full_name: "Someone",
+      first_name: "",
+      last_name: "",
+      country: "",
+      city: "",
       reviewer_name: "Jane B.",
       review_title: "Beautiful and elegant",
       review_body: "Absolutely stunning and elegant.",
@@ -3155,15 +3156,39 @@ document.addEventListener("DOMContentLoaded", async function () {
           }
           const customerTokens = customer
             ? {
-                full_name:
-                  customer.full_name ||
-                  [customer.first_name, customer.last_name]
+                full_name: (() => {
+                  const joined = [customer.first_name, customer.last_name]
                     .filter(Boolean)
                     .join(" ")
-                    .trim() ||
-                  "Someone",
-                first_name: customer.first_name || "",
-                last_name: customer.last_name || "",
+                    .trim();
+                  return customer.full_name || joined || "Someone";
+                })(),
+                first_name: (() => {
+                  const first = safe(customer.first_name, "").trim();
+                  if (first) return first;
+                  const full = safe(
+                    customer.full_name ||
+                    [customer.first_name, customer.last_name]
+                      .filter(Boolean)
+                      .join(" "),
+                    ""
+                  ).trim();
+                  return full ? full.split(/\s+/)[0] : "";
+                })(),
+                last_name: (() => {
+                  const last = safe(customer.last_name, "").trim();
+                  if (last) return last;
+                  const full = safe(
+                    customer.full_name ||
+                    [customer.first_name, customer.last_name]
+                      .filter(Boolean)
+                      .join(" "),
+                    ""
+                  ).trim();
+                  if (!full) return "";
+                  const parts = full.split(/\s+/).filter(Boolean);
+                  return parts.length > 1 ? parts.slice(1).join(" ") : "";
+                })(),
                 city: customer.city || "",
                 country: customer.country || "",
               }
