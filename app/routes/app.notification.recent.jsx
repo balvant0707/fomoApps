@@ -1138,10 +1138,10 @@ function Bubble({ form, order, isMobile = false }) {
   const productImg = hide.has("productImage")
     ? null
     : first?.image || order?.productImage || null;
-  const priceText = String(first?.price || order?.productPrice || "").trim();
-  const compareCandidate = String(
+  const priceText = formatPreviewMoney(first?.price || order?.productPrice);
+  const compareCandidate = formatPreviewMoney(
     first?.compareAt || order?.productCompareAt || ""
-  ).trim();
+  );
   const compareText =
     compareCandidate && compareCandidate !== priceText ? compareCandidate : "";
   const moreCount = Math.max(0, products.length - 1);
@@ -1482,6 +1482,18 @@ function formatProductName(name, mode, limit) {
   const max = clampNameLimit(limit, 15);
   if (name.length <= max) return name;
   return `${name.slice(0, max).trimEnd()}...`;
+}
+
+function formatPreviewMoney(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (/[^\d.-]/.test(raw)) return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return raw;
+  return `Rs. ${n.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function LivePreview({ form, order }) {

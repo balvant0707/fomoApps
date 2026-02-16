@@ -2078,6 +2078,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (Number.isInteger(n)) return formatMoney(n);
       return String(n);
     };
+    const normalizeOrderPrice = (v) => {
+      if (v === undefined || v === null || v === "") return "";
+      if (typeof v === "string" && /[^\d.]/.test(v)) return v;
+      const n = Number(v?.amount ?? v);
+      if (!Number.isFinite(n)) return "";
+      return formatMoney(Math.round(n * 100));
+    };
     const normalizeInventory = (p) => {
       if (!p || typeof p !== "object") return null;
       const direct = [
@@ -2626,24 +2633,24 @@ document.addEventListener("DOMContentLoaded", async function () {
                 ""
               );
               const pPrice = safe(
-                normalizePrice(
+                normalizeOrderPrice(
                   line?.price_set?.shop_money?.amount ||
-                    line?.price ||
                     line?.final_price_set?.shop_money?.amount ||
+                    line?.price ||
                     line?.final_price ||
-                    resolvedProduct?.price ||
                     ""
-                ),
+                ) || resolvedProduct?.price,
                 ""
               );
               const pCompareCandidate = safe(
-                normalizePrice(
-                  line?.compare_at_price ||
+                normalizeOrderPrice(
+                  line?.compare_at_price_set?.shop_money?.amount ||
+                    line?.compare_at_price ||
                     line?.compareAtPrice ||
-                    resolvedProduct?.compareAt ||
-                    resolvedProduct?.compare_at_price ||
                     ""
-                ),
+                ) ||
+                  resolvedProduct?.compareAt ||
+                  resolvedProduct?.compare_at_price,
                 ""
               );
               const pCompareAt =
