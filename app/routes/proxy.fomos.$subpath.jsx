@@ -12,6 +12,7 @@ const norm = (s) =>
 const ok = (d, s = 200) => json(d, { status: s });
 const bad = (d, s = 400) => json(d, { status: s });
 const EVENTS = new Set(["view", "click", "order"]);
+const JUDGE_ME_INTEGRATION_KEY = "integration_judge_me";
 const POPUPS = new Set([
   "recent",
   "flash",
@@ -860,6 +861,20 @@ export const loader = async ({ request, params }) => {
       }
 
       const wantTable = (url.searchParams.get("table") || "").toLowerCase();
+      const integrationModel = prisma?.notificationconfig || null;
+      let judgeMeConnected = false;
+      if (integrationModel?.findFirst) {
+        try {
+          const integration = await integrationModel.findFirst({
+            where: { shop, key: JUDGE_ME_INTEGRATION_KEY },
+            orderBy: { id: "desc" },
+            select: { messageText: true },
+          });
+          judgeMeConnected = Boolean(String(integration?.messageText || "").trim());
+        } catch (e) {
+          console.warn("[FOMO popup] Judge.me integration read failed:", e);
+        }
+      }
 
       // All popup tables
       const keys = ["visitor", "lowstock", "addtocart", "review", "recent", "flash"];
@@ -885,6 +900,7 @@ export const loader = async ({ request, params }) => {
           sessionReady: true,
           table: wantTable,
           records: rows,
+          integrations: { judgeMeConnected },
           shop,
           timestamp,
         });
@@ -903,6 +919,7 @@ export const loader = async ({ request, params }) => {
         sessionReady: true,
         records: [],
         tables,
+        integrations: { judgeMeConnected },
         shop,
         timestamp,
       });

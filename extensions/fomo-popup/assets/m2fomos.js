@@ -1543,15 +1543,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const body = document.createElement("div");
     body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:${portraitVisitor ? 8 : 6}px;${portraitVisitor ? "width:100%;" : ""}`;
 
-    if (isAddToCart || isReview) {
-      const reviewMode = String(cfg.reviewType || "new_review")
-        .toLowerCase()
-        .trim();
-      const badgeLabel = isAddToCart
-        ? "Added to cart"
-        : reviewMode === "review_content"
-          ? "Customer review"
-          : "New review";
+    if (isAddToCart) {
       const badge = document.createElement("div");
       badge.style.cssText = `
         display:inline-flex;align-items:center;gap:6px;
@@ -1567,11 +1559,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       const dot = document.createElement("span");
       dot.style.cssText = `
         width:6px;height:6px;border-radius:50%;
-        background:${isReview ? cfg.starColor || cfg.priceTagAlt || "#f5a623" : cfg.priceTagAlt || cfg.starColor || "#22c55e"};
+        background:${cfg.priceTagAlt || cfg.starColor || "#22c55e"};
         box-shadow:0 0 0 3px rgba(255,255,255,0.18);
       `;
       badge.appendChild(dot);
-      badge.appendChild(document.createTextNode(badgeLabel));
+      badge.appendChild(document.createTextNode("Added to cart"));
       body.appendChild(badge);
     }
 
@@ -1596,7 +1588,21 @@ document.addEventListener("DOMContentLoaded", async function () {
       body.appendChild(rate);
     }
 
-    if (cfg.message) {
+    if (isReview) {
+      const reviewTitle = document.createElement("div");
+      reviewTitle.textContent = safe(cfg.productTitle, "Product");
+      reviewTitle.style.cssText = `
+        font-weight:800;
+        font-size:${Math.max(14, Math.round(fontSize + 2))}px;
+        line-height:1.08;
+        letter-spacing:.15px;
+        text-transform:uppercase;
+      `;
+      body.appendChild(reviewTitle);
+    }
+
+    const appendMessageLine = () => {
+      if (!cfg.message) return;
       const msg = document.createElement("div");
       msg.style.cssText = isVisitor
         ? `color:${cfg.textColor || "#111"};font-size:${Math.max(
@@ -1691,20 +1697,27 @@ document.addEventListener("DOMContentLoaded", async function () {
         msg.style.maxWidth = "100%";
         msg.style.wordBreak = "break-word";
       }
+      if (isReview) {
+        msg.style.fontStyle = "italic";
+        msg.style.lineHeight = "1.32";
+        msg.style.fontSize = `${Math.max(12, fontSize)}px`;
+      }
       body.appendChild(msg);
-    }
+    };
 
-    const priceText = safe(cfg.price, "").trim();
-    const compareCandidate = alignCompareCurrency(
-      priceText,
-      safe(cfg.compareAt || cfg.compareAtPrice, "").trim()
-    );
-    const compareText = shouldShowComparePrice(priceText, compareCandidate)
-      ? compareCandidate
-      : "";
-    const shouldRenderPrice =
-      (isVisitor || cfg.showPriceTag) && (priceText || compareText);
-    if (shouldRenderPrice) {
+    const appendPriceLine = () => {
+      const priceText = safe(cfg.price, "").trim();
+      const compareCandidate = alignCompareCurrency(
+        priceText,
+        safe(cfg.compareAt || cfg.compareAtPrice, "").trim()
+      );
+      const compareText = shouldShowComparePrice(priceText, compareCandidate)
+        ? compareCandidate
+        : "";
+      const shouldRenderPrice =
+        (isVisitor || cfg.showPriceTag) && (priceText || compareText);
+      if (!shouldRenderPrice) return;
+
       const line = document.createElement("div");
       line.style.cssText = `display:flex;gap:8px;align-items:center;flex-wrap:wrap;`;
       if (priceText) {
@@ -1713,8 +1726,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         p.style.cssText = `
           background:${cfg.priceTagBg || "#111"};
           color:${cfg.priceColor || "#fff"};
-          font-size:${Math.max(10, Math.round((Number(cfg.textSizePrice) || fontSize - 2) * effectiveSizeScale))}px;
-          padding:2px 8px;border-radius:8px;font-weight:600;
+          font-size:${Math.max(
+            10,
+            Math.round((Number(cfg.textSizePrice) || fontSize - 2) * effectiveSizeScale)
+          )}px;
+          padding:2px 8px;border-radius:8px;font-weight:${isReview ? 700 : 600};
         `;
         line.appendChild(p);
       }
@@ -1725,10 +1741,19 @@ document.addEventListener("DOMContentLoaded", async function () {
           color:${cfg.priceTagAlt || "#666"};
           font-size:${Math.max(10, Math.round((Number(cfg.textSizeCompareAt) || fontSize - 3) * effectiveSizeScale))}px;
           text-decoration:line-through;
+          ${isReview ? "opacity:.9;" : ""}
         `;
         line.appendChild(c);
       }
       body.appendChild(line);
+    };
+
+    if (isReview) {
+      appendPriceLine();
+      appendMessageLine();
+    } else {
+      appendMessageLine();
+      appendPriceLine();
     }
 
     if (isVisitor) {
@@ -2080,6 +2105,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const recs = Array.isArray(data?.records) ? data.records : [];
     const tables = data?.tables || {};
+    const judgeMeConnected = toBool(data?.integrations?.judgeMeConnected, false);
     const tableFlash = Array.isArray(tables.flash) ? tables.flash : [];
     const tableRecent = Array.isArray(tables.recent) ? tables.recent : [];
     const tableVisitor = Array.isArray(tables.visitor) ? tables.visitor : [];
@@ -3667,6 +3693,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (!matchesVisibility(row, pt)) continue;
         if (!matchesScope(row)) continue;
         if (isMobile() && toBool(row?.hideOnMobile, false)) continue;
+        if (
+          type === "review" &&
+          String(row?.dataSource || "judge_me").toLowerCase() === "judge_me" &&
+          !judgeMeConnected
+        ) {
+          continue;
+        }
 
         const lowStockSource = String(row?.dataSource || "shopify").toLowerCase();
         const hideOutOfStock =
