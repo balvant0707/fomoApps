@@ -517,11 +517,7 @@ export default function NotificationTable({
                       <IndexTable.Cell>
                         <InlineStack align="start" gap="200">
                           <Button
-                            onClick={() =>
-                              navigate(
-                                `/app/notification/${row.key}/edit/${row.id}`
-                              )
-                            }
+                            onClick={() => navigate(`/app/notification/${row.key}`)}
                           >
                             Edit
                           </Button>

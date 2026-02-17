@@ -17,16 +17,10 @@ const buildEditorRedirect = (request, params) => {
     throw new Response("Not Found", { status: 404 });
   }
 
-  const idNum = Number(params?.id);
-  const hasValidId = Number.isInteger(idNum) && idNum > 0;
   const url = new URL(request.url);
   const sp = new URLSearchParams(url.search);
+  sp.delete("id");
   sp.delete("editId");
-  if (hasValidId) {
-    sp.set("id", String(idNum));
-  } else {
-    sp.delete("id");
-  }
 
   const search = sp.toString();
   return `/app/notification/${key}${search ? `?${search}` : ""}`;
