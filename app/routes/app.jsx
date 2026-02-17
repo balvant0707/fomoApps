@@ -54,7 +54,12 @@ export const loader = async ({ request }) => {
         extId,
         embedHandle: APP_EMBED_HANDLE,
       })
-    : { themeId: null, appEmbedEnabled: false, appEmbedFound: false };
+    : {
+        themeId: null,
+        appEmbedEnabled: false,
+        appEmbedFound: false,
+        appEmbedChecked: false,
+      };
   const slug = shop.replace(".myshopify.com", "");
 
   return {
@@ -63,11 +68,12 @@ export const loader = async ({ request }) => {
     themeId: embedContext.themeId,
     appEmbedEnabled: embedContext.appEmbedEnabled,
     appEmbedFound: embedContext.appEmbedFound,
+    appEmbedChecked: embedContext.appEmbedChecked,
   };
 };
 
 export default function App() {
-  const { apiKey, slug, themeId, appEmbedEnabled } = useLoaderData();
+  const { apiKey, slug, themeId, appEmbedEnabled, appEmbedChecked } = useLoaderData();
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
@@ -92,7 +98,7 @@ export default function App() {
         <a href={appUrl("/app/help")}>Help</a>
       </NavMenu>
       <LcpObserver />
-      {!appEmbedEnabled && (
+      {appEmbedChecked && !appEmbedEnabled && (
         <div style={{ padding: "12px 16px 0" }}>
           <Banner status="warning" title="Enable app embed to show notifications on storefront">
             <p>Theme Customize ma App embeds ma Fomoify embed ON karo.</p>

@@ -58,24 +58,24 @@ export async function getThemeEmbedState({
   embedHandle = APP_EMBED_HANDLE,
 }) {
   try {
-    if (!themeId) return { enabled: false, found: false };
+    if (!themeId) return { enabled: false, found: false, checked: false };
 
     const settingsRaw = await getOrSetCache(
       `themes:settings:${shop}:${themeId}`,
       30000,
       () => fetchThemeSettingsData({ admin, themeId })
     );
-    if (!settingsRaw) return { enabled: false, found: false };
+    if (!settingsRaw) return { enabled: false, found: false, checked: false };
 
     let parsed = null;
     try {
       parsed = JSON.parse(settingsRaw);
     } catch {
-      return { enabled: false, found: false };
+      return { enabled: false, found: false, checked: false };
     }
     const blocks = parsed?.current?.blocks;
     if (!blocks || typeof blocks !== "object") {
-      return { enabled: false, found: false };
+      return { enabled: false, found: false, checked: false };
     }
 
     const handleToken = toLower(embedHandle);
@@ -106,10 +106,10 @@ export async function getThemeEmbedState({
       }
     }
 
-    return { enabled, found };
+    return { enabled, found, checked: true };
   } catch (error) {
     console.error("[theme-embed] embed detect failed:", error);
-    return { enabled: false, found: false };
+    return { enabled: false, found: false, checked: false };
   }
 }
 
@@ -133,5 +133,6 @@ export async function getAppEmbedContext({
     themeId: themeId ?? null,
     appEmbedEnabled: Boolean(state?.enabled),
     appEmbedFound: Boolean(state?.found),
+    appEmbedChecked: Boolean(state?.checked),
   };
 }
