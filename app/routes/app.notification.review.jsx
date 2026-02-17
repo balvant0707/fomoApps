@@ -199,6 +199,8 @@ const CONTENT_TOKENS = [
 ];
 const TIME_TOKENS = ["review_date"];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
+const MESSAGE_FIELD_ID = "review-content-message";
+const TIMESTAMP_FIELD_ID = "review-content-timestamp";
 
 const REVIEW_STYLES = `
 .review-shell {
@@ -1134,9 +1136,51 @@ export default function ReviewNotificationPage() {
   const collectionItems = storeCollections;
 
   const insertToken = (field, token) => {
+    const tokenText = `{${token}}`;
+    const targetId =
+      field === "message"
+        ? MESSAGE_FIELD_ID
+        : field === "timestamp"
+          ? TIMESTAMP_FIELD_ID
+          : "";
+    const target =
+      typeof document !== "undefined" && targetId
+        ? document.getElementById(targetId)
+        : null;
+
+    if (target && typeof target.selectionStart === "number") {
+      const start = Number(target.selectionStart) || 0;
+      const end =
+        typeof target.selectionEnd === "number"
+          ? Number(target.selectionEnd)
+          : start;
+
+      setContent((c) => {
+        const current = String(c?.[field] || "");
+        const before = current.slice(0, start);
+        const after = current.slice(end);
+        const needsSpace = before.length > 0 && !/\s$/.test(before);
+        const insertion = `${needsSpace ? " " : ""}${tokenText}`;
+        const next = `${before}${insertion}${after}`;
+
+        const nextCursor = before.length + insertion.length;
+        setTimeout(() => {
+          try {
+            target.focus();
+            if (typeof target.setSelectionRange === "function") {
+              target.setSelectionRange(nextCursor, nextCursor);
+            }
+          } catch {}
+        }, 0);
+
+        return { ...c, [field]: next };
+      });
+      return;
+    }
+
     setContent((c) => ({
       ...c,
-      [field]: `${c[field]}${c[field] ? " " : ""}{${token}}`,
+      [field]: `${c[field]}${c[field] ? " " : ""}${tokenText}`,
     }));
   };
 
@@ -1432,6 +1476,7 @@ export default function ReviewNotificationPage() {
                               Content
                             </Text>
                             <TextField
+                              id={MESSAGE_FIELD_ID}
                               label="Notification content"
                               value={content.message}
                               onChange={(v) =>
@@ -1454,6 +1499,7 @@ export default function ReviewNotificationPage() {
                               ))}
                             </InlineStack>
                             <TextField
+                              id={TIMESTAMP_FIELD_ID}
                               label="Timestamp"
                               value={content.timestamp}
                               onChange={(v) =>
@@ -1524,7 +1570,7 @@ export default function ReviewNotificationPage() {
                                 </div>
                               </div>
 
-                              <div>
+                              {/* <div>
                                 <RadioButton
                                   id="data-csv"
                                   name="data_source"
@@ -1542,7 +1588,7 @@ export default function ReviewNotificationPage() {
                                     Select a CSV file to import your review data
                                   </Text>
                                 </div>
-                              </div>
+                              </div> */}
                             </BlockStack>
 
                             <BlockStack gap="150">

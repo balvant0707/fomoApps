@@ -124,14 +124,23 @@ document.addEventListener("DOMContentLoaded", async function () {
     return `${raw.slice(0, lim).trimEnd()}...`;
   };
   const applyTokens = (tpl, tokens) => {
+    const alias = {
+      reviewer_title: "review_title",
+      reviewer_body: "review_body",
+      review_country: "reviewer_country",
+      review_city: "reviewer_city",
+    };
     const normalized = {};
     if (tokens && typeof tokens === "object") {
       for (const [key, value] of Object.entries(tokens)) {
-        normalized[String(key || "").trim().toLowerCase()] = value;
+        const baseKey = String(key || "").trim().toLowerCase();
+        const mappedKey = alias[baseKey] || baseKey;
+        normalized[mappedKey] = value;
       }
     }
     return String(tpl || "").replace(/\{([^{}]+)\}/g, (m, rawKey) => {
-      const key = String(rawKey || "").trim().toLowerCase();
+      const raw = String(rawKey || "").trim().toLowerCase();
+      const key = alias[raw] || raw;
       const value = normalized[key];
       return value !== undefined && value !== null ? String(value) : m;
     });
@@ -2847,6 +2856,110 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
       }
 
+      if (!out.length) {
+        const typeList = (value) => {
+          if (Array.isArray(value)) {
+            return value.map((it) => String(it || "").toLowerCase());
+          }
+          return [String(value || "").toLowerCase()];
+        };
+        const toArray = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+        const parseJsonLd = (raw) => {
+          try {
+            return JSON.parse(String(raw || ""));
+          } catch {
+            return null;
+          }
+        };
+        const pushReview = (review) => {
+          if (!review || typeof review !== "object") return;
+          const reviewerRaw = review.author;
+          const reviewerName = normalizeReviewSnippet(
+            typeof reviewerRaw === "string"
+              ? reviewerRaw
+              : reviewerRaw?.name || reviewerRaw?.author || "",
+            60
+          );
+          const reviewTitle = normalizeReviewSnippet(
+            review.name || review.title || review.headline || "",
+            80
+          );
+          const reviewBody = normalizeReviewSnippet(
+            review.reviewBody || review.description || review.body || "",
+            140
+          );
+          if (!reviewerName && !reviewTitle && !reviewBody) return;
+
+          const dateRaw = safe(
+            review.datePublished || review.dateCreated || review.createdAt || "",
+            ""
+          ).trim();
+          const reviewDate =
+            relDaysAgo(dateRaw) || normalizeReviewSnippet(dateRaw, 40) || "Just now";
+
+          const ratingRaw = Number(
+            review.reviewRating?.ratingValue ??
+            review.reviewRating?.value ??
+            review.ratingValue ??
+            review.rating
+          );
+          const rating = Number.isFinite(ratingRaw) && ratingRaw > 0
+            ? Math.max(1, Math.min(5, Math.round(ratingRaw)))
+            : 4;
+
+          const locationRaw =
+            (typeof reviewerRaw === "object" &&
+              (reviewerRaw?.address?.addressCountry ||
+                reviewerRaw?.address?.addressLocality ||
+                reviewerRaw?.address?.name ||
+                reviewerRaw?.location)) ||
+            review.location ||
+            "";
+          const { city, country } = parseJudgeMeLocation(locationRaw);
+
+          const sig = `${reviewerName}|${reviewTitle}|${reviewDate}|${reviewBody}`.toLowerCase();
+          if (seen.has(sig)) return;
+          seen.add(sig);
+
+          out.push({
+            reviewer_name: reviewerName || "Verified buyer",
+            review_title: reviewTitle || "Great product",
+            review_body: reviewBody || "Loved it.",
+            reviewer_city: city || "",
+            reviewer_country: country || "United States",
+            review_date: reviewDate,
+            rating,
+          });
+        };
+
+        const scripts = Array.from(
+          doc.querySelectorAll("script[type='application/ld+json']")
+        );
+        for (const script of scripts) {
+          const parsed = parseJsonLd(script?.textContent || "");
+          if (!parsed) continue;
+
+          const queue = toArray(parsed);
+          while (queue.length) {
+            const node = queue.shift();
+            if (!node || typeof node !== "object") continue;
+
+            const graph = node["@graph"];
+            if (Array.isArray(graph)) queue.push(...graph);
+
+            const nodeTypes = typeList(node["@type"]);
+            const isReview = nodeTypes.includes("review");
+            const isProduct = nodeTypes.includes("product");
+
+            if (isReview) pushReview(node);
+            if (isProduct) {
+              const reviews = toArray(node.review);
+              for (const review of reviews) pushReview(review);
+            }
+          }
+        }
+      }
+
       return out;
     };
     const parseJudgeMeReviewsFromHtml = (html) => {
@@ -3590,12 +3703,10 @@ document.addEventListener("DOMContentLoaded", async function () {
             }
           }
         }
-        const isJudgeMeReview =
-          type === "review" &&
-          String(row?.dataSource || "judge_me").toLowerCase() === "judge_me";
+        const isReviewPopup = type === "review";
         let pool = products.length
           ? products
-          : isJudgeMeReview
+          : isReviewPopup
             ? []
             : [{ title: "Product", image: "", price: "", compareAt: "" }];
 
@@ -3608,7 +3719,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           });
           if (!pool.length) continue;
         }
-        if (isJudgeMeReview) {
+        if (isReviewPopup) {
           const reviewedPool = [];
           const seenKeys = new Set();
           const collectReviewed = async (list) => {
@@ -3701,7 +3812,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             effectiveShowRating = await hasJudgeMeReview(prod);
           }
           const reviewDetails =
-            isJudgeMeReview && type === "review"
+            type === "review"
               ? await pickJudgeMeReviewForProduct(prod, i)
               : null;
           const resolvedRating = (() => {
