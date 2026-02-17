@@ -326,6 +326,7 @@ const missingColumnError = (err) => {
     (msg.includes("column") && msg.includes("does not exist"))
   );
 };
+const MAX_SCHEMA_FALLBACK_ATTEMPTS = 30;
 
 const extractColumnName = (err) => {
   const rawMeta = String(err?.meta?.column || "").trim();
@@ -355,7 +356,7 @@ async function safeFindLatest(model, key, shop) {
   const baseSelect = { ...(TABLE_SELECTS[key] || {}) };
   let select = Object.keys(baseSelect).length ? { ...baseSelect } : null;
 
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < MAX_SCHEMA_FALLBACK_ATTEMPTS; attempt += 1) {
     try {
       if (select && Object.keys(select).length) {
         return await model.findFirst({

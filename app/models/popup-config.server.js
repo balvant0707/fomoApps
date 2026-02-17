@@ -24,6 +24,7 @@ const SPLIT_SELECTION_COLUMNS = [
   "selectedVisibilityProductsJson",
 ];
 const ADD_TO_CART_EXTRA_COLUMNS = ["avgTime", "avgUnit", "customerInfo"];
+const MAX_SCHEMA_FALLBACK_ATTEMPTS = 30;
 const withoutKeys = (obj, keys) => {
   const out = { ...obj };
   for (const key of keys) delete out[key];
@@ -171,7 +172,7 @@ async function upsertByShopWithSplitFallback(
   let workingData = { ...data };
   const removable = new Set(Array.isArray(fallbackColumns) ? fallbackColumns : []);
 
-  for (let attempt = 0; attempt < 6; attempt += 1) {
+  for (let attempt = 0; attempt < MAX_SCHEMA_FALLBACK_ATTEMPTS; attempt += 1) {
     try {
       const suffix = attempt === 0 ? "" : `:fallback${attempt}`;
       return await upsertByShop(

@@ -40,6 +40,17 @@ const errorText = (value, fallback = "Save failed") => {
   }
   return fallback;
 };
+const DATA_PRODUCT_REQUIRED_MSG = "Please choose at least 1 product in Product info";
+const isValidSelectedProduct = (item) => {
+  if (!item) return false;
+  if (typeof item === "string") return String(item).trim().length > 0;
+  if (typeof item === "object") {
+    return Boolean(String(item.id || item.handle || item.title || "").trim());
+  }
+  return false;
+};
+const hasAnyValidSelectedProduct = (list) =>
+  Array.isArray(list) && list.some(isValidSelectedProduct);
 
 const isTransientDbError = (error) => {
   const code = String(error?.code || "").toUpperCase();
@@ -68,6 +79,126 @@ const isMissingColumnError = (error) => {
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const MAX_SCHEMA_FALLBACK_ATTEMPTS = 30;
+
+const normalizeColumnName = (value) => {
+  const raw = String(value || "")
+    .replace(/[`'"]/g, "")
+    .trim();
+  if (!raw) return "";
+  const parts = raw.split(".");
+  return parts[parts.length - 1] || "";
+};
+
+const extractMissingColumn = (error) => {
+  const fromMeta = normalizeColumnName(error?.meta?.column);
+  if (fromMeta) return fromMeta;
+
+  const msg = String(error?.message || "");
+  const patterns = [
+    /unknown column ['`"]([^'`"]+)['`"]/i,
+    /the column ['`"]([^'`"]+)['`"] does not exist/i,
+    /column ['`"]([^'`"]+)['`"] does not exist/i,
+  ];
+  for (const pattern of patterns) {
+    const match = msg.match(pattern);
+    if (match?.[1]) return normalizeColumnName(match[1]);
+  }
+  return "";
+};
+
+const removeSelectKey = (select, column) => {
+  if (!column) return false;
+  if (Object.prototype.hasOwnProperty.call(select, column)) {
+    delete select[column];
+    return true;
+  }
+  return false;
+};
+
+const ADD_TO_CART_LEGACY_SELECT = {
+  id: true,
+  layout: true,
+  size: true,
+  transparent: true,
+  template: true,
+  bgColor: true,
+  bgAlt: true,
+  textColor: true,
+  timestampColor: true,
+  priceTagBg: true,
+  priceTagAlt: true,
+  priceColor: true,
+  starColor: true,
+  textSizeContent: true,
+  textSizeCompareAt: true,
+  textSizePrice: true,
+  message: true,
+  timestamp: true,
+  avgTime: true,
+  avgUnit: true,
+  productNameMode: true,
+  productNameLimit: true,
+  dataSource: true,
+  customerInfo: true,
+  stockUnder: true,
+  hideOutOfStock: true,
+  directProductPage: true,
+  showProductImage: true,
+  showPriceTag: true,
+  showRating: true,
+  showHome: true,
+  showProduct: true,
+  productScope: true,
+  showCollectionList: true,
+  showCollection: true,
+  collectionScope: true,
+  showCart: true,
+  position: true,
+  showClose: true,
+  hideOnMobile: true,
+  delay: true,
+  duration: true,
+  interval: true,
+  intervalUnit: true,
+  randomize: true,
+  selectedDataProductsJson: true,
+  selectedVisibilityProductsJson: true,
+  selectedProductsJson: true,
+  selectedCollectionsJson: true,
+};
+
+async function findFirstWithSelectFallback(model, findArgs, baseSelect) {
+  let select =
+    baseSelect && typeof baseSelect === "object" ? { ...baseSelect } : null;
+
+  for (let attempt = 0; attempt < MAX_SCHEMA_FALLBACK_ATTEMPTS; attempt += 1) {
+    try {
+      if (select && Object.keys(select).length) {
+        return await model.findFirst({ ...findArgs, select });
+      }
+      return await model.findFirst(findArgs);
+    } catch (error) {
+      if (!isMissingColumnError(error)) throw error;
+      if (!select) throw error;
+
+      const missing = extractMissingColumn(error);
+      const removed = removeSelectKey(select, missing);
+      if (!removed) {
+        const fallbackKey = Object.keys(select).find((key) => key !== "id");
+        if (!fallbackKey) return null;
+        delete select[fallbackKey];
+      }
+
+      console.warn("[AddToCart Popup] loader missing-column fallback:", {
+        removedColumn: missing || null,
+        selectedKeys: Object.keys(select).length,
+      });
+    }
+  }
+
+  return null;
+}
 
 async function saveWithRetry(shop, form, retries = 2) {
   let lastError;
@@ -91,31 +222,56 @@ export async function loader({ request }) {
   const editIdNum = Number(editIdRaw);
   const editId = Number.isInteger(editIdNum) && editIdNum > 0 ? editIdNum : null;
 
-  const parseArr = (raw) => {
+  const parseJsonLoose = (raw) => {
+    if (raw === undefined || raw === null) return null;
     if (Array.isArray(raw)) return raw;
+    if (typeof raw === "object") return raw;
     try {
-      const value = JSON.parse(raw || "[]");
-      return Array.isArray(value) ? value : [];
+      return JSON.parse(raw);
     } catch {
-      return [];
+      return null;
     }
   };
-  const parseSelectedProducts = (source) => {
-    const split = parseArr(source?.selectedDataProductsJson);
-    if (split.length) return split;
+  const parseArr = (raw) => {
+    const parsed = parseJsonLoose(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  };
+  const parseProductSelections = (source) => {
+    const dataProducts = parseArr(source?.selectedDataProductsJson);
+    const visibilityProducts = parseArr(source?.selectedVisibilityProductsJson);
 
-    const raw = source?.selectedProductsJson;
-    if (Array.isArray(raw)) return raw;
-    try {
-      const parsed = JSON.parse(raw || "[]");
-      if (Array.isArray(parsed)) return parsed;
-      if (parsed && typeof parsed === "object") {
-        const nested =
-          parsed.dataProducts ?? parsed.selectedProducts ?? parsed.products;
-        return Array.isArray(nested) ? nested : [];
-      }
-    } catch {}
-    return [];
+    if (dataProducts.length || visibilityProducts.length) {
+      return {
+        dataProducts,
+        visibilityProducts: visibilityProducts.length
+          ? visibilityProducts
+          : dataProducts,
+      };
+    }
+
+    const legacy = parseJsonLoose(source?.selectedProductsJson);
+    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      const legacyData = parseArr(
+        legacy.dataProducts ?? legacy.selectedProducts ?? legacy.products
+      );
+      const legacyVisibility = parseArr(
+        legacy.visibilityProducts ?? legacy.visibility ?? legacy.showOnProducts
+      );
+      return {
+        dataProducts: legacyData,
+        visibilityProducts: legacyVisibility.length
+          ? legacyVisibility
+          : legacyData,
+      };
+    }
+
+    const legacyList = Array.isArray(legacy)
+      ? legacy
+      : parseArr(source?.selectedProductsJson);
+    return {
+      dataProducts: legacyList,
+      visibilityProducts: legacyList,
+    };
   };
   const toBool = (v, fallback = false) => {
     if (v === undefined || v === null) return fallback;
@@ -194,59 +350,16 @@ export async function loader({ request }) {
         source = await model.findFirst(findArgs);
       } catch (error) {
         if (!isMissingColumnError(error)) throw error;
-        source = await model.findFirst({
-          ...findArgs,
-          select: {
-            id: true,
-            layout: true,
-            size: true,
-            transparent: true,
-            template: true,
-            bgColor: true,
-            bgAlt: true,
-            textColor: true,
-            timestampColor: true,
-            priceTagBg: true,
-            priceTagAlt: true,
-            priceColor: true,
-            starColor: true,
-            textSizeContent: true,
-            textSizeCompareAt: true,
-            textSizePrice: true,
-            message: true,
-            timestamp: true,
-            productNameMode: true,
-            productNameLimit: true,
-            dataSource: true,
-            stockUnder: true,
-            hideOutOfStock: true,
-            directProductPage: true,
-            showProductImage: true,
-            showPriceTag: true,
-            showRating: true,
-            showHome: true,
-            showProduct: true,
-            productScope: true,
-            showCollectionList: true,
-            showCollection: true,
-            collectionScope: true,
-            showCart: true,
-            position: true,
-            showClose: true,
-            hideOnMobile: true,
-            delay: true,
-            duration: true,
-            interval: true,
-            intervalUnit: true,
-            randomize: true,
-            selectedProductsJson: true,
-            selectedCollectionsJson: true,
-          },
-        });
+        source = await findFirstWithSelectFallback(
+          model,
+          findArgs,
+          ADD_TO_CART_LEGACY_SELECT
+        );
       }
     }
 
     if (source) {
+      const { dataProducts, visibilityProducts } = parseProductSelections(source);
       saved = {
         id: source.id,
         design: {
@@ -308,7 +421,10 @@ export async function loader({ request }) {
           intervalUnit: toStr(source.intervalUnit, "seconds"),
           randomize: toBool(source.randomize, true),
         },
-        selectedProducts: parseSelectedProducts(source),
+        selectedDataProducts: dataProducts,
+        selectedVisibilityProducts: visibilityProducts,
+        // Keep legacy key for backward compatibility with older client payloads.
+        selectedProducts: dataProducts,
         selectedCollections: parseArr(source.selectedCollectionsJson),
       };
     }
@@ -352,6 +468,20 @@ export async function action({ request }) {
         : null;
   if (!form) {
     return json({ success: false, error: "Missing form" }, { status: 400 });
+  }
+  const selectedDataProducts = Array.isArray(form?.selectedDataProducts)
+    ? form.selectedDataProducts
+    : Array.isArray(form?.selectedProducts)
+      ? form.selectedProducts
+      : [];
+  if (!hasAnyValidSelectedProduct(selectedDataProducts)) {
+    return json(
+      {
+        success: false,
+        error: DATA_PRODUCT_REQUIRED_MSG,
+      },
+      { status: 400 }
+    );
   }
 
   console.log("[AddToCart Popup] form payload:", JSON.stringify(form, null, 2));
@@ -399,6 +529,10 @@ const CONTENT_TOKENS = [
 ];
 const TIME_TOKENS = ["time", "unit"];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
+const PRODUCT_PICKER_TARGETS = {
+  data: "data",
+  visibility: "visibility",
+};
 
 const LOW_STOCK_STYLES = `
 .lowstock-shell {
@@ -954,6 +1088,9 @@ export default function AddToCartPopupPage() {
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
+  const [productPickerTarget, setProductPickerTarget] = useState(
+    PRODUCT_PICKER_TARGETS.data
+  );
   const [search, setSearch] = useState("");
   const [collectionSearch, setCollectionSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -961,8 +1098,10 @@ export default function AddToCartPopupPage() {
   const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
   const [hasLoadedCollections, setHasLoadedCollections] = useState(false);
 
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [selectedDataProducts, setSelectedDataProducts] = useState([]);
+  const [selectedVisibilityProducts, setSelectedVisibilityProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
+  const [dataProductError, setDataProductError] = useState("");
   const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
@@ -980,7 +1119,20 @@ export default function AddToCartPopupPage() {
       setProductNameLimit(String(saved.productNameLimit));
     }
 
-    setSelectedProducts(Array.isArray(saved.selectedProducts) ? saved.selectedProducts : []);
+    setSelectedDataProducts(
+      Array.isArray(saved.selectedDataProducts)
+        ? saved.selectedDataProducts
+        : Array.isArray(saved.selectedProducts)
+          ? saved.selectedProducts
+          : []
+    );
+    setSelectedVisibilityProducts(
+      Array.isArray(saved.selectedVisibilityProducts)
+        ? saved.selectedVisibilityProducts
+        : Array.isArray(saved.selectedProducts)
+          ? saved.selectedProducts
+          : []
+    );
     setSelectedCollections(
       Array.isArray(saved.selectedCollections) ? saved.selectedCollections : []
     );
@@ -990,6 +1142,12 @@ export default function AddToCartPopupPage() {
         : null
     );
   }, [saved]);
+
+  useEffect(() => {
+    if (hasAnyValidSelectedProduct(selectedDataProducts)) {
+      setDataProductError("");
+    }
+  }, [selectedDataProducts]);
 
   useEffect(() => {
     if (hasLoadedProducts) return;
@@ -1060,34 +1218,65 @@ export default function AddToCartPopupPage() {
   const products = storeProducts.length ? storeProducts : fallbackProducts;
   const defaultStoreProduct = storeProducts[0] || firstProduct || null;
 
-  const needsProductSelection =
-    data.dataSource === "manual" && selectedProducts.length === 0;
+  const needsDataProductSelection =
+    !hasAnyValidSelectedProduct(selectedDataProducts);
+  const needsVisibilityProductSelection =
+    visibility.productScope === "specific" &&
+    selectedVisibilityProducts.length === 0;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
     selectedCollections.length === 0;
 
-  const dataScopedProduct =
-    data.dataSource === "shopify" ? selectedProducts[0] || defaultStoreProduct : null;
+  const dataScopedProduct = selectedDataProducts[0] || defaultStoreProduct;
   const scopedProduct =
-    visibility.productScope === "specific" ? selectedProducts[0] : null;
+    visibility.productScope === "specific"
+      ? selectedVisibilityProducts[0]
+      : null;
   const scopedCollectionProduct =
     visibility.collectionScope === "specific"
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
     dataScopedProduct || scopedProduct || scopedCollectionProduct || defaultStoreProduct || null;
-  const previewMessage = needsProductSelection
-    ? "Select a product to preview."
+  const previewMessage = needsDataProductSelection
+    ? "Select data products to preview add-to-cart popup."
+    : needsVisibilityProductSelection
+      ? "Select display products for product page visibility."
     : needsCollectionSelection
       ? "Select a collection to preview."
       : !previewProduct
         ? "Preview will appear once a product is available."
         : null;
 
+  const productKey = (item) =>
+    String(item?.handle || item?.id || item?.title || "")
+      .trim()
+      .toLowerCase();
+  const sameProduct = (a, b) => {
+    const ka = productKey(a);
+    const kb = productKey(b);
+    return Boolean(ka && kb && ka === kb);
+  };
+  const pickerProducts =
+    productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+      ? selectedVisibilityProducts
+      : selectedDataProducts;
+  const openDataProductPicker = () => {
+    setProductPickerTarget(PRODUCT_PICKER_TARGETS.data);
+    setPickerOpen(true);
+  };
+  const openVisibilityProductPicker = () => {
+    setProductPickerTarget(PRODUCT_PICKER_TARGETS.visibility);
+    setPickerOpen(true);
+  };
   const togglePick = (item) => {
-    setSelectedProducts((prev) => {
-      const exists = prev.some((p) => p.id === item.id);
-      if (exists) return prev.filter((p) => p.id !== item.id);
+    const setter =
+      productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+        ? setSelectedVisibilityProducts
+        : setSelectedDataProducts;
+    setter((prev) => {
+      const exists = prev.some((p) => sameProduct(p, item));
+      if (exists) return prev.filter((p) => !sameProduct(p, item));
       return [...prev, item];
     });
   };
@@ -1112,6 +1301,11 @@ export default function AddToCartPopupPage() {
   };
 
   const save = async () => {
+    if (!hasAnyValidSelectedProduct(selectedDataProducts)) {
+      setDataProductError(DATA_PRODUCT_REQUIRED_MSG);
+      setToast({ active: true, error: true, msg: DATA_PRODUCT_REQUIRED_MSG });
+      return;
+    }
     setSaving(true);
     try {
       const endpoint = `${location.pathname}${location.search || ""}`;
@@ -1125,7 +1319,10 @@ export default function AddToCartPopupPage() {
         data,
         visibility,
         behavior,
-        selectedProducts,
+        selectedDataProducts,
+        selectedVisibilityProducts,
+        // Keep legacy field populated for backward compatibility.
+        selectedProducts: selectedDataProducts,
         selectedCollections,
       };
       const res = await fetch(endpoint, {
@@ -1565,16 +1762,16 @@ export default function AddToCartPopupPage() {
                                 Product info
                               </Text>
                               <InlineStack gap="200" blockAlign="center" wrap>
-                                <Button onClick={() => setPickerOpen(true)}>
+                                <Button onClick={openDataProductPicker}>
                                   Select product
                                 </Button>
                                 <Text tone="subdued">
-                                  {selectedProducts.length} products selected
+                                  {selectedDataProducts.length} products selected
                                 </Text>
                               </InlineStack>
-                              {selectedProducts.length === 0 && (
+                              {needsDataProductSelection && (
                                 <Text as="p" tone="critical">
-                                  Please choose at least 1 product
+                                  {dataProductError || DATA_PRODUCT_REQUIRED_MSG}
                                 </Text>
                               )}
                             </BlockStack>
@@ -1725,11 +1922,11 @@ export default function AddToCartPopupPage() {
                                   wrap
                                   style={{ marginTop: 6 }}
                                 >
-                                  <Button onClick={() => setPickerOpen(true)}>
+                                  <Button onClick={openVisibilityProductPicker}>
                                     Select Product
                                   </Button>
                                   <Text tone="subdued">
-                                    {selectedProducts.length} products selected
+                                    {selectedVisibilityProducts.length} products selected
                                   </Text>
                                 </InlineStack>
                               )}
@@ -1986,7 +2183,11 @@ export default function AddToCartPopupPage() {
       <Modal
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        title="Select products"
+        title={
+          productPickerTarget === PRODUCT_PICKER_TARGETS.visibility
+            ? "Select display products"
+            : "Select data products"
+        }
         primaryAction={{ content: "Select", onAction: () => setPickerOpen(false) }}
         secondaryActions={[
           { content: "Cancel", onAction: () => setPickerOpen(false) },
@@ -2031,7 +2232,7 @@ export default function AddToCartPopupPage() {
               ]}
             >
               {products.map((item, index) => {
-                const checked = selectedProducts.some((p) => p.id === item.id);
+                const checked = pickerProducts.some((p) => sameProduct(p, item));
                 return (
                   <IndexTable.Row id={item.id} key={item.id} position={index}>
                     <IndexTable.Cell>
@@ -2061,7 +2262,7 @@ export default function AddToCartPopupPage() {
 
             <InlineStack gap="200" align="space-between" blockAlign="center">
               <Text tone="subdued">
-                {selectedProducts.length} products selected
+                {pickerProducts.length} products selected
               </Text>
               <InlineStack gap="200">
                 <Button

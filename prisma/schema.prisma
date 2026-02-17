@@ -264,7 +264,9 @@ model addtocartpopupconfig {
   intervalUnit           String?
   randomize              Boolean?
 
+  /// Data tab product pool used for add-to-cart popup content generation.
   selectedDataProductsJson String?  @db.LongText
+  /// Display tab product scope used to decide where add-to-cart popup may appear.
   selectedVisibilityProductsJson String? @db.LongText
   selectedProductsJson   String?  @db.LongText
   selectedCollectionsJson String? @db.LongText

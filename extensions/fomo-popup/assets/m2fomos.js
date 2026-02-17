@@ -851,7 +851,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${wrapWidth}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
-      border-radius:4px;
+      border-radius:8px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
       font-family:${cfg.fontFamily};
@@ -914,7 +914,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         top:50%;
         transform:translate(-50%, -50%);
         width:${coverBoxSize}px;height:${coverBoxSize}px;
-        border-radius:4px;
+        border-radius:8px;
         overflow:hidden;
         background:#f3f4f6;
         display:grid;
@@ -1086,7 +1086,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.style.cssText = `
     position:fixed; z-index:9999; box-sizing:border-box;
     width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
-    border-radius:4px;
+    border-radius:8px;
     background:${bgRecent}; color:${cfg.fontColor || "#111"};
     box-shadow:0 10px 30px rgba(0,0,0,.12);
     font-family:${cfg.fontFamily };
@@ -1318,6 +1318,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     const DUR = getAnimDur(cfg);
     const popupType = String(cfg.popupType || "").toLowerCase();
     const isVisitor = popupType === "visitor";
+    const isAddToCart = popupType === "addtocart";
+    const fontFamily = safe(
+      cfg.fontFamily,
+      "system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"
+    );
 
     const hasSize = cfg.size !== undefined && cfg.size !== null && cfg.size !== "";
     const sizeScale = hasSize
@@ -1373,13 +1378,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     const originX = posKey.includes("right") ? "right" : "left";
     const originY = posKey.includes("top") ? "top" : "bottom";
     const transformOrigin = `${originY} ${originX}`;
+    const innerRadius = isAddToCart ? 14 : 8;
+    const innerBorder = isAddToCart
+      ? "1px solid rgba(15,23,42,0.12)"
+      : "1px solid rgba(0,0,0,0.06)";
+    const innerShadow = isAddToCart
+      ? "0 14px 36px rgba(15,23,42,0.2)"
+      : "0 10px 30px rgba(0,0,0,.12)";
 
     const wrap = document.createElement("div");
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${mode === "mobile" ? "min(92vw,420px)" : ""};
       overflow:visible; cursor:pointer;
-      font-family:${cfg.fontFamily };
+      font-family:${fontFamily};
       animation:${inAnim} ${DUR.in}ms ease-out both;
       transform-origin:${transformOrigin};
     `;
@@ -1388,10 +1400,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const inner = document.createElement("div");
     inner.style.cssText = `
       overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${effectiveOpacity};
-      border-radius:4px;
+      border-radius:${innerRadius}px;
       background:${bg}; color:${cfg.textColor || "#111"};
-      box-shadow:0 10px 30px rgba(0,0,0,.12);
-      border:1px solid rgba(0,0,0,0.06);
+      box-shadow:${innerShadow};
+      border:${innerBorder};
       transform:scale(${effectiveSizeScale});
       transform-origin:${transformOrigin};
       max-width:${isPortrait ? (portraitVisitor ? 360 : 320) : isVisitor ? 520 : 460}px;
@@ -1457,6 +1469,30 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const body = document.createElement("div");
     body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:${portraitVisitor ? 8 : 6}px;${portraitVisitor ? "width:100%;" : ""}`;
+
+    if (isAddToCart) {
+      const badge = document.createElement("div");
+      badge.style.cssText = `
+        display:inline-flex;align-items:center;gap:6px;
+        width:max-content;
+        padding:3px 8px;
+        border-radius:999px;
+        font-size:${Math.max(10, fontSize - 3)}px;
+        font-weight:700;
+        letter-spacing:.2px;
+        color:${cfg.priceColor || "#ffffff"};
+        background:${cfg.priceTagBg || "rgba(15,23,42,0.7)"};
+      `;
+      const dot = document.createElement("span");
+      dot.style.cssText = `
+        width:6px;height:6px;border-radius:50%;
+        background:${cfg.priceTagAlt || cfg.starColor || "#22c55e"};
+        box-shadow:0 0 0 3px rgba(255,255,255,0.18);
+      `;
+      badge.appendChild(dot);
+      badge.appendChild(document.createTextNode("Added to cart"));
+      body.appendChild(badge);
+    }
 
     if (cfg.showRating) {
       const rating = Math.max(
@@ -1597,7 +1633,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           background:${cfg.priceTagBg || "#111"};
           color:${cfg.priceColor || "#fff"};
           font-size:${Math.max(10, Math.round((Number(cfg.textSizePrice) || fontSize - 2) * effectiveSizeScale))}px;
-          padding:2px 8px;border-radius:6px;font-weight:600;
+          padding:2px 8px;border-radius:8px;font-weight:600;
         `;
         line.appendChild(p);
       }
@@ -1644,7 +1680,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
-    close.style.cssText = `position:absolute;top:0px;right:0px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:transparent;color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
+    close.style.cssText = `position:absolute;top:0px;right:0px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:${isAddToCart ? "rgba(255,255,255,.82)" : "transparent"};color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
     if (cfg.showClose === false) close.style.display = "none";
@@ -1657,7 +1693,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     const barWrap = document.createElement("div");
     barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
     const bar = document.createElement("div");
-    bar.style.cssText = `height:100%;width:100%;background:${cfg.progressColor || cfg.textColor || "#22c55e"};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
+    const progressColor = isAddToCart
+      ? cfg.progressColor ||
+        cfg.priceTagAlt ||
+        cfg.starColor ||
+        cfg.textColor ||
+        "#22c55e"
+      : cfg.progressColor || cfg.textColor || "#22c55e";
+    bar.style.cssText = `height:100%;width:100%;background:${progressColor};animation:fomoProgress ${visibleMs}ms linear forwards;transform-origin:left;`;
     barWrap.appendChild(bar);
     inner.appendChild(barWrap);
     wrap.appendChild(inner);
@@ -1977,7 +2020,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     let customerPool = [];
-    if (tableVisitor.length) {
+    if (tableVisitor.length || tableAddToCart.length) {
       try {
         const limit = 100;
         const payload = await fetchJson(
@@ -2853,10 +2896,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const baseTokens = {
       // Keep identity fields neutral so runtime shows actual customer data only.
-      full_name: "Someone",
-      first_name: "",
+      full_name: "A shopper",
+      first_name: "A",
       last_name: "",
-      country: "",
+      country: "your area",
       city: "",
       reviewer_name: "Jane B.",
       review_title: "Beautiful and elegant",
