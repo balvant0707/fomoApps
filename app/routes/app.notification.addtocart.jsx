@@ -890,8 +890,9 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
-  const avatarSize = isPortrait ? 56 : 64;
+  const avatarSize = isPortrait ? 66 : 64;
   const avatarOffset = Math.round(avatarSize * 0.45);
+  const useFloatingImage = showProductImage && !isPortrait;
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -900,14 +901,14 @@ function PreviewCard({
     borderRadius: 18,
     boxShadow: "0 12px 30px rgba(0,0,0,0.12)",
     border: "1px solid rgba(0,0,0,0.06)",
-    padding: 16,
-    paddingLeft: showProductImage ? 16 + avatarOffset : 16,
+    padding: isPortrait ? 18 : 16,
+    paddingLeft: useFloatingImage ? 16 + avatarOffset : 16,
     display: "flex",
     position: "relative",
     flexDirection: isPortrait ? "column" : "row",
-    gap: 12,
-    alignItems: "flex-start",
-    maxWidth: isPortrait ? 320 : 460,
+    gap: isPortrait ? 10 : 12,
+    alignItems: isPortrait ? "stretch" : "flex-start",
+    maxWidth: isPortrait ? 360 : 460,
   };
 
   const rawName = product?.title || "Antique Drawers";
@@ -994,15 +995,13 @@ function PreviewCard({
           x
         </button>
       )}
-      {showProductImage && (
+      {showProductImage && useFloatingImage && (
         <div
           style={{
             position: "absolute",
             left: "8px",
-            top: isPortrait ? 28 : "50%",
-            transform: isPortrait
-              ? "translate(-50%, 0)"
-              : "translate(-50%, -50%)",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
             width: avatarSize,
             height: avatarSize,
             borderRadius: 14,
@@ -1028,8 +1027,63 @@ function PreviewCard({
           )}
         </div>
       )}
+      {showProductImage && isPortrait && (
+        <div
+          style={{
+            width: avatarSize,
+            height: avatarSize,
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "#f3f4f6",
+            display: "grid",
+            placeItems: "center",
+            alignSelf: "center",
+            boxShadow: "0 8px 18px rgba(0,0,0,0.18)",
+            border: "2px solid rgba(255,255,255,0.75)",
+            marginTop: 2,
+          }}
+        >
+          {product?.image ? (
+            <img
+              src={product.image}
+              alt={product.title}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <span style={{ fontSize: 12, color: "#6b7280" }}>IMG</span>
+          )}
+        </div>
+      )}
 
-      <div style={{ display: "grid", gap: 6, minWidth: 0, flex: 1 }}>
+      <div style={{ display: "grid", gap: isPortrait ? 8 : 6, minWidth: 0, flex: 1 }}>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            width: "fit-content",
+            background: "rgba(0,0,0,0.82)",
+            color: "#ffffff",
+            borderRadius: 999,
+            padding: "3px 10px",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.2,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#ffffff",
+              opacity: 0.95,
+            }}
+          />
+          Added to cart
+        </div>
         {showRating && (
           <div style={{ color: starColor, fontSize: 12, letterSpacing: 1 }}>
             {"★★★★★".slice(0, product?.rating || 4)}
