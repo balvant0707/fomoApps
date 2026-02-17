@@ -48,13 +48,18 @@ const INDEX_SUPPORT_STYLES = `
   border-color: #96b6ff;
   box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.08);
 }
+.home-support-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
 .home-support-item-icon {
   width: 30px;
   height: 30px;
   border-radius: 10px;
   display: grid;
   place-items: center;
-  margin-bottom: 8px;
+  flex: 0 0 30px;
   color: #1260d8;
   background: #eff6ff;
 }
@@ -62,10 +67,13 @@ const INDEX_SUPPORT_STYLES = `
   width: 18px;
   height: 18px;
 }
+.home-support-item-body {
+  min-width: 0;
+}
 .home-support-item-link {
   color: #1260d8;
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .home-review-panel {
   border: 1px solid #c8d9be;
@@ -574,32 +582,40 @@ export default function AppIndex() {
                 className="home-support-item"
                 onClick={() => navigate(appUrl("/app/help"))}
               >
-                <div className="home-support-item-icon" aria-hidden>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                    <path d="M8 9h8M8 13h5" />
-                  </svg>
+                <div className="home-support-item-row">
+                  <div className="home-support-item-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                      <path d="M8 9h8M8 13h5" />
+                    </svg>
+                  </div>
+                  <div className="home-support-item-body">
+                    <div className="home-support-item-link">Live chat</div>
+                    <Text as="p" tone="subdued">
+                      Support, reply, and assist instantly in office hours.
+                    </Text>
+                  </div>
                 </div>
-                <div className="home-support-item-link">Live chat</div>
-                <Text as="p" tone="subdued">
-                  Support, reply, and assist instantly in office hours.
-                </Text>
               </button>
               <button
                 type="button"
                 className="home-support-item"
                 onClick={() => navigate(appUrl("/app/documents"))}
               >
-                <div className="home-support-item-icon" aria-hidden>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M6 3h9l3 3v15H6z" />
-                    <path d="M15 3v4h4M9 11h6M9 15h6" />
-                  </svg>
+                <div className="home-support-item-row">
+                  <div className="home-support-item-icon" aria-hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M6 3h9l3 3v15H6z" />
+                      <path d="M15 3v4h4M9 11h6M9 15h6" />
+                    </svg>
+                  </div>
+                  <div className="home-support-item-body">
+                    <div className="home-support-item-link">Knowledge base</div>
+                    <Text as="p" tone="subdued">
+                      Find a solution for your problem with our documents.
+                    </Text>
+                  </div>
                 </div>
-                <div className="home-support-item-link">Knowledge base</div>
-                <Text as="p" tone="subdued">
-                  Find a solution for your problem with our documents.
-                </Text>
               </button>
             </div>
           </div>
