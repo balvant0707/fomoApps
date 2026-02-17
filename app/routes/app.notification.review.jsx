@@ -1270,7 +1270,10 @@ export default function ReviewNotificationPage() {
       };
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         credentials: "include",
         body: JSON.stringify({ form }),
       });
@@ -1295,7 +1298,10 @@ export default function ReviewNotificationPage() {
         throw new Error(errorText(out?.error));
       }
 
-      if (!out && /<html/i.test(String(raw || ""))) {
+      const responseUrl = String(res.url || "");
+      const redirectedToAuth =
+        res.redirected && /\/auth|\/login|oauth|authorize/i.test(responseUrl);
+      if (redirectedToAuth) {
         throw new Error("Session expired. Reload page and try again.");
       }
 
