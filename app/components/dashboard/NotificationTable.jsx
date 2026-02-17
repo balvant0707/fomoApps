@@ -519,7 +519,7 @@ export default function NotificationTable({
                           <Button
                             onClick={() =>
                               navigate(
-                                `/app/notification/${row.key}`
+                                `/app/notification/${row.key}/edit/${row.id}`
                               )
                             }
                           >

@@ -225,7 +225,21 @@ async function saveWithRetry(shop, form, retries = 2) {
 }
 
 export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+  let admin;
+  let session;
+  try {
+    ({ admin, session } = await authenticate.admin(request));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("[AddToCart Popup] auth failed in loader:", error);
+    return json({
+      title: "Add to cart Popup",
+      saved: null,
+      customerCount: null,
+      firstProduct: null,
+      previewCustomer: SAMPLE_ADD_TO_CART_CUSTOMER,
+    });
+  }
   const shop = session?.shop;
   const reqUrl = new URL(request.url);
   const editIdRaw = reqUrl.searchParams.get("editId") || reqUrl.searchParams.get("id");
