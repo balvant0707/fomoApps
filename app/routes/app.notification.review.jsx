@@ -140,7 +140,19 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
+  let session;
+  try {
+    ({ session } = await authenticate.admin(request));
+  } catch (error) {
+    console.error("[Review Popup] auth failed:", error);
+    return json(
+      {
+        success: false,
+        error: "Session/auth temporarily unavailable. Please try again.",
+      },
+      { status: 503 }
+    );
+  }
   const shop = session?.shop;
   if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
 
@@ -151,7 +163,13 @@ export async function action({ request }) {
     return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { form } = body || {};
+  const rawForm = body?.form;
+  const form =
+    rawForm && typeof rawForm === "object" && !Array.isArray(rawForm)
+      ? rawForm
+      : body && typeof body === "object" && !Array.isArray(body)
+        ? body
+        : null;
   if (!form) {
     return json({ success: false, error: "Missing form" }, { status: 400 });
   }
