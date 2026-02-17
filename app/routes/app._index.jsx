@@ -12,10 +12,9 @@ import {
   InlineStack,
 } from "@shopify/polaris";
 import { getOrSetCache } from "../utils/serverCache.server";
+import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
-const APP_EMBED_HANDLE = "fomo-embed";
-const THEME_SETTINGS_DATA_KEY = "config/settings_data.json";
 const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
 const WRITE_REVIEW_URL = "https://apps.shopify.com";
 
@@ -138,80 +137,6 @@ const INDEX_SUPPORT_STYLES = `
   }
 }
 `;
-
-async function fetchThemeSettingsData({ admin, themeId }) {
-  const params = {
-    session: admin.session,
-    theme_id: themeId,
-    asset: { key: THEME_SETTINGS_DATA_KEY },
-  };
-
-  try {
-    const resp = await admin.rest.resources.Asset.all(params);
-    const data = resp?.data;
-    if (Array.isArray(data)) return data[0]?.value || "";
-    if (data?.asset?.value) return data.asset.value;
-    return data?.value || "";
-  } catch (assetError) {
-    if (!admin?.rest?.get) throw assetError;
-    const fallbackResp = await admin.rest.get({
-      path: `themes/${themeId}/assets`,
-      query: { "asset[key]": THEME_SETTINGS_DATA_KEY },
-    });
-    const body = fallbackResp?.body || fallbackResp?.data || {};
-    return body?.asset?.value || "";
-  }
-}
-
-async function resolveAppEmbedState({ admin, shop, themeIdPromise, apiKey }) {
-  try {
-    const themeId = await Promise.resolve(themeIdPromise);
-    if (!themeId) return { enabled: false, found: false };
-
-    const settingsRaw = await getOrSetCache(
-      `themes:settings:${shop}:${themeId}`,
-      30000,
-      () => fetchThemeSettingsData({ admin, themeId })
-    );
-    if (!settingsRaw) return { enabled: false, found: false };
-
-    const parsed = JSON.parse(settingsRaw);
-    const blocks = parsed?.current?.blocks;
-    if (!blocks || typeof blocks !== "object") {
-      return { enabled: false, found: false };
-    }
-
-    const handleNeedle = `/blocks/${APP_EMBED_HANDLE}/`;
-    const extNeedle = String(THEME_EXTENSION_ID || "").trim().toLowerCase();
-    const apiNeedle = String(apiKey || "").trim().toLowerCase();
-
-    let found = false;
-    let enabled = false;
-
-    for (const block of Object.values(blocks)) {
-      const type = String(block?.type || "").toLowerCase();
-      if (!type) continue;
-
-      const matchesHandle = type.includes(handleNeedle);
-      const matchesExtension = extNeedle ? type.includes(extNeedle) : false;
-      const matchesApiKey = apiNeedle ? type.includes(apiNeedle) : false;
-      if (!matchesHandle && !matchesExtension && !matchesApiKey) continue;
-
-      found = true;
-      const isDisabled =
-        block?.disabled === true || String(block?.disabled) === "true";
-      if (!isDisabled) {
-        enabled = true;
-        break;
-      }
-    }
-
-    return { enabled, found };
-  } catch (e) {
-    console.error("[home.loader] app embed detect failed:", e);
-    return { enabled: false, found: false };
-  }
-}
 
 async function fetchRows(shop) {
   const hasMissingColumnError = (error) => {
@@ -404,6 +329,9 @@ async function fetchRows(shop) {
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
+  const { getMainThemeId, getThemeEmbedState } = await import(
+    "../utils/themeEmbed.server"
+  );
   const url = new URL(request.url);
   const normalizeShop = (value) => String(value || "").trim().toLowerCase();
   const shop =
@@ -430,24 +358,7 @@ export const loader = async ({ request }) => {
   const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
   const pageSize = [10, 25, 50].includes(pageSizeRaw) ? pageSizeRaw : 10;
 
-  const themeIdPromise = (async () => {
-    try {
-      const cacheKey = `themes:main:${shop}`;
-      const cached = await getOrSetCache(cacheKey, 60000, async () => {
-        const resp = await admin.rest.resources.Theme.all({
-          session: admin.session,
-          fields: "id,role",
-        });
-        const themes = resp?.data || [];
-        const live = themes.find((t) => t.role === "main");
-        return live?.id ?? null;
-      });
-      return cached ?? null;
-    } catch (e) {
-      console.error("Theme list failed:", e);
-      return null;
-    }
-  })();
+  const themeIdPromise = getMainThemeId({ admin, shop });
 
   const rowsPromise = getOrSetCache(`home:rows:${shop}`, 10000, () =>
     fetchRows(shop)
@@ -464,12 +375,16 @@ export const loader = async ({ request }) => {
     process.env.SHOPIFY_API_KEY ||
     process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
     "";
-  const appEmbedStatePromise = resolveAppEmbedState({
-    admin,
-    shop,
-    themeIdPromise,
-    apiKey,
-  });
+  const appEmbedStatePromise = Promise.resolve(themeIdPromise).then((themeId) =>
+    getThemeEmbedState({
+      admin,
+      shop,
+      themeId,
+      apiKey,
+      extId: THEME_EXTENSION_ID,
+      embedHandle: APP_EMBED_HANDLE,
+    })
+  );
 
   return defer({
     slug,
