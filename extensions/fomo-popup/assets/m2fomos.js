@@ -823,6 +823,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     el.style.right = "0";
     el.style.margin = "0 auto";
   }
+  function closeBtnStyle(color) {
+    return `position:absolute;top:2px;right:4px;border:0;background:transparent;color:${color || "inherit"};font-size:20px;line-height:1;padding:2px 4px;cursor:pointer;opacity:.82;transition:opacity .15s ease;z-index:2;`;
+  }
 
   /* ========== FLASH renderer ========== */
   function renderFlash(cfg, mode, onDone) {
@@ -900,7 +903,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         ? coverBoxSize
         : containIconSize;
     const iRad = mode === "mobile" ? Math.round(iSize * 0.17) : 4;
-    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${isPortrait ? 16 : iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
+    img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${isContain ? 0 : isPortrait ? 16 : iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.src = FLAME_SVG;
     };
@@ -980,9 +983,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
     close.className = "fomo-close";
-    close.style.cssText = `position:absolute;top:0px;right:0px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
+    close.style.cssText = closeBtnStyle(
+      cfg.fontColor || cfg.textColor || "inherit"
+    );
     close.onmouseenter = () => (close.style.opacity = "1");
-    close.onmouseleave = () => (close.style.opacity = ".8");
+    close.onmouseleave = () => (close.style.opacity = ".82");
 
     card.appendChild(iconNode);
     card.appendChild(body);
@@ -1061,10 +1066,12 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const isPortrait =
       String(cfg.layout || "landscape").toLowerCase() === "portrait";
-    const imageFit =
-      String(cfg.imageAppearance || "cover").toLowerCase() === "contain"
-        ? "contain"
-        : "cover";
+    const imageAppearance = String(cfg.imageAppearance || "cover")
+      .trim()
+      .toLowerCase();
+    const isContain =
+      imageAppearance === "contain" || imageAppearance.includes("fit");
+    const imageFit = isContain ? "contain" : "cover";
     const showImage = !cfg.hideProductImage;
     const imageOverflow = imageFit === "cover" && !isPortrait && showImage;
     const pad = mode === "mobile" ? mt.pad : 12;
@@ -1074,6 +1081,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const portraitImageSize = mode === "mobile" ? 120 : 160;
     const inlineImageSize = isPortrait ? portraitImageSize : iSize;
     const inlineImageRadius = isPortrait ? 14 : iRad;
+    const inlineImageWidth =
+      isContain && !isPortrait ? Math.round(inlineImageSize * 1.2) : inlineImageSize;
+    const inlineImageOverflow = isContain ? "visible" : "hidden";
+    const inlineImageRadiusResolved = isContain ? 0 : inlineImageRadius;
     const imageTextGap = mode === "mobile" ? 10 : 12;
     const leftPad = imageOverflow
       ? pad + Math.round(iSize / 2) + imageTextGap
@@ -1105,7 +1116,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const img = document.createElement("img");
     img.src = imageSrc;
     img.alt = safe(cfg.productTitle, "Product");
-    img.style.cssText = `width:100%;height:100%;object-fit:${imageFit};`;
+    img.style.cssText = `width:100%;height:100%;object-fit:${imageFit};object-position:center center;`;
     img.onerror = () => {
       imgWrap.style.display = "none";
     };
@@ -1125,12 +1136,28 @@ document.addEventListener("DOMContentLoaded", async function () {
       `;
     } else {
       imgWrap.style.cssText = `
-        width:${inlineImageSize}px;height:${inlineImageSize}px;
-        border-radius:${inlineImageRadius}px;overflow:hidden;background:transparent;
-        flex:0 0 ${inlineImageSize}px;display:${showImage ? "grid" : "none"};
+        width:${inlineImageWidth}px;height:${inlineImageSize}px;
+        border-radius:${inlineImageRadiusResolved}px;overflow:${inlineImageOverflow};background:transparent;
+        flex:0 0 ${inlineImageWidth}px;display:${showImage ? "grid" : "none"};
         place-items:center;pointer-events:none;
         align-self:${isPortrait ? "center" : "auto"};
       `;
+    }
+    if (isContain && !imageOverflow) {
+      const syncContainWidth = () => {
+        const naturalWidth = Number(img.naturalWidth) || 0;
+        const naturalHeight = Number(img.naturalHeight) || 0;
+        if (!naturalWidth || !naturalHeight) return;
+        const ratio = Math.max(0.65, Math.min(1.85, naturalWidth / naturalHeight));
+        const targetWidth = Math.max(
+          Math.round(inlineImageSize * 0.72),
+          Math.round(inlineImageSize * ratio)
+        );
+        imgWrap.style.width = `${targetWidth}px`;
+        imgWrap.style.flexBasis = `${targetWidth}px`;
+      };
+      img.onload = syncContainWidth;
+      if (img.complete) syncContainWidth();
     }
     imgWrap.appendChild(img);
 
@@ -1258,9 +1285,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
-    close.style.cssText = `position:absolute;top:0px;right:0px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
+    close.style.cssText = closeBtnStyle(
+      cfg.fontColor || cfg.textColor || "inherit"
+    );
     close.onmouseenter = () => (close.style.opacity = "1");
-    close.onmouseleave = () => (close.style.opacity = ".8");
+    close.onmouseleave = () => (close.style.opacity = ".82");
 
     card.appendChild(imgWrap);
     card.appendChild(body);
@@ -1373,6 +1402,12 @@ document.addEventListener("DOMContentLoaded", async function () {
           : 72
         : 56
       : imgSize;
+    const inlineWidth =
+      isContain && !isPortrait
+        ? Math.round(inlineSize * (isAddToCart ? 1.2 : 1.12))
+        : inlineSize;
+    const inlineWrapRadius = isContain ? 0 : Math.round(inlineSize * 0.22);
+    const inlineWrapOverflow = isContain ? "visible" : "hidden";
 
     const posKey = String(cfg.positionDesktop || cfg.position || "bottom-left").toLowerCase();
     const originX = posKey.includes("right") ? "right" : "left";
@@ -1445,11 +1480,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     } else {
       imgWrap = document.createElement("div");
       imgWrap.style.cssText = `
-        width:${inlineSize}px;height:${inlineSize}px;
-        border-radius:${Math.round(inlineSize * 0.22)}px;
-        overflow:hidden;
+        width:${inlineWidth}px;height:${inlineSize}px;
+        border-radius:${inlineWrapRadius}px;
+        overflow:${inlineWrapOverflow};
         background:${portraitVisitor ? "#ffffff" : "transparent"};
-        flex-shrink:0;display:${cfg.showProductImage === false ? "none" : "grid"};
+        flex:0 0 ${inlineWidth}px;display:${cfg.showProductImage === false ? "none" : "grid"};
         place-items:center;pointer-events:none;
         align-self:${isPortrait ? "center" : "flex-start"};
         ${portraitVisitor ? "box-shadow:0 10px 22px rgba(0,0,0,0.14);border:1px solid rgba(15,23,42,0.08);margin:2px auto 2px;" : ""}
@@ -1457,14 +1492,41 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     const img = document.createElement("img");
-    img.src = cfg.productImage || cfg.image || "";
     img.alt = safe(cfg.productTitle, "Product");
     img.style.cssText = `
-      width:100%;height:100%;object-fit:${imageFit};
+      width:100%;height:100%;object-fit:${imageFit};object-position:center center;
     `;
     img.onerror = () => {
       imgWrap.style.display = "none";
     };
+    if (isContain && !imageOverflow) {
+      const syncContainWidth = () => {
+        const naturalWidth = Number(img.naturalWidth) || 0;
+        const naturalHeight = Number(img.naturalHeight) || 0;
+        if (!naturalWidth || !naturalHeight) return;
+        const ratio = Math.max(0.65, Math.min(1.85, naturalWidth / naturalHeight));
+        const targetWidth = Math.max(
+          Math.round(inlineSize * 0.72),
+          Math.round(inlineSize * ratio)
+        );
+        imgWrap.style.width = `${targetWidth}px`;
+        imgWrap.style.flexBasis = `${targetWidth}px`;
+      };
+      img.onload = syncContainWidth;
+    }
+    img.src = cfg.productImage || cfg.image || "";
+    if (isContain && !imageOverflow && img.complete && Number(img.naturalWidth || 0) > 0) {
+      const ratio = Math.max(
+        0.65,
+        Math.min(1.85, Number(img.naturalWidth || 0) / Number(img.naturalHeight || 1))
+      );
+      const targetWidth = Math.max(
+        Math.round(inlineSize * 0.72),
+        Math.round(inlineSize * ratio)
+      );
+      imgWrap.style.width = `${targetWidth}px`;
+      imgWrap.style.flexBasis = `${targetWidth}px`;
+    }
     imgWrap.appendChild(img);
 
     const body = document.createElement("div");
@@ -1680,9 +1742,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
-    close.style.cssText = `position:absolute;top:0px;right:0px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:${isAddToCart ? "rgba(255,255,255,.82)" : "transparent"};color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
+    close.style.cssText = closeBtnStyle(cfg.textColor || cfg.fontColor || "inherit");
     close.onmouseenter = () => (close.style.opacity = "1");
-    close.onmouseleave = () => (close.style.opacity = ".8");
+    close.onmouseleave = () => (close.style.opacity = ".82");
     if (cfg.showClose === false) close.style.display = "none";
 
     card.appendChild(imgWrap);
