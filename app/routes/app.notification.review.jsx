@@ -201,6 +201,21 @@ const TIME_TOKENS = ["review_date"];
 const DEFAULT_PRODUCT_NAME_LIMIT = "15";
 const MESSAGE_FIELD_ID = "review-content-message";
 const TIMESTAMP_FIELD_ID = "review-content-timestamp";
+const errorText = (value, fallback = "Save failed") => {
+  const raw = String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return fallback;
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes("unexpected token") ||
+    lower.includes("json") ||
+    lower.includes("<!doctype")
+  ) {
+    return fallback;
+  }
+  return raw;
+};
 
 const REVIEW_STYLES = `
 .review-shell {
@@ -1230,24 +1245,51 @@ export default function ReviewNotificationPage() {
         data,
         visibility,
         behavior,
+        selectedDataProducts: selectedProducts,
+        selectedVisibilityProducts: selectedProducts,
         selectedProducts,
         selectedCollections,
       };
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ form }),
       });
-      const out = await res.json().catch(() => ({}));
-      if (!res.ok || !out?.success) {
-        throw new Error(out?.error || "Save failed");
+      const raw = await res.text();
+      let out = null;
+      try {
+        out = raw ? JSON.parse(raw) : null;
+      } catch {
+        out = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          errorText(
+            out?.error,
+            errorText(out?.message, `Save failed (HTTP ${res.status})`)
+          )
+        );
+      }
+
+      if (out && out.success === false) {
+        throw new Error(errorText(out?.error));
+      }
+
+      if (!out && /<html/i.test(String(raw || ""))) {
+        throw new Error("Session expired. Reload page and try again.");
+      }
+
+      if (Number.isInteger(Number(out?.id)) && Number(out.id) > 0) {
+        setEditingId(Number(out.id));
       }
       setToast({ active: true, error: false, msg: "Saved." });
     } catch (e) {
       setToast({
         active: true,
         error: true,
-        msg: e?.message || "Save failed",
+        msg: errorText(e),
       });
     } finally {
       setSaving(false);
