@@ -851,7 +851,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.style.cssText = `
       position:fixed; z-index:9999; box-sizing:border-box;
       width:${wrapWidth}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
-      border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
+      border-radius:4px;
       background:${bgFlash}; color:${cfg.fontColor || "#fff"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
       font-family:${cfg.fontFamily};
@@ -980,7 +980,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
     close.className = "fomo-close";
-    close.style.cssText = `position:absolute;top:6px;right:10px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
+    close.style.cssText = `position:absolute;top:0px;right:0px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
 
@@ -1086,7 +1086,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     wrap.style.cssText = `
     position:fixed; z-index:9999; box-sizing:border-box;
     width:${mode === "mobile" ? mt.w : ""}; overflow:${imageOverflow ? "visible" : "hidden"}; cursor:pointer;
-    border-radius:${Number(cfg.cornerRadius ?? (mode === "mobile" ? mt.rad : 16))}px;
+    border-radius:4px;
     background:${bgRecent}; color:${cfg.fontColor || "#111"};
     box-shadow:0 10px 30px rgba(0,0,0,.12);
     font-family:${cfg.fontFamily };
@@ -1195,7 +1195,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }`;
 
     line2.innerHTML = boughtTxt;
-    line2.style.cssText = `opacity:.95;margin:0 0 6px 0;`;
+    line2.style.cssText = `opacity:1;margin:0 0 6px 0;`;
     body.appendChild(line2);
 
     const priceText = safe(cfg.price, "").trim();
@@ -1258,7 +1258,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
-    close.style.cssText = `position:absolute;top:6px;right:10px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
+    close.style.cssText = `position:absolute;top:0px;right:0px;border:0;background:transparent;color:inherit;font-size:18px;line-height:1;padding:4px;cursor:pointer;opacity:.55;transition:.15s;z-index:1;`;
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
 
@@ -1320,17 +1320,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     const isVisitor = popupType === "visitor";
 
     const hasSize = cfg.size !== undefined && cfg.size !== null && cfg.size !== "";
-    const hasTransparency =
-      cfg.transparent !== undefined && cfg.transparent !== null && cfg.transparent !== "";
     const sizeScale = hasSize
       ? 0.8 + (Math.max(0, Math.min(100, Number(cfg.size))) / 100) * 0.4
       : 1;
-    const opacity = hasTransparency
-      ? 1 -
-        (Math.max(0, Math.min(100, Number(cfg.transparent))) / 100) * 0.7
-      : 1;
     const effectiveSizeScale = isVisitor ? 1 : sizeScale;
-    const effectiveOpacity = isVisitor ? 1 : opacity;
+    const effectiveOpacity = 1;
     const isPortrait =
       String(cfg.layout || "landscape").toLowerCase() === "portrait";
 
@@ -1394,7 +1388,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const inner = document.createElement("div");
     inner.style.cssText = `
       overflow:${imageOverflow ? "visible" : "hidden"}; opacity:${effectiveOpacity};
-      border-radius:${Math.round(18 * effectiveSizeScale)}px;
+      border-radius:4px;
       background:${bg}; color:${cfg.textColor || "#111"};
       box-shadow:0 10px 30px rgba(0,0,0,.12);
       border:1px solid rgba(0,0,0,0.06);
@@ -1650,7 +1644,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     close.type = "button";
     close.setAttribute("aria-label", "Close");
     close.innerHTML = "&times;";
-    close.style.cssText = `position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:#ffffff;color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
+    close.style.cssText = `position:absolute;top:0px;right:0px;width:26px;height:26px;border-radius:50%;border:1px solid #e5e7eb;background:transparent;color:#111827;font-size:16px;line-height:1;padding:0;cursor:pointer;opacity:.9;transition:.15s;z-index:1;`;
     close.onmouseenter = () => (close.style.opacity = "1");
     close.onmouseleave = () => (close.style.opacity = ".8");
     if (cfg.showClose === false) close.style.display = "none";
