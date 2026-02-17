@@ -941,6 +941,7 @@ export default function ReviewNotificationPage() {
   const [collectionSearch, setCollectionSearch] = useState("");
   const [page, setPage] = useState(1);
   const [collectionPage, setCollectionPage] = useState(1);
+  const [hasLoadedProducts, setHasLoadedProducts] = useState(false);
 
   const [design, setDesign] = useState({
     reviewType: "new_review",
@@ -1031,6 +1032,14 @@ export default function ReviewNotificationPage() {
   }, [saved]);
 
   useEffect(() => {
+    if (hasLoadedProducts) return;
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    fetcher.load(`/app/products-picker?${params.toString()}`);
+    setHasLoadedProducts(true);
+  }, [hasLoadedProducts, fetcher]);
+
+  useEffect(() => {
     if (!pickerOpen) return;
     const params = new URLSearchParams();
     if (search) params.set("q", search);
@@ -1075,11 +1084,16 @@ export default function ReviewNotificationPage() {
   }, [collectionFetcher.data]);
 
   const allProducts = storeProducts.length ? storeProducts : MOCK_PRODUCTS;
+  const fallbackPreviewProduct =
+    storeProducts[0] || allProducts[0] || MOCK_PRODUCTS[0] || null;
   const needsProductSelection =
-    visibility.productScope === "specific" && selectedProducts.length === 0;
+    visibility.productScope === "specific" &&
+    selectedProducts.length === 0 &&
+    !fallbackPreviewProduct;
   const needsCollectionSelection =
     visibility.collectionScope === "specific" &&
-    selectedCollections.length === 0;
+    selectedCollections.length === 0 &&
+    !fallbackPreviewProduct;
   const scopedProduct =
     visibility.productScope === "specific" ? selectedProducts[0] : null;
   const scopedCollectionProduct =
@@ -1087,7 +1101,10 @@ export default function ReviewNotificationPage() {
       ? selectedCollections[0]?.sampleProduct
       : null;
   const previewProduct =
-    scopedProduct || scopedCollectionProduct || storeProducts[0] || null;
+    scopedProduct ||
+    scopedCollectionProduct ||
+    fallbackPreviewProduct ||
+    null;
   const previewMessage = needsProductSelection
     ? "Select a product to preview."
     : needsCollectionSelection

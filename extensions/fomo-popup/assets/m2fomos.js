@@ -3366,9 +3366,14 @@ document.addEventListener("DOMContentLoaded", async function () {
             }
           }
         }
+        const isJudgeMeReview =
+          type === "review" &&
+          String(row?.dataSource || "judge_me").toLowerCase() === "judge_me";
         let pool = products.length
           ? products
-          : [{ title: "Product", image: "", price: "", compareAt: "" }];
+          : isJudgeMeReview
+            ? []
+            : [{ title: "Product", image: "", price: "", compareAt: "" }];
 
         if (type === "lowstock") {
           pool = pool.filter((prod) => {
@@ -3379,13 +3384,33 @@ document.addEventListener("DOMContentLoaded", async function () {
           });
           if (!pool.length) continue;
         }
-        if (
-          type === "review" &&
-          String(row?.dataSource || "judge_me").toLowerCase() === "judge_me"
-        ) {
+        if (isJudgeMeReview) {
           const reviewedPool = [];
-          for (const prod of pool) {
-            if (await hasJudgeMeReview(prod)) reviewedPool.push(prod);
+          const seenKeys = new Set();
+          const collectReviewed = async (list) => {
+            for (const prod of Array.isArray(list) ? list : []) {
+              if (!prod || reviewedPool.length >= 12) break;
+              const key = String(
+                normalizeProductId(prod?.id) ||
+                prod?.handle ||
+                prod?.url ||
+                prod?.title ||
+                ""
+              ).toLowerCase();
+              if (key && seenKeys.has(key)) continue;
+              if (key) seenKeys.add(key);
+
+              if (await hasJudgeMeReview(prod)) reviewedPool.push(prod);
+            }
+          };
+
+          await collectReviewed(pool);
+          if (!reviewedPool.length) {
+            const storeProducts = await fetchStoreProductsForLowStock();
+            const fallbackPool = Array.isArray(storeProducts)
+              ? dedupeProducts(storeProducts).slice(0, 120)
+              : [];
+            await collectReviewed(fallbackPool);
           }
           pool = reviewedPool;
           if (!pool.length) continue;
