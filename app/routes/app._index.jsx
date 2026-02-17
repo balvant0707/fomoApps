@@ -234,8 +234,6 @@ export const loader = async ({ request }) => {
   const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
   const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
   const pageSize = [10, 25, 50].includes(pageSizeRaw) ? pageSizeRaw : 10;
-  const manageParam = String(url.searchParams.get("manage") || "").toLowerCase();
-  const showTable = manageParam === "1" || manageParam === "true";
 
   const themeIdPromise = (async () => {
     try {
@@ -277,7 +275,7 @@ export const loader = async ({ request }) => {
     themeId: themeIdPromise,
     apiKey,
     extId: THEME_EXTENSION_ID,
-    critical: { page, pageSize, showTable, filters: { type, status, q } },
+    critical: { page, pageSize, filters: { type, status, q } },
     rows: rowsPromise,
   });
 };
@@ -416,7 +414,6 @@ export async function action({ request }) {
 
 export default function AppIndex() {
   const { slug, themeId, critical, rows } = useLoaderData();
-  const showTable = Boolean(critical?.showTable);
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
   const [showSeoSection, setShowSeoSection] = useState(false);
 
@@ -535,39 +532,37 @@ export default function AppIndex() {
           </BlockStack>
         </Card> */}
 
-        {showTable && (
-          <Suspense
-            fallback={
+        <Suspense
+          fallback={
+            <Card>
+              <div style={{ padding: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <Spinner size="small" />
+                <Text as="span" tone="subdued">Loading notifications...</Text>
+              </div>
+            </Card>
+          }
+        >
+          <Await
+            resolve={rows}
+            errorElement={
               <Card>
-                <div style={{ padding: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                  <Spinner size="small" />
-                  <Text as="span" tone="subdued">Loading notifications...</Text>
+                <div style={{ padding: 16 }}>
+                  <Text as="p" tone="critical">Failed to load notifications.</Text>
                 </div>
               </Card>
             }
           >
-            <Await
-              resolve={rows}
-              errorElement={
-                <Card>
-                  <div style={{ padding: 16 }}>
-                    <Text as="p" tone="critical">Failed to load notifications.</Text>
-                  </div>
-                </Card>
-              }
-            >
-              {(data) => (
-                <NotificationTable
-                  rows={data.rows}
-                  total={data.total}
-                  page={critical.page}
-                  pageSize={critical.pageSize}
-                  filters={critical.filters}
-                />
-              )}
-            </Await>
-          </Suspense>
-        )}
+            {(data) => (
+              <NotificationTable
+                rows={data.rows}
+                total={data.total}
+                page={critical.page}
+                pageSize={critical.pageSize}
+                filters={critical.filters}
+              />
+            )}
+          </Await>
+        </Suspense>
 
         {/* <Card>
           <BlockStack gap="300">

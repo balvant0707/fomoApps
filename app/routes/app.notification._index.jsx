@@ -1,7 +1,7 @@
 // app/routes/app.notification._index.jsx
 import React, { useState, useCallback } from "react";
 import { Page, Button, Loading } from "@shopify/polaris";
-import { useLocation, useNavigate } from "@remix-run/react";
+import { useNavigate } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
@@ -138,7 +138,6 @@ const CARD_DATA = [
 
 export default function NotificationDashboardIndex() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [loadingKey, setLoadingKey] = useState(null);
 
   const go = useCallback(
@@ -155,14 +154,9 @@ export default function NotificationDashboardIndex() {
       if (loadingKey) return;
       const loadingId = `${key}-manage`;
       setLoadingKey(loadingId);
-      const sp = new URLSearchParams(location.search || "");
-      sp.set("manage", "1");
-      sp.set("type", key);
-      sp.set("page", "1");
-      const qs = sp.toString();
-      setTimeout(() => navigate(`/app${qs ? `?${qs}` : ""}`), 450);
+      setTimeout(() => navigate("/app"), 450);
     },
-    [location.search, navigate, loadingKey]
+    [navigate, loadingKey]
   );
 
   return (
