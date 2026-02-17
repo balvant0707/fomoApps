@@ -1348,6 +1348,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const popupType = String(cfg.popupType || "").toLowerCase();
     const isVisitor = popupType === "visitor";
     const isAddToCart = popupType === "addtocart";
+    const isReview = popupType === "review";
     const fontFamily = safe(
       cfg.fontFamily,
       "system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"
@@ -1405,7 +1406,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       : imgSize;
     const inlineWidth =
       isContain && !isPortrait
-        ? Math.round(inlineSize * (isAddToCart ? 1.2 : 1.12))
+        ? Math.round(inlineSize * (isAddToCart || isReview ? 1.2 : 1.12))
         : inlineSize;
     const inlineWrapRadius = isContain ? 0 : Math.round(inlineSize * 0.22);
     const inlineWrapOverflow = isContain ? "visible" : "hidden";
@@ -1414,11 +1415,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     const originX = posKey.includes("right") ? "right" : "left";
     const originY = posKey.includes("top") ? "top" : "bottom";
     const transformOrigin = `${originY} ${originX}`;
-    const innerRadius = isAddToCart ? 14 : 8;
-    const innerBorder = isAddToCart
+    const innerRadius = isAddToCart || isReview ? 14 : 8;
+    const innerBorder = isAddToCart || isReview
       ? "1px solid rgba(15,23,42,0.12)"
       : "1px solid rgba(0,0,0,0.06)";
-    const innerShadow = isAddToCart
+    const innerShadow = isAddToCart || isReview
       ? "0 14px 36px rgba(15,23,42,0.2)"
       : "0 10px 30px rgba(0,0,0,.12)";
 
@@ -1533,7 +1534,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     const body = document.createElement("div");
     body.style.cssText = `flex:1;min-width:0;pointer-events:none;display:grid;gap:${portraitVisitor ? 8 : 6}px;${portraitVisitor ? "width:100%;" : ""}`;
 
-    if (isAddToCart) {
+    if (isAddToCart || isReview) {
+      const reviewMode = String(cfg.reviewType || "new_review")
+        .toLowerCase()
+        .trim();
+      const badgeLabel = isAddToCart
+        ? "Added to cart"
+        : reviewMode === "review_content"
+          ? "Customer review"
+          : "New review";
       const badge = document.createElement("div");
       badge.style.cssText = `
         display:inline-flex;align-items:center;gap:6px;
@@ -1549,11 +1558,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       const dot = document.createElement("span");
       dot.style.cssText = `
         width:6px;height:6px;border-radius:50%;
-        background:${cfg.priceTagAlt || cfg.starColor || "#22c55e"};
+        background:${isReview ? cfg.starColor || cfg.priceTagAlt || "#f5a623" : cfg.priceTagAlt || cfg.starColor || "#22c55e"};
         box-shadow:0 0 0 3px rgba(255,255,255,0.18);
       `;
       badge.appendChild(dot);
-      badge.appendChild(document.createTextNode("Added to cart"));
+      badge.appendChild(document.createTextNode(badgeLabel));
       body.appendChild(badge);
     }
 
@@ -1756,7 +1765,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const barWrap = document.createElement("div");
     barWrap.style.cssText = `height:4px;width:100%;background:transparent`;
     const bar = document.createElement("div");
-    const progressColor = isAddToCart
+    const progressColor = isAddToCart || isReview
       ? cfg.progressColor ||
         cfg.priceTagAlt ||
         cfg.starColor ||
@@ -2660,6 +2669,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const productCache = new Map();
     const judgeMeReviewCountCache = new Map();
+    const judgeMeReviewDetailsCache = new Map();
     let storeProductsCache = null;
     const dedupeProducts = (list) => {
       const out = [];
@@ -2693,6 +2703,167 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (quotedCount?.[1]) return Math.max(0, Number(quotedCount[1]) || 0);
 
       return 0;
+    };
+    const normalizeReviewSnippet = (raw, max = 120) => {
+      const text = String(raw || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!text) return "";
+      if (text.length <= max) return text;
+      return `${text.slice(0, max).trimEnd()}...`;
+    };
+    const parseJudgeMeLocation = (raw) => {
+      const text = String(raw || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (!text) return { city: "", country: "" };
+
+      const cleaned = text.replace(/^from\s+/i, "").trim();
+      const parsed = parseLocationParts(cleaned);
+      const city = safe(parsed.city, "").trim();
+      const country = safe(parsed.country || parsed.state, "").trim();
+      if (city || country) return { city, country };
+
+      const parts = cleaned
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      if (!parts.length) return { city: "", country: "" };
+      if (parts.length === 1) return { city: "", country: parts[0] };
+      return {
+        city: parts[0],
+        country: parts[parts.length - 1],
+      };
+    };
+    const parseJudgeMeRatingFromNode = (node) => {
+      if (!node || typeof node.querySelector !== "function") return null;
+
+      const directScore = Number(
+        node.getAttribute?.("data-score") ||
+        node.querySelector?.("[data-score]")?.getAttribute?.("data-score")
+      );
+      if (Number.isFinite(directScore) && directScore > 0) {
+        return Math.max(1, Math.min(5, Math.round(directScore)));
+      }
+
+      const ratingLabel = safe(
+        node.querySelector?.("[aria-label*='out of 5']")?.getAttribute?.("aria-label"),
+        ""
+      );
+      const ratingMatch = ratingLabel.match(/(\d+(?:\.\d+)?)\s*out of\s*5/i);
+      if (ratingMatch?.[1]) {
+        const parsed = Number(ratingMatch[1]);
+        if (Number.isFinite(parsed) && parsed > 0) {
+          return Math.max(1, Math.min(5, Math.round(parsed)));
+        }
+      }
+
+      const filledStars = node.querySelectorAll(
+        ".jdgm-star.jdgm--on, .jdgm-star.jdgm-star--on, .jdgm-rev__rating .jdgm-star"
+      ).length;
+      if (filledStars > 0) return Math.max(1, Math.min(5, filledStars));
+
+      const starsText = safe(node.textContent, "");
+      const starsMatch = starsText.match(/★+/);
+      if (starsMatch?.[0]) {
+        return Math.max(1, Math.min(5, starsMatch[0].length));
+      }
+
+      return null;
+    };
+    const extractJudgeMeReviewsFromDoc = (doc) => {
+      if (!doc || typeof doc.querySelectorAll !== "function") return [];
+
+      const nodes = Array.from(
+        doc.querySelectorAll(".jdgm-rev, .jdgm-carousel-item__review, [data-review-id]")
+      );
+      const out = [];
+      const seen = new Set();
+
+      for (const node of nodes) {
+        if (!node) continue;
+        const reviewId =
+          safe(node.getAttribute?.("data-review-id"), "").trim() ||
+          safe(node.id, "").trim() ||
+          "";
+        if (reviewId && seen.has(reviewId)) continue;
+
+        const reviewerName = safe(
+          node.querySelector?.(
+            ".jdgm-rev__author, .jdgm-rev__author-wrapper, [itemprop='author'], [data-content='author']"
+          )?.textContent,
+          ""
+        )
+          .replace(/^by\s+/i, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        const reviewTitle = normalizeReviewSnippet(
+          node.querySelector?.(
+            ".jdgm-rev__title, [data-content='title'], [itemprop='name']"
+          )?.textContent,
+          80
+        );
+        const reviewBody = normalizeReviewSnippet(
+          node.querySelector?.(
+            ".jdgm-rev__body, [data-content='body'], [itemprop='description']"
+          )?.textContent,
+          140
+        );
+        const dateNode = node.querySelector?.(
+          "time, .jdgm-rev__timestamp, [data-content='date'], [data-content='review-date']"
+        );
+        const dateRaw = safe(
+          dateNode?.getAttribute?.("datetime") ||
+          dateNode?.getAttribute?.("data-time") ||
+          dateNode?.getAttribute?.("title") ||
+          dateNode?.textContent,
+          ""
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+        const dateLabel =
+          relDaysAgo(dateRaw) ||
+          normalizeReviewSnippet(dateRaw, 40) ||
+          "Just now";
+
+        const { city, country } = parseJudgeMeLocation(
+          node.querySelector?.(
+            ".jdgm-rev__location, [data-content='location']"
+          )?.textContent
+        );
+        const rating = parseJudgeMeRatingFromNode(node);
+
+        if (!reviewerName && !reviewTitle && !reviewBody) continue;
+        if (reviewId) seen.add(reviewId);
+
+        out.push({
+          reviewer_name: reviewerName || "Verified buyer",
+          review_title: reviewTitle || "Great product",
+          review_body: reviewBody || "Loved it.",
+          reviewer_city: city || "",
+          reviewer_country: country || "United States",
+          review_date: dateLabel,
+          rating: Number.isFinite(rating) ? rating : 4,
+        });
+      }
+
+      return out;
+    };
+    const parseJudgeMeReviewsFromHtml = (html) => {
+      try {
+        if (!html || typeof DOMParser === "undefined") return [];
+        const doc = new DOMParser().parseFromString(String(html), "text/html");
+        return extractJudgeMeReviewsFromDoc(doc);
+      } catch {
+        return [];
+      }
+    };
+    const judgeMeReviewsFromDom = () => {
+      try {
+        return extractJudgeMeReviewsFromDoc(document);
+      } catch {
+        return [];
+      }
     };
     const judgeMeCountFromDom = () => {
       try {
@@ -2734,6 +2905,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       // On product page, prefer already-rendered Judge.me badge count.
       if (isPd && String(ch || "").toLowerCase() === h) {
         const domCount = judgeMeCountFromDom();
+        if (!judgeMeReviewDetailsCache.has(h)) {
+          const domReviews = judgeMeReviewsFromDom();
+          if (domReviews.length) judgeMeReviewDetailsCache.set(h, domReviews);
+        }
         judgeMeReviewCountCache.set(h, domCount);
         return domCount;
       }
@@ -2748,6 +2923,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
         const html = await res.text();
         const count = parseJudgeMeCount(html);
+        const reviews = parseJudgeMeReviewsFromHtml(html);
+        if (reviews.length) judgeMeReviewDetailsCache.set(h, reviews);
         judgeMeReviewCountCache.set(h, count);
         return count;
       } catch {
@@ -2777,6 +2954,53 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const count = await fetchJudgeMeCountByHandle(handle);
       return count > 0;
+    };
+    const fetchJudgeMeReviewsByHandle = async (handle) => {
+      const h = String(handle || "")
+        .trim()
+        .toLowerCase();
+      if (!h) return [];
+      if (judgeMeReviewDetailsCache.has(h)) {
+        const cached = judgeMeReviewDetailsCache.get(h);
+        return Array.isArray(cached) ? cached : [];
+      }
+
+      await fetchJudgeMeCountByHandle(h);
+      let cached = judgeMeReviewDetailsCache.get(h);
+      if (Array.isArray(cached) && cached.length) return cached;
+
+      const knownCount = Number(judgeMeReviewCountCache.get(h) || 0);
+      if (knownCount > 0) {
+        try {
+          const res = await fetchWithProxyFallback(`/products/${encodeURIComponent(h)}`, {
+            headers: { "Content-Type": "text/html" },
+          });
+          if (res && res.ok) {
+            const html = await res.text();
+            const reviews = parseJudgeMeReviewsFromHtml(html);
+            if (reviews.length) {
+              judgeMeReviewDetailsCache.set(h, reviews);
+              cached = reviews;
+            }
+          }
+        } catch { }
+      }
+
+      return Array.isArray(cached) ? cached : [];
+    };
+    const pickJudgeMeReviewForProduct = async (prod, index = 0) => {
+      const handle = productHandleOf(prod);
+      if (!handle) {
+        const domReviews = judgeMeReviewsFromDom();
+        if (!domReviews.length) return null;
+        const i = Math.max(0, Number(index) || 0) % domReviews.length;
+        return domReviews[i] || domReviews[0] || null;
+      }
+
+      const reviews = await fetchJudgeMeReviewsByHandle(handle);
+      if (!reviews.length) return null;
+      const i = Math.max(0, Number(index) || 0) % reviews.length;
+      return reviews[i] || reviews[0] || null;
     };
     const fetchProductByHandle = async (handle) => {
       const raw = String(handle || "").trim();
@@ -3421,6 +3645,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
         const baseCfg = {
           popupType: type,
+          reviewType: row.reviewType,
           positionDesktop: row.position,
           position: row.position,
           mobilePosition: normMB(
@@ -3475,6 +3700,21 @@ document.addEventListener("DOMContentLoaded", async function () {
           if (effectiveShowRating && baseCfg.ratingSource === "judge_me") {
             effectiveShowRating = await hasJudgeMeReview(prod);
           }
+          const reviewDetails =
+            isJudgeMeReview && type === "review"
+              ? await pickJudgeMeReviewForProduct(prod, i)
+              : null;
+          const resolvedRating = (() => {
+            const fromReview = Number(reviewDetails?.rating);
+            if (Number.isFinite(fromReview) && fromReview > 0) {
+              return Math.max(1, Math.min(5, Math.round(fromReview)));
+            }
+            const fromProduct = Number(prod?.rating);
+            if (Number.isFinite(fromProduct) && fromProduct > 0) {
+              return Math.max(1, Math.min(5, Math.round(fromProduct)));
+            }
+            return 4;
+          })();
 
           const stockCount =
             type === "lowstock"
@@ -3557,6 +3797,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                 country: customer.country || customer.state || customer.city || "",
               }
             : null;
+          const reviewDateToken =
+            type === "review"
+              ? safe(reviewDetails?.review_date, "").trim() ||
+                relDaysAgo(new Date().toISOString()) ||
+                "Just now"
+              : relDaysAgo(new Date().toISOString()) || "Just now";
 
           const tokens = {
             ...baseTokens,
@@ -3568,9 +3814,27 @@ document.addEventListener("DOMContentLoaded", async function () {
             unit: row.avgUnit || "mins",
             stock_count: stockCount,
             visitor_count: Math.max(3, Math.round(8 + Math.random() * 20)),
-            reviewer_country: baseTokens.reviewer_country,
-            reviewer_city: baseTokens.reviewer_city,
-            review_date: relDaysAgo(new Date().toISOString()) || "Just now",
+            reviewer_name:
+              type === "review"
+                ? safe(reviewDetails?.reviewer_name, baseTokens.reviewer_name)
+                : baseTokens.reviewer_name,
+            review_title:
+              type === "review"
+                ? safe(reviewDetails?.review_title, baseTokens.review_title)
+                : baseTokens.review_title,
+            review_body:
+              type === "review"
+                ? safe(reviewDetails?.review_body, baseTokens.review_body)
+                : baseTokens.review_body,
+            reviewer_country:
+              type === "review"
+                ? safe(reviewDetails?.reviewer_country, baseTokens.reviewer_country)
+                : baseTokens.reviewer_country,
+            reviewer_city:
+              type === "review"
+                ? safe(reviewDetails?.reviewer_city, baseTokens.reviewer_city)
+                : baseTokens.reviewer_city,
+            review_date: reviewDateToken,
           };
 
           const visitorCounter =
@@ -3604,7 +3868,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             compareAt,
             productUrl: resolvedProductUrl,
             productHandle: fallbackHandle,
-            rating: prod.rating || 4,
+            rating: resolvedRating,
             stockCountValue: type === "lowstock" ? stockCount : null,
           });
         }
