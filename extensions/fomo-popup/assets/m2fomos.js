@@ -1369,7 +1369,8 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     const baseFont = Number(cfg.textSizeContent) || (mode === "mobile" ? 13 : 14);
     const fontSize = Math.max(11, Math.round(baseFont));
-    const imageAppearance = String(cfg.imageAppearance || "cover")
+    const defaultImageAppearance = isAddToCart ? "contain" : "cover";
+    const imageAppearance = String(cfg.imageAppearance || defaultImageAppearance)
       .toLowerCase()
       .trim();
     const isContain =
@@ -3403,7 +3404,10 @@ document.addEventListener("DOMContentLoaded", async function () {
           ),
           layout: row.layout,
           template: row.template,
-          imageAppearance: row.imageAppearance,
+          imageAppearance: safe(
+            row.imageAppearance,
+            type === "addtocart" ? "contain" : "cover"
+          ),
           bgColor: row.bgColor,
           bgAlt: row.bgAlt,
           textColor: row.textColor,

@@ -175,7 +175,8 @@ async function upsertByShopWithSplitFallback(
   preferredId = null
 ) {
   let workingData = { ...data };
-  const removable = new Set(Array.isArray(fallbackColumns) ? fallbackColumns : []);
+  const removable = new Set();
+  const preferredRemovals = Array.isArray(fallbackColumns) ? [...fallbackColumns] : [];
 
   for (let attempt = 0; attempt < MAX_SCHEMA_FALLBACK_ATTEMPTS; attempt += 1) {
     try {
@@ -191,7 +192,19 @@ async function upsertByShopWithSplitFallback(
       if (!hasMissingColumnError(e)) throw e;
 
       const discovered = extractMissingColumn(e);
-      if (discovered) removable.add(discovered);
+      if (discovered) {
+        removable.add(discovered);
+      } else {
+        let candidate = null;
+        for (const column of preferredRemovals) {
+          if (removable.has(column)) continue;
+          if (!Object.prototype.hasOwnProperty.call(workingData, column)) continue;
+          candidate = column;
+          break;
+        }
+        if (!candidate) throw e;
+        removable.add(candidate);
+      }
 
       const nextData = withoutKeys(workingData, [...removable]);
       const unchanged =
@@ -241,7 +254,7 @@ export async function saveVisitorPopup(shop, form) {
     size: toInt(form?.design?.size),
     transparent: toInt(form?.design?.transparent),
     template: toStr(form?.design?.template),
-    imageAppearance: toStr(form?.design?.imageAppearance),
+    imageAppearance: toStr(form?.design?.imageAppearance || "contain"),
     bgColor: toStr(form?.design?.bgColor),
     bgAlt: toStr(form?.design?.bgAlt),
     textColor: toStr(form?.design?.textColor),
