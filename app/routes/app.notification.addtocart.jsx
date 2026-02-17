@@ -27,6 +27,14 @@ import { authenticate } from "../shopify.server";
 import { saveAddToCartPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
+const SAMPLE_ADD_TO_CART_CUSTOMER = Object.freeze({
+  first_name: "Jenna",
+  last_name: "Doe",
+  full_name: "Jenna Doe",
+  city: "New York",
+  country: "United States",
+});
+
 const errorText = (value, fallback = "Save failed") => {
   if (typeof value === "string" && value.trim()) return value;
   if (value && typeof value.message === "string" && value.message.trim()) {
@@ -287,6 +295,7 @@ export async function loader({ request }) {
   let saved = null;
   let customerCount = null;
   let firstProduct = null;
+  let previewCustomer = null;
 
   try {
     if (admin?.graphql) {
@@ -294,6 +303,18 @@ export async function loader({ request }) {
         query AddToCartLoaderMeta {
           customersCount {
             count
+          }
+          customers(first: 25, sortKey: UPDATED_AT, reverse: true) {
+            edges {
+              node {
+                firstName
+                lastName
+                defaultAddress {
+                  city
+                  country
+                }
+              }
+            }
           }
           products(first: 1, sortKey: TITLE) {
             edges {
@@ -319,6 +340,29 @@ export async function loader({ request }) {
       const countJson = await countRes.json();
       const count = Number(countJson?.data?.customersCount?.count);
       customerCount = Number.isFinite(count) ? count : null;
+      const customerEdges = Array.isArray(countJson?.data?.customers?.edges)
+        ? countJson.data.customers.edges
+        : [];
+      const customers = customerEdges
+        .map((edge) => edge?.node)
+        .filter(Boolean)
+        .map((node) => {
+          const first_name = String(node?.firstName || "").trim();
+          const last_name = String(node?.lastName || "").trim();
+          const full_name = [first_name, last_name].filter(Boolean).join(" ").trim();
+          const city = String(node?.defaultAddress?.city || "").trim();
+          const country = String(node?.defaultAddress?.country || "").trim();
+          return { first_name, last_name, full_name, city, country };
+        })
+        .filter(
+          (c) =>
+            c.full_name || c.first_name || c.last_name || c.city || c.country
+        );
+      previewCustomer =
+        customers.find((c) => c.full_name && c.country) ||
+        customers.find((c) => c.full_name) ||
+        customers[0] ||
+        null;
       const node = countJson?.data?.products?.edges?.[0]?.node;
       if (node) {
         const variant = node?.variants?.edges?.[0]?.node || null;
@@ -431,8 +475,17 @@ export async function loader({ request }) {
   } catch (e) {
     console.warn("[AddToCart Popup] saved config fetch failed:", e);
   }
+  if (!previewCustomer) {
+    previewCustomer = SAMPLE_ADD_TO_CART_CUSTOMER;
+  }
 
-  return json({ title: "Add to cart Popup", saved, customerCount, firstProduct });
+  return json({
+    title: "Add to cart Popup",
+    saved,
+    customerCount,
+    firstProduct,
+    previewCustomer,
+  });
 }
 
 export async function action({ request }) {
@@ -824,6 +877,7 @@ function PreviewCard({
   showRating,
   showClose,
   product,
+  previewCustomer,
   template,
   productNameMode,
   productNameLimit,
@@ -858,12 +912,31 @@ function PreviewCard({
 
   const rawName = product?.title || "Antique Drawers";
   const safeName = formatProductName(rawName, productNameMode, productNameLimit);
+  const previewSource =
+    previewCustomer && typeof previewCustomer === "object"
+      ? previewCustomer
+      : SAMPLE_ADD_TO_CART_CUSTOMER;
+  const previewFirst = String(
+    previewSource?.first_name ?? previewSource?.firstName ?? ""
+  ).trim();
+  const previewLast = String(
+    previewSource?.last_name ?? previewSource?.lastName ?? ""
+  ).trim();
+  const previewFull = String(
+    previewSource?.full_name ?? previewSource?.fullName ?? ""
+  ).trim();
+  const fullName =
+    previewFull || [previewFirst, previewLast].filter(Boolean).join(" ").trim();
+  const firstName = previewFirst || (fullName ? fullName.split(/\s+/)[0] : "");
+  const lastName = previewLast || (fullName ? fullName.split(/\s+/).slice(1).join(" ") : "");
+  const city = String(previewSource?.city || "").trim();
+  const country = String(previewSource?.country || "").trim();
   const tokenValues = {
-    full_name: "Jenna Doe",
-    first_name: "Jenna",
-    last_name: "Doe",
-    country: "United States",
-    city: "New York",
+    full_name: fullName || SAMPLE_ADD_TO_CART_CUSTOMER.full_name,
+    first_name: firstName || SAMPLE_ADD_TO_CART_CUSTOMER.first_name,
+    last_name: lastName,
+    country: country || city || SAMPLE_ADD_TO_CART_CUSTOMER.country,
+    city: city || SAMPLE_ADD_TO_CART_CUSTOMER.city,
     product_name: safeName,
     product_price: product?.price || "Rs. 29.99",
     time: String(avgTime || "3"),
@@ -1011,7 +1084,7 @@ function PreviewCard({
 }
 
 export default function AddToCartPopupPage() {
-  const { saved, customerCount, firstProduct } = useLoaderData();
+  const { saved, customerCount, firstProduct, previewCustomer } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
@@ -2160,6 +2233,7 @@ export default function AddToCartPopupPage() {
                             showRating={data.showRating}
                             showClose={behavior.showClose}
                             product={previewProduct}
+                            previewCustomer={previewCustomer}
                             template={design.template}
                             productNameMode={productNameMode}
                             productNameLimit={productNameLimit}

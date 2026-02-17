@@ -2907,6 +2907,14 @@ document.addEventListener("DOMContentLoaded", async function () {
       reviewer_country: "United States",
       reviewer_city: "New York",
     };
+    const SAMPLE_ADD_TO_CART_CUSTOMER = {
+      first_name: "Jenna",
+      last_name: "Doe",
+      full_name: "Jenna Doe",
+      city: "New York",
+      state: "New York",
+      country: "United States",
+    };
 
     if (tableFlash.length) {
       for (const it of tableFlash) {
@@ -3401,11 +3409,19 @@ document.addEventListener("DOMContentLoaded", async function () {
               return Boolean(fullName && safe(c?.country, "").trim());
             })
             : [];
-          const customer = useShopifyCustomerData
-            ? type === "visitor"
-              ? pickCustomer(customerPoolWithCountry, i)
-              : pickCustomer(customerPool, i)
+          const preferredCustomerPool =
+            type === "visitor" || type === "addtocart"
+              ? customerPoolWithCountry.length
+                ? customerPoolWithCountry
+                : customerPool
+              : customerPool;
+          const customerFromStore = useShopifyCustomerData
+            ? pickCustomer(preferredCustomerPool, i)
             : null;
+          const customer =
+            type === "addtocart" && !customerFromStore
+              ? SAMPLE_ADD_TO_CART_CUSTOMER
+              : customerFromStore;
           if (strictVisitorIdentity && useShopifyCustomerData && !customer) {
             // Do not render visitor popup with fake identity when Shopify
             // customer data is unavailable.
@@ -3446,8 +3462,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                   const parts = full.split(/\s+/).filter(Boolean);
                   return parts.length > 1 ? parts.slice(1).join(" ") : "";
                 })(),
-                city: customer.city || "",
-                country: customer.country || "",
+                city: customer.city || customer.state || "",
+                country: customer.country || customer.state || customer.city || "",
               }
             : null;
 
