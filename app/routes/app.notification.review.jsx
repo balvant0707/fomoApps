@@ -28,9 +28,49 @@ import { saveReviewPopup } from "../models/popup-config.server";
 import prisma from "../db.server";
 
 const JUDGE_ME_INTEGRATION_KEY = "integration_judge_me";
+const isTransientDbError = (error) => {
+  const code = String(error?.code || "").toUpperCase();
+  const msg = String(error?.message || "").toLowerCase();
+  const causeMsg = String(error?.cause?.message || "").toLowerCase();
+  const combined = `${msg} ${causeMsg}`;
+
+  if (code === "P1001" || code === "P1008" || code === "P1017") return true;
+  return (
+    combined.includes("too many database connections") ||
+    combined.includes("max_user_connections") ||
+    combined.includes("too many connections") ||
+    combined.includes("connection pool timeout") ||
+    combined.includes("can't reach database server")
+  );
+};
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function saveWithRetry(shop, form, retries = 2) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await saveReviewPopup(shop, form);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDbError(error) || attempt === retries) break;
+      await sleep(200 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
 
 export async function loader({ request }) {
-  const { session } = await authenticate.admin(request);
+  let session;
+  try {
+    ({ session } = await authenticate.admin(request));
+  } catch (error) {
+    if (error instanceof Response) throw error;
+    console.error("[Review Popup] auth failed in loader:", error);
+    return json({
+      title: "Review Notification",
+      saved: null,
+      judgeMeConnected: false,
+    });
+  }
   const shop = session?.shop;
 
   const parseArr = (raw) => {
@@ -140,47 +180,59 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  let session;
   try {
-    ({ session } = await authenticate.admin(request));
-  } catch (error) {
-    console.error("[Review Popup] auth failed:", error);
-    return json(
-      {
-        success: false,
-        error: "Session/auth temporarily unavailable. Please try again.",
-      },
-      { status: 503 }
-    );
-  }
-  const shop = session?.shop;
-  if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
+    let session;
+    try {
+      ({ session } = await authenticate.admin(request));
+    } catch (error) {
+      console.error("[Review Popup] auth failed:", error);
+      return json(
+        {
+          success: false,
+          error: "Session/auth temporarily unavailable. Please try again.",
+        },
+        { status: 503 }
+      );
+    }
+    const shop = session?.shop;
+    if (!shop) return json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
-  }
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ success: false, error: "Invalid JSON body" }, { status: 400 });
+    }
 
-  const rawForm = body?.form;
-  const form =
-    rawForm && typeof rawForm === "object" && !Array.isArray(rawForm)
-      ? rawForm
-      : body && typeof body === "object" && !Array.isArray(body)
-        ? body
-        : null;
-  if (!form) {
-    return json({ success: false, error: "Missing form" }, { status: 400 });
-  }
+    const rawForm = body?.form;
+    const form =
+      rawForm && typeof rawForm === "object" && !Array.isArray(rawForm)
+        ? rawForm
+        : body && typeof body === "object" && !Array.isArray(body)
+          ? body
+          : null;
+    if (!form) {
+      return json({ success: false, error: "Missing form" }, { status: 400 });
+    }
 
-  console.log("[Review Popup] form payload:", JSON.stringify(form, null, 2));
-  try {
-    const saved = await saveReviewPopup(shop, form);
-    console.log("[Review Popup] saved id:", saved?.id);
-    return json({ success: true, id: saved?.id });
+    console.log("[Review Popup] form payload:", JSON.stringify(form, null, 2));
+    try {
+      const saved = await saveWithRetry(shop, form, 2);
+      console.log("[Review Popup] saved id:", saved?.id);
+      return json({ success: true, id: saved?.id });
+    } catch (e) {
+      console.error("[Review Popup] save failed:", e);
+      return json(
+        {
+          success: false,
+          error: e?.message || "Save failed",
+          code: e?.code || null,
+        },
+        { status: 500 }
+      );
+    }
   } catch (e) {
-    console.error("[Review Popup] save failed:", e);
+    console.error("[Review Popup] unexpected action error:", e);
     return json(
       {
         success: false,
