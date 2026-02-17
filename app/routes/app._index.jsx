@@ -1,6 +1,6 @@
 import { defer, json, redirect } from "@remix-run/node";
-import { Await, useLoaderData } from "@remix-run/react";
-import { useEffect, useState, Suspense } from "react";
+import { useLoaderData, useLocation, useNavigate } from "@remix-run/react";
+import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import {
@@ -10,13 +10,124 @@ import {
   Text,
   Button,
   InlineStack,
-  Spinner,
-  Collapsible,
 } from "@shopify/polaris";
 import { getOrSetCache } from "../utils/serverCache.server";
-import NotificationTable from "../components/dashboard/NotificationTable";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
+const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
+const WRITE_REVIEW_URL = "https://apps.shopify.com";
+
+const INDEX_SUPPORT_STYLES = `
+.home-support-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+.home-support-panel {
+  border: 1px solid #e6e6e8;
+  border-radius: 16px;
+  background: #f9f9fa;
+  padding: 18px;
+}
+.home-support-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+.home-support-item {
+  border: 1px solid #d8dadd;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.home-support-item:hover {
+  border-color: #96b6ff;
+  box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.08);
+}
+.home-support-item-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
+  color: #1260d8;
+  background: #eff6ff;
+}
+.home-support-item-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.home-support-item-link {
+  color: #1260d8;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.home-review-panel {
+  border: 1px solid #c8d9be;
+  border-radius: 16px;
+  padding: 16px;
+  min-height: 184px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+    linear-gradient(150deg, #cde3bf 0%, #b5d49e 100%);
+  background-size: 28px 28px, 28px 28px, auto;
+}
+.home-review-balloon {
+  width: 62px;
+  height: 62px;
+  border-radius: 18px;
+  margin: 0 auto 8px;
+  background: radial-gradient(circle at 35% 35%, #ff9ca9 10%, #f14666 55%, #cc2747 100%);
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  box-shadow: 0 10px 16px rgba(0, 0, 0, 0.14);
+}
+.home-review-balloon svg {
+  width: 30px;
+  height: 30px;
+}
+.home-review-actions {
+  display: flex;
+  gap: 8px;
+}
+.home-review-btn {
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid #d0d5dd;
+  font-weight: 700;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.home-review-btn.primary {
+  background: #121212;
+  color: #ffffff;
+  border-color: #121212;
+}
+.home-review-btn.secondary {
+  background: #ffffff;
+  color: #111827;
+}
+@media (max-width: 980px) {
+  .home-support-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 740px) {
+  .home-support-items {
+    grid-template-columns: 1fr;
+  }
+}
+`;
 
 async function fetchRows(shop) {
   const hasMissingColumnError = (error) => {
@@ -413,9 +524,12 @@ export async function action({ request }) {
 }
 
 export default function AppIndex() {
-  const { slug, themeId, critical, rows } = useLoaderData();
+  const { slug, themeId } = useLoaderData();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
-  const [showSeoSection, setShowSeoSection] = useState(false);
+  const search = location.search || "";
+  const appUrl = (path) => `${path}${search}`;
 
   useEffect(() => {
     let active = true;
@@ -432,47 +546,10 @@ export default function AppIndex() {
     window.open(url, "_blank");
   };
 
-  const previewOuter = { width: "100%", minWidth: 560, maxWidth: 980, margin: "0 auto" };
-  const wrap = {
-    padding: 16,
-    borderRadius: 12,
-    background:
-      "linear-gradient(135deg, rgb(33,150,243) 0%, rgb(233,30,99) 50%, rgb(255,87,34) 100%)",
-  };
-  const row = { display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "space-between" };
-  const popupBase = {
-    position: "relative",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 40px 12px 12px",
-    minWidth: 260,
-    borderRadius: 16,
-    boxShadow: "0 8px 24px rgba(0,0,0,.25)",
-    flex: "1 1 0",
-  };
-  const close = { position: "absolute", right: 12, top: 8, fontWeight: 700, fontSize: 16, opacity: 0.9 };
-  const iconCircle = { width: 48, height: 48, borderRadius: "50%", display: "grid", placeItems: "center", flex: "0 0 48px" };
-  const title = { fontWeight: 700, lineHeight: 1.2, marginBottom: 2 };
-  const line = { margin: 0, lineHeight: 1.35, fontSize: 13.5 };
-  const small = { opacity: 0.8, marginTop: 4, fontSize: 12.5 };
-  const seoBox = {
-    width: "100%",
-    minWidth: 560,
-    maxWidth: 980,
-    margin: "14px auto 0",
-    background: "#ffffff",
-    border: "1px solid #ececec",
-    borderRadius: 12,
-    padding: "16px 18px",
-  };
-  const seoH3 = { fontSize: 18, fontWeight: 700, margin: "0 0 8px" };
-  const seoP = { margin: "0 0 10px", color: "#202223" };
-  const seoUl = { margin: "0 0 0 16px", padding: 0, lineHeight: 1.5 };
-
   return (
     <Page>
       <BlockStack gap="400">
+        <style>{INDEX_SUPPORT_STYLES}</style>
         <Card>
           <BlockStack gap="300">
             <Text as="p">
@@ -486,139 +563,76 @@ export default function AppIndex() {
           </BlockStack>
         </Card>
 
-        {/* <Card>
-          <BlockStack gap="300">
-            <Text as="h2" variant="headingLg">Preview - Popup Content</Text>
-            <div style={previewOuter} aria-label="Preview area for Fomoify popups">
-              <div style={wrap}>
-                <div style={row}>
-                  <div style={{ ...popupBase, color: "#fff", background: "#0e0e0e" }} aria-label="Flash sale popup">
-                    <div style={{ ...iconCircle, background: "#f6d59d" }}>
-                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1f2937" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M20.59 13.41 12 22l-9-9 8.59-8.59A2 2 0 0 1 13 4h5v5a2 2 0 0 1-.59 1.41Z" />
-                        <path d="M7 7h.01" />
-                        <path d="M10 10l4 4" />
-                        <path d="M14 10l-4 4" />
-                      </svg>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={title}>Flash Sale</div>
-                      <p style={line}>
-                        <strong>Flash Sale: 20% OFF</strong> - ends in <strong>02:15 hours</strong>
-                      </p>
-                    </div>
-                    <span style={close} aria-hidden>x</span>
-                  </div>
-
-                  <div style={{ ...popupBase, color: "#fff", background: "#6c1676" }} aria-label="Recent order popup">
-                    <div style={{ width: 50, height: 50, borderRadius: 12, background: "#fff", display: "grid", placeItems: "center", overflow: "hidden", flex: "0 0 50px" }}>
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6c1676" strokeWidth="1.8">
-                        <rect x="3" y="3" width="18" height="18" rx="3" />
-                        <circle cx="8.5" cy="9" r="1.5" />
-                        <path d="M3 17l5.5-5.5L14 17l3-3 4 3" />
-                      </svg>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={title}>Someone from Location</div>
-                      <p style={line}>bought this product recently Product Name</p>
-                      <p style={small}>12 Hours Ago</p>
-                    </div>
-                    <span style={close} aria-hidden>x</span>
-                  </div>
+        <div className="home-support-grid">
+          <div className="home-support-panel">
+            <Text as="h3" variant="headingMd">
+              Support
+            </Text>
+            <div className="home-support-items">
+              <button
+                type="button"
+                className="home-support-item"
+                onClick={() => navigate(appUrl("/app/help"))}
+              >
+                <div className="home-support-item-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                    <path d="M8 9h8M8 13h5" />
+                  </svg>
                 </div>
-              </div>
+                <div className="home-support-item-link">Live chat</div>
+                <Text as="p" tone="subdued">
+                  Support, reply, and assist instantly in office hours.
+                </Text>
+              </button>
+              <button
+                type="button"
+                className="home-support-item"
+                onClick={() => navigate(appUrl("/app/documents"))}
+              >
+                <div className="home-support-item-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M6 3h9l3 3v15H6z" />
+                    <path d="M15 3v4h4M9 11h6M9 15h6" />
+                  </svg>
+                </div>
+                <div className="home-support-item-link">Knowledge base</div>
+                <Text as="p" tone="subdued">
+                  Find a solution for your problem with our documents.
+                </Text>
+              </button>
             </div>
+          </div>
 
-          </BlockStack>
-        </Card> */}
-
-        <Suspense
-          fallback={
-            <Card>
-              <div style={{ padding: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                <Spinner size="small" />
-                <Text as="span" tone="subdued">Loading notifications...</Text>
+          <div className="home-review-panel">
+            <div>
+              <div className="home-review-balloon" aria-hidden>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.4A4 4 0 0 1 19 11c0 5.6-7 10-7 10z" />
+                </svg>
               </div>
-            </Card>
-          }
-        >
-          <Await
-            resolve={rows}
-            errorElement={
-              <Card>
-                <div style={{ padding: 16 }}>
-                  <Text as="p" tone="critical">Failed to load notifications.</Text>
-                </div>
-              </Card>
-            }
-          >
-            {(data) => (
-              <NotificationTable
-                rows={data.rows}
-                total={data.total}
-                page={critical.page}
-                pageSize={critical.pageSize}
-                filters={critical.filters}
-              />
-            )}
-          </Await>
-        </Suspense>
-
-        {/* <Card>
-          <BlockStack gap="300">
-            <InlineStack align="space-between" blockAlign="center">
-              <Text as="h3" variant="headingMd">
-                App Details
+              <Text as="p" alignment="center" fontWeight="semibold">
+                Motivate our team for future app development
               </Text>
-              <Button
-                onClick={() => setShowSeoSection((prev) => !prev)}
-                disclosure={showSeoSection ? "up" : "down"}
+            </div>
+            <div className="home-review-actions">
+              <button
+                type="button"
+                className="home-review-btn primary"
+                onClick={() => window.open(WRITE_REVIEW_URL, "_blank", "noopener,noreferrer")}
               >
-                {showSeoSection ? "Hide" : "Show"}
-              </Button>
-            </InlineStack>
-
-            <Collapsible open={showSeoSection} id="seo-details">
-              <section
-                style={seoBox}
-                itemScope
-                itemType="https://schema.org/SoftwareApplication"
+                Write a review
+              </button>
+              <button
+                type="button"
+                className="home-review-btn secondary"
+                onClick={() => window.open(REPORT_ISSUE_URL, "_blank", "noopener,noreferrer")}
               >
-                <h3 style={seoH3}>
-                  <span itemProp="name">Fomoify Sales Popup &amp; Proof</span>
-                </h3>
-                <p style={seoP} itemProp="description">
-                  Add conversion-focused <strong>sales popups</strong>,{" "}
-                  <strong>recent purchase notifications</strong>, Fomoify creates
-                  instant trust and urgency so more visitors become buyers.
-                </p>
-                <ul style={seoUl}>
-                  <li>
-                    <strong>Social proof</strong>: show real orders, location
-                    &amp; time to validate product demand.
-                  </li>
-                  <li>
-                    <strong>Urgency</strong>: flash-sale message with a live end
-                    time to reduce cart hesitation.
-                  </li>
-                  <li>
-                    <strong>Customizable</strong>: colors, timing, visibility,
-                    and page targeting fit your brand.
-                  </li>
-                  <li>
-                    <strong>Lightweight</strong>: theme app embed; no code
-                    required to enable/disable.
-                  </li>
-                </ul>
-                <meta
-                  itemProp="applicationCategory"
-                  content="MarketingApplication"
-                />
-                <meta itemProp="operatingSystem" content="Shopify" />
-              </section>
-            </Collapsible>
-          </BlockStack>
-        </Card> */}
+                Report an issue
+              </button>
+            </div>
+          </div>
+        </div>
       </BlockStack>
     </Page>
   );
