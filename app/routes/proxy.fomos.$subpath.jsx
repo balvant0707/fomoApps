@@ -151,6 +151,7 @@ const TABLE_SELECTS = {
     size: true,
     transparent: true,
     template: true,
+    imageAppearance: true,
     bgColor: true,
     bgAlt: true,
     textColor: true,

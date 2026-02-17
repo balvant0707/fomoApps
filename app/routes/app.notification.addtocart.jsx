@@ -4,6 +4,7 @@ import {
   Page,
   Card,
   Button,
+  ChoiceList,
   TextField,
   Select,
   Box,
@@ -130,6 +131,7 @@ const ADD_TO_CART_LEGACY_SELECT = {
   size: true,
   transparent: true,
   template: true,
+  imageAppearance: true,
   bgColor: true,
   bgAlt: true,
   textColor: true,
@@ -411,6 +413,7 @@ export async function loader({ request }) {
           size: toNum(source.size, 60),
           transparent: toNum(source.transparent, 10),
           template: toStr(source.template, "gradient"),
+          imageAppearance: toStr(source.imageAppearance, "cover"),
           bgColor: toStr(source.bgColor, "#CCC01E"),
           bgAlt: toStr(source.bgAlt, "#7E6060"),
           textColor: toStr(source.textColor, "#F9EEEE"),
@@ -865,6 +868,7 @@ function PreviewCard({
   priceTagAlt,
   priceColor,
   starColor,
+  imageAppearance,
   textSizeContent,
   textSizeCompare,
   textSizePrice,
@@ -890,9 +894,12 @@ function PreviewCard({
       : bgColor;
 
   const isPortrait = layout === "portrait";
+  const imageMode = String(imageAppearance || "cover").toLowerCase();
+  const isContainImage = imageMode === "contain" || imageMode.includes("fit");
+  const imageFit = isContainImage ? "contain" : "cover";
   const avatarSize = isPortrait ? 66 : 64;
   const avatarOffset = Math.round(avatarSize * 0.45);
-  const useFloatingImage = showProductImage && !isPortrait;
+  const useFloatingImage = showProductImage && !isPortrait && !isContainImage;
   const cardStyle = {
     transform: `scale(${scale})`,
     opacity,
@@ -1018,7 +1025,7 @@ function PreviewCard({
             <img
               src={product.image}
               alt={product.title}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{ width: "100%", height: "100%", objectFit: imageFit }}
               loading="lazy"
               decoding="async"
             />
@@ -1027,7 +1034,7 @@ function PreviewCard({
           )}
         </div>
       )}
-      {showProductImage && isPortrait && (
+      {showProductImage && (isPortrait || !useFloatingImage) && (
         <div
           style={{
             width: avatarSize,
@@ -1047,7 +1054,7 @@ function PreviewCard({
             <img
               src={product.image}
               alt={product.title}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              style={{ width: "100%", height: "100%", objectFit: imageFit }}
               loading="lazy"
               decoding="async"
             />
@@ -1151,6 +1158,7 @@ export default function AddToCartPopupPage() {
     size: 25,
     transparent: 10,
     template: "gradient",
+    imageAppearance: "cover",
     bgColor: "#CCC01E",
     bgAlt: "#7E6060",
     textColor: "#F9EEEE",
@@ -1681,6 +1689,27 @@ export default function AddToCartPopupPage() {
                                 />
                               </Box>
                             </InlineStack>
+
+                            <ChoiceList
+                              title="Image appearance"
+                              choices={[
+                                {
+                                  label: "Cover (Overflowing container)",
+                                  value: "cover",
+                                },
+                                {
+                                  label: "Fit within container",
+                                  value: "contain",
+                                },
+                              ]}
+                              selected={[design.imageAppearance]}
+                              onChange={(v) =>
+                                setDesign((d) => ({
+                                  ...d,
+                                  imageAppearance: v[0] || "cover",
+                                }))
+                              }
+                            />
                           </BlockStack>
                         </Box>
                       </Card>
@@ -2275,6 +2304,7 @@ export default function AddToCartPopupPage() {
                               "#FFFFFF"
                             )}
                             starColor={normalizeHex(design.starColor, "#F06663")}
+                            imageAppearance={design.imageAppearance}
                             textSizeContent={Number(textSize.content) || 14}
                             textSizeCompare={Number(textSize.compareAt) || 12}
                             textSizePrice={Number(textSize.price) || 12}

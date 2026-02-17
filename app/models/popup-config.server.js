@@ -23,7 +23,12 @@ const SPLIT_SELECTION_COLUMNS = [
   "selectedDataProductsJson",
   "selectedVisibilityProductsJson",
 ];
-const ADD_TO_CART_EXTRA_COLUMNS = ["avgTime", "avgUnit", "customerInfo"];
+const ADD_TO_CART_EXTRA_COLUMNS = [
+  "avgTime",
+  "avgUnit",
+  "customerInfo",
+  "imageAppearance",
+];
 const MAX_SCHEMA_FALLBACK_ATTEMPTS = 30;
 const withoutKeys = (obj, keys) => {
   const out = { ...obj };
@@ -396,6 +401,7 @@ export async function saveAddToCartPopup(shop, form) {
     size: toInt(form?.design?.size),
     transparent: toInt(form?.design?.transparent),
     template: toStr(form?.design?.template),
+    imageAppearance: toStr(form?.design?.imageAppearance),
     bgColor: toStr(form?.design?.bgColor),
     bgAlt: toStr(form?.design?.bgAlt),
     textColor: toStr(form?.design?.textColor),

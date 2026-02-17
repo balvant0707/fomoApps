@@ -218,6 +218,7 @@ model addtocartpopupconfig {
   size                   Int?
   transparent            Int?
   template               String?
+  imageAppearance        String?
   bgColor                String?
   bgAlt                  String?
   textColor              String?
