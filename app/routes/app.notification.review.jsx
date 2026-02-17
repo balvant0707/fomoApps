@@ -1,5 +1,5 @@
 // app/routes/app.notification.review.jsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
 import {
   Page,
   Card,
@@ -1006,6 +1006,7 @@ export default function ReviewNotificationPage() {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedCollections, setSelectedCollections] = useState([]);
   const [editingId, setEditingId] = useState(null);
+  const contentCursorRef = useRef({ message: null, timestamp: null });
 
   useEffect(() => {
     if (!saved) return;
@@ -1135,6 +1136,20 @@ export default function ReviewNotificationPage() {
   const hasNextCollectionPage = Boolean(collectionFetcher.data?.hasNextPage);
   const collectionItems = storeCollections;
 
+  const rememberCursor = (field, target) => {
+    if (!target || typeof target.selectionStart !== "number") return;
+    const start = Number(target.selectionStart) || 0;
+    const end =
+      typeof target.selectionEnd === "number"
+        ? Number(target.selectionEnd)
+        : start;
+    contentCursorRef.current[field] = { start, end };
+  };
+
+  const handleTokenFieldSelection = (field) => (event) => {
+    rememberCursor(field, event?.target);
+  };
+
   const insertToken = (field, token) => {
     const tokenText = `{${token}}`;
     const targetId =
@@ -1148,40 +1163,57 @@ export default function ReviewNotificationPage() {
         ? document.getElementById(targetId)
         : null;
 
-    if (target && typeof target.selectionStart === "number") {
-      const start = Number(target.selectionStart) || 0;
-      const end =
-        typeof target.selectionEnd === "number"
+    setContent((c) => {
+      const current = String(c?.[field] || "");
+      const liveStart =
+        target && typeof target.selectionStart === "number"
+          ? Number(target.selectionStart)
+          : null;
+      const liveEnd =
+        target && typeof target.selectionEnd === "number"
           ? Number(target.selectionEnd)
-          : start;
+          : liveStart;
+      const saved = contentCursorRef.current[field];
+      const fallbackPos = current.length;
 
-      setContent((c) => {
-        const current = String(c?.[field] || "");
-        const before = current.slice(0, start);
-        const after = current.slice(end);
-        const needsSpace = before.length > 0 && !/\s$/.test(before);
-        const insertion = `${needsSpace ? " " : ""}${tokenText}`;
-        const next = `${before}${insertion}${after}`;
+      const rawStart =
+        Number.isFinite(liveStart) && liveStart !== null
+          ? liveStart
+          : Number.isFinite(saved?.start)
+            ? saved.start
+            : fallbackPos;
+      const rawEnd =
+        Number.isFinite(liveEnd) && liveEnd !== null
+          ? liveEnd
+          : Number.isFinite(saved?.end)
+            ? saved.end
+            : rawStart;
 
-        const nextCursor = before.length + insertion.length;
-        setTimeout(() => {
-          try {
-            target.focus();
-            if (typeof target.setSelectionRange === "function") {
-              target.setSelectionRange(nextCursor, nextCursor);
-            }
-          } catch {}
-        }, 0);
+      const start = Math.max(0, Math.min(current.length, rawStart));
+      const end = Math.max(start, Math.min(current.length, rawEnd));
+      const before = current.slice(0, start);
+      const after = current.slice(end);
+      const needsSpace = before.length > 0 && !/\s$/.test(before);
+      const insertion = `${needsSpace ? " " : ""}${tokenText}`;
+      const next = `${before}${insertion}${after}`;
+      const nextCursor = before.length + insertion.length;
 
-        return { ...c, [field]: next };
-      });
-      return;
-    }
+      contentCursorRef.current[field] = { start: nextCursor, end: nextCursor };
+      setTimeout(() => {
+        try {
+          const input =
+            typeof document !== "undefined" && targetId
+              ? document.getElementById(targetId)
+              : null;
+          if (input && typeof input.setSelectionRange === "function") {
+            input.focus();
+            input.setSelectionRange(nextCursor, nextCursor);
+          }
+        } catch {}
+      }, 0);
 
-    setContent((c) => ({
-      ...c,
-      [field]: `${c[field]}${c[field] ? " " : ""}${tokenText}`,
-    }));
+      return { ...c, [field]: next };
+    });
   };
 
   const save = async () => {
@@ -1482,6 +1514,10 @@ export default function ReviewNotificationPage() {
                               onChange={(v) =>
                                 setContent((c) => ({ ...c, message: v }))
                               }
+                              onFocus={handleTokenFieldSelection("message")}
+                              onClick={handleTokenFieldSelection("message")}
+                              onKeyUp={handleTokenFieldSelection("message")}
+                              onSelect={handleTokenFieldSelection("message")}
                               multiline={3}
                               autoComplete="off"
                               helpText={`${content.message.length}/250`}
@@ -1505,6 +1541,10 @@ export default function ReviewNotificationPage() {
                               onChange={(v) =>
                                 setContent((c) => ({ ...c, timestamp: v }))
                               }
+                              onFocus={handleTokenFieldSelection("timestamp")}
+                              onClick={handleTokenFieldSelection("timestamp")}
+                              onKeyUp={handleTokenFieldSelection("timestamp")}
+                              onSelect={handleTokenFieldSelection("timestamp")}
                               autoComplete="off"
                               helpText={`${content.timestamp.length}/30`}
                             />
