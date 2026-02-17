@@ -1,7 +1,7 @@
 // app/routes/app.notification._index.jsx
 import React, { useState, useCallback } from "react";
 import { Page, Button, Loading } from "@shopify/polaris";
-import { useNavigate } from "@remix-run/react";
+import { useLocation, useNavigate } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }) => {
@@ -138,6 +138,7 @@ const CARD_DATA = [
 
 export default function NotificationDashboardIndex() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loadingKey, setLoadingKey] = useState(null);
 
   const go = useCallback(
@@ -147,6 +148,21 @@ export default function NotificationDashboardIndex() {
       setTimeout(() => navigate(path), 450);
     },
     [navigate, loadingKey]
+  );
+
+  const goManage = useCallback(
+    (key) => {
+      if (loadingKey) return;
+      const loadingId = `${key}-manage`;
+      setLoadingKey(loadingId);
+      const sp = new URLSearchParams(location.search || "");
+      sp.set("manage", "1");
+      sp.set("type", key);
+      sp.set("page", "1");
+      const qs = sp.toString();
+      setTimeout(() => navigate(`/app${qs ? `?${qs}` : ""}`), 450);
+    },
+    [location.search, navigate, loadingKey]
   );
 
   return (
@@ -161,9 +177,12 @@ export default function NotificationDashboardIndex() {
                 key={card.key}
                 title={card.title}
                 desc={card.desc}
-                onCreate={() => go(card.path, card.key)}
-                onManage={() => go(card.path, card.key)}
-                loading={loadingKey === card.key}
+                onCreate={() => go(card.path, `${card.key}-create`)}
+                onManage={() => goManage(card.key)}
+                loading={
+                  loadingKey === `${card.key}-create` ||
+                  loadingKey === `${card.key}-manage`
+                }
               />
             ))}
           </div>

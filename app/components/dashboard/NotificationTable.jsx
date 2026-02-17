@@ -268,6 +268,15 @@ export default function NotificationTable({
     ? filters.status
     : "all";
   const initialQ = filters?.q || "";
+  const manageFlag = useMemo(() => {
+    try {
+      const raw = new URLSearchParams(location.search).get("manage");
+      if (raw === "1" || String(raw || "").toLowerCase() === "true") return "1";
+      return "";
+    } catch {
+      return "";
+    }
+  }, [location.search]);
 
   const [query, setQuery] = useState(initialQ);
   const tRef = useRef(null);
@@ -275,6 +284,7 @@ export default function NotificationTable({
 
   const submitWith = (params) => {
     const fd = new FormData();
+    if (manageFlag) fd.set("manage", manageFlag);
     fd.set("type", params.type ?? currentType);
     fd.set("status", params.status ?? currentStatus);
     fd.set("q", params.q ?? query);
