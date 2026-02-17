@@ -154,7 +154,7 @@ export default function NotificationDashboardIndex() {
       if (loadingKey) return;
       const loadingId = `${key}-manage`;
       setLoadingKey(loadingId);
-      setTimeout(() => navigate("/app"), 450);
+      setTimeout(() => navigate("/app/notification/manage"), 450);
     },
     [navigate, loadingKey]
   );
