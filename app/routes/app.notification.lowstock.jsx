@@ -821,7 +821,7 @@ function PreviewCard({
               placeItems: "center",
               boxShadow: "0 6px 14px rgba(0,0,0,0.12)",
               border: "1px solid rgba(15,23,42,0.08)",
-              alignSelf: isPortrait ? "center" : "flex-start",
+              alignSelf: isPortrait ? "center" : "center",
             }}
           >
             {product?.image ? (

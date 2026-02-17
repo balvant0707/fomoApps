@@ -899,7 +899,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       : imageOverflow
         ? coverBoxSize
         : containIconSize;
-    const iRad = mode === "mobile" ? Math.round(iSize * 0.17) : 12;
+    const iRad = mode === "mobile" ? Math.round(iSize * 0.17) : 4;
     img.style.cssText = `width:${iSize}px;height:${iSize}px;object-fit:${isContain ? "contain" : "cover"};border-radius:${isPortrait ? 16 : iRad}px;background:transparent;flex:0 0 ${iSize}px;pointer-events:none;`;
     img.onerror = () => {
       img.src = FLAME_SVG;
@@ -914,7 +914,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         top:50%;
         transform:translate(-50%, -50%);
         width:${coverBoxSize}px;height:${coverBoxSize}px;
-        border-radius:12px;
+        border-radius:4px;
         overflow:hidden;
         background:#f3f4f6;
         display:grid;
@@ -1118,7 +1118,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         top:50%;
         transform:translate(-50%, -50%);
         width:${iSize}px;height:${iSize}px;
-        border-radius:${iRad}px;overflow:hidden;background:transparent;
+        border-radius:${iRad}px;
+        overflow:hidden;background:transparent;
         display:${showImage ? "grid" : "none"};
         place-items:center;pointer-events:none;
       `;
