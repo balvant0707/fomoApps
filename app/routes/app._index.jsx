@@ -14,6 +14,8 @@ import {
 import { getOrSetCache } from "../utils/serverCache.server";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
+const APP_EMBED_HANDLE = "fomo-embed";
+const THEME_SETTINGS_DATA_KEY = "config/settings_data.json";
 const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
 const WRITE_REVIEW_URL = "https://apps.shopify.com";
 
@@ -136,6 +138,80 @@ const INDEX_SUPPORT_STYLES = `
   }
 }
 `;
+
+async function fetchThemeSettingsData({ admin, themeId }) {
+  const params = {
+    session: admin.session,
+    theme_id: themeId,
+    asset: { key: THEME_SETTINGS_DATA_KEY },
+  };
+
+  try {
+    const resp = await admin.rest.resources.Asset.all(params);
+    const data = resp?.data;
+    if (Array.isArray(data)) return data[0]?.value || "";
+    if (data?.asset?.value) return data.asset.value;
+    return data?.value || "";
+  } catch (assetError) {
+    if (!admin?.rest?.get) throw assetError;
+    const fallbackResp = await admin.rest.get({
+      path: `themes/${themeId}/assets`,
+      query: { "asset[key]": THEME_SETTINGS_DATA_KEY },
+    });
+    const body = fallbackResp?.body || fallbackResp?.data || {};
+    return body?.asset?.value || "";
+  }
+}
+
+async function resolveAppEmbedState({ admin, shop, themeIdPromise, apiKey }) {
+  try {
+    const themeId = await Promise.resolve(themeIdPromise);
+    if (!themeId) return { enabled: false, found: false };
+
+    const settingsRaw = await getOrSetCache(
+      `themes:settings:${shop}:${themeId}`,
+      30000,
+      () => fetchThemeSettingsData({ admin, themeId })
+    );
+    if (!settingsRaw) return { enabled: false, found: false };
+
+    const parsed = JSON.parse(settingsRaw);
+    const blocks = parsed?.current?.blocks;
+    if (!blocks || typeof blocks !== "object") {
+      return { enabled: false, found: false };
+    }
+
+    const handleNeedle = `/blocks/${APP_EMBED_HANDLE}/`;
+    const extNeedle = String(THEME_EXTENSION_ID || "").trim().toLowerCase();
+    const apiNeedle = String(apiKey || "").trim().toLowerCase();
+
+    let found = false;
+    let enabled = false;
+
+    for (const block of Object.values(blocks)) {
+      const type = String(block?.type || "").toLowerCase();
+      if (!type) continue;
+
+      const matchesHandle = type.includes(handleNeedle);
+      const matchesExtension = extNeedle ? type.includes(extNeedle) : false;
+      const matchesApiKey = apiNeedle ? type.includes(apiNeedle) : false;
+      if (!matchesHandle && !matchesExtension && !matchesApiKey) continue;
+
+      found = true;
+      const isDisabled =
+        block?.disabled === true || String(block?.disabled) === "true";
+      if (!isDisabled) {
+        enabled = true;
+        break;
+      }
+    }
+
+    return { enabled, found };
+  } catch (e) {
+    console.error("[home.loader] app embed detect failed:", e);
+    return { enabled: false, found: false };
+  }
+}
 
 async function fetchRows(shop) {
   const hasMissingColumnError = (error) => {
@@ -388,12 +464,19 @@ export const loader = async ({ request }) => {
     process.env.SHOPIFY_API_KEY ||
     process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
     "";
+  const appEmbedStatePromise = resolveAppEmbedState({
+    admin,
+    shop,
+    themeIdPromise,
+    apiKey,
+  });
 
   return defer({
     slug,
     themeId: themeIdPromise,
     apiKey,
     extId: THEME_EXTENSION_ID,
+    appEmbedState: appEmbedStatePromise,
     critical: { page, pageSize, filters: { type, status, q } },
     rows: rowsPromise,
   });
@@ -532,10 +615,12 @@ export async function action({ request }) {
 }
 
 export default function AppIndex() {
-  const { slug, themeId } = useLoaderData();
+  const { slug, themeId, apiKey, appEmbedState } = useLoaderData();
   const navigate = useNavigate();
   const location = useLocation();
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
+  const [isEmbedEnabled, setIsEmbedEnabled] = useState(false);
+  const [isEmbedStateLoading, setIsEmbedStateLoading] = useState(true);
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
 
@@ -549,8 +634,35 @@ export default function AppIndex() {
     };
   }, [themeId]);
 
-  const openFallback = (id) => {
-    const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?context=apps`;
+  useEffect(() => {
+    let active = true;
+    setIsEmbedStateLoading(true);
+    Promise.resolve(appEmbedState)
+      .then((state) => {
+        if (!active) return;
+        setIsEmbedEnabled(Boolean(state?.enabled));
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsEmbedEnabled(false);
+      })
+      .finally(() => {
+        if (active) setIsEmbedStateLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [appEmbedState]);
+
+  const openThemeEditor = (id, mode = "open") => {
+    const params = new URLSearchParams({
+      context: "apps",
+      template: "index",
+    });
+    if (mode === "activate" && apiKey) {
+      params.set("activateAppId", `${apiKey}/${APP_EMBED_HANDLE}`);
+    }
+    const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?${params.toString()}`;
     window.open(url, "_blank");
   };
 
@@ -564,8 +676,17 @@ export default function AppIndex() {
               Open Theme Customize - <b>App embeds</b> with this app selected.
             </Text>
             <InlineStack gap="300" align="start">
-              <Button variant="secondary" onClick={() => openFallback(resolvedThemeId)}>
-                Open in new tab (fallback)
+              <Button
+                variant="secondary"
+                loading={isEmbedStateLoading}
+                onClick={() =>
+                  openThemeEditor(
+                    resolvedThemeId,
+                    isEmbedEnabled ? "open" : "activate"
+                  )
+                }
+              >
+                {isEmbedEnabled ? "Deactivate" : "Activate"}
               </Button>
             </InlineStack>
           </BlockStack>
