@@ -620,10 +620,7 @@ export default function AppIndex() {
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                      <path d="M8 9h8M8 13h5" />
-                    </svg>
+                    <img src="/assets/live-chat-icon.svg" alt="" width={"100px"} />
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Live chat</div>
@@ -640,10 +637,7 @@ export default function AppIndex() {
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M6 3h9l3 3v15H6z" />
-                      <path d="M15 3v4h4M9 11h6M9 15h6" />
-                    </svg>
+                    <img src="/assets/document-icon.svg" alt="" width={"100px"} />
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Knowledge base</div>
