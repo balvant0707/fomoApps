@@ -70,19 +70,6 @@ export default function AppEmbedStatusSettingsPage() {
               </Badge>
             </InlineStack>
 
-            {lastPingAt ? (
-              <Text as="p" tone="subdued">
-                Last embed ping: {new Date(lastPingAt).toLocaleString()}
-              </Text>
-            ) : (
-              <Text as="p" tone="subdued">
-                Last embed ping: never
-              </Text>
-            )}
-            <Text as="p" tone="subdued">
-              Checked at: {new Date(checkedAt).toLocaleString()}
-            </Text>
-
             {!isEmbedOn && (
               <Banner tone="warning">
                 <p>{DISABLED_MESSAGE}</p>

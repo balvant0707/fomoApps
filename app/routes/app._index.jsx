@@ -715,12 +715,6 @@ export default function AppIndex() {
                 {`App embed: ${isEmbedActive ? "ON" : "OFF"}`}
               </Badge>
             </InlineStack>
-            <Text as="p" tone="subdued">
-              Last embed ping: {formatDateTime(embedPing.lastPingAt)}
-            </Text>
-            <Text as="p" tone="subdued">
-              Checked at: {formatDateTime(embedPing.checkedAt)}
-            </Text>
             {!isEmbedActive && (
               <Banner tone="warning">
                 <p>
