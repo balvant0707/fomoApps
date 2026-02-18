@@ -51,11 +51,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? Boolean(embedContext.appEmbedEnabled)
       : Boolean(pingStatus?.isOn)
     : Boolean(pingStatus?.isOn);
+  const hasReliableStatus =
+    Boolean(embedContext.appEmbedChecked) || Boolean(pingStatus?.isOn);
 
   return json({
     shop,
     storeHandle,
     isEmbedOn,
+    hasReliableStatus,
     appEmbedChecked: Boolean(embedContext.appEmbedChecked),
     lastPingAt: pingStatus?.lastPingAt || null,
     checkedAt: pingStatus?.checkedAt || new Date().toISOString(),
@@ -63,7 +66,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function AppEmbedStatusSettingsPage() {
-  const { storeHandle, isEmbedOn, appEmbedChecked } =
+  const { storeHandle, isEmbedOn, hasReliableStatus, appEmbedChecked } =
     useLoaderData<typeof loader>();
   const app = useAppBridge();
   const revalidator = useRevalidator();
@@ -84,17 +87,34 @@ export default function AppEmbedStatusSettingsPage() {
               <Text as="h2" variant="headingMd">
                 App embed status
               </Text>
-              <Badge tone={isEmbedOn ? "success" : "critical"}>
-                {`App embed: ${isEmbedOn ? "ON" : "OFF"}`}
+              <Badge
+                tone={
+                  hasReliableStatus
+                    ? isEmbedOn
+                      ? "success"
+                      : "critical"
+                    : "attention"
+                }
+              >
+                {hasReliableStatus
+                  ? `App embed: ${isEmbedOn ? "ON" : "OFF"}`
+                  : "App embed: CHECKING"}
               </Badge>
             </InlineStack>
-            {!appEmbedChecked && (
+            {!hasReliableStatus && (
               <Text as="p" tone="subdued">
-                Embed status check unavailable right now. Showing safe OFF state.
+                Embed status check is in progress. Open storefront once and
+                refresh status.
+              </Text>
+            )}
+            {hasReliableStatus && !appEmbedChecked && (
+              <Text as="p" tone="subdued">
+                Theme-based embed check unavailable right now. Using storefront
+                ping status.
               </Text>
             )}
 
-            {!isEmbedOn && (
+            {hasReliableStatus && !isEmbedOn && (
               <Banner tone="warning">
                 <p>{DISABLED_MESSAGE}</p>
               </Banner>

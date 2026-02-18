@@ -640,6 +640,15 @@ export default function AppIndex() {
       ? Boolean(appRouteData?.appEmbedEnabled)
       : Boolean(embedPing.isOn)
     : Boolean(embedPing.isOn);
+  const hasReliableEmbedStatus = hasThemeEmbedCheck || Boolean(embedPing.isOn);
+  const embedBadgeTone = hasReliableEmbedStatus
+    ? isEmbedActive
+      ? "success"
+      : "critical"
+    : "attention";
+  const embedBadgeText = hasReliableEmbedStatus
+    ? `App embed: ${isEmbedActive ? "ON" : "OFF"}`
+    : "App embed: CHECKING";
 
   useEffect(() => {
     let active = true;
@@ -717,11 +726,17 @@ export default function AppIndex() {
               <Text as="h3" variant="headingMd">
                 App embed status
               </Text>
-              <Badge tone={isEmbedActive ? "success" : "critical"}>
-                {`App embed: ${isEmbedActive ? "ON" : "OFF"}`}
+              <Badge tone={embedBadgeTone}>
+                {embedBadgeText}
               </Badge>
             </InlineStack>
-            {!isEmbedActive && (
+            {!hasReliableEmbedStatus && (
+              <Text as="p" tone="subdued">
+                Embed status check is in progress. Open storefront once and
+                refresh status.
+              </Text>
+            )}
+            {hasReliableEmbedStatus && !isEmbedActive && (
               <Banner tone="warning">
                 <p>
                   Fomoify App Embed is currently disabled. To enable popups and
