@@ -701,7 +701,7 @@ export default function AppIndex() {
                   )
                 }
               >
-                {isEmbedEnabled ? "Open Theme Editor" : "Activate"}
+                {isEmbedEnabled ? "Deactivate" : "Activate"}
               </Button>
             </InlineStack>
           </BlockStack>

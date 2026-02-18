@@ -113,7 +113,7 @@ export default function App() {
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const shouldShowEmbedWarning = !appEmbedEnabled;
+  const shouldShowEmbedWarning = appEmbedChecked && !appEmbedEnabled;
   const embedWarningTitle = appEmbedChecked
     ? "Enable app embed to show notifications on storefront"
     : "Could not verify app embed status";
