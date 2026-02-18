@@ -77,6 +77,13 @@ export default function App() {
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
+  const shouldShowEmbedWarning = !appEmbedEnabled;
+  const embedWarningTitle = appEmbedChecked
+    ? "Enable app embed to show notifications on storefront"
+    : "Could not verify app embed status";
+  const embedWarningText = appEmbedChecked
+    ? "Theme Customize ma App embeds ma Fomoify embed ON karo."
+    : "Theme Customize ma App embeds ma Fomoify embed ON kari ne Save karo.";
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const params = new URLSearchParams({
@@ -100,10 +107,10 @@ export default function App() {
         <a href={appUrl("/app/help")}>Help</a>
       </NavMenu>
       <LcpObserver />
-      {appEmbedChecked && !appEmbedEnabled && (
+      {shouldShowEmbedWarning && (
         <div style={{ padding: "12px 16px 0" }}>
-          <Banner status="warning" title="Enable app embed to show notifications on storefront">
-            <p>Theme Customize ma App embeds ma Fomoify embed ON karo.</p>
+          <Banner status="warning" title={embedWarningTitle}>
+            <p>{embedWarningText}</p>
             <div style={{ marginTop: 10 }}>
               <Button primary onClick={openThemeEmbedActivation}>
                 Turn on app embed

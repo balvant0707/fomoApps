@@ -74,7 +74,7 @@ const INDEX_SUPPORT_STYLES = `
   border-color: #8ebd95;
 }
 .home-support-item-row {
-  display: block;
+  display: grid;
   align-items: center;
   gap: 12px;
   text-align: center;
@@ -101,7 +101,9 @@ const INDEX_SUPPORT_STYLES = `
   height: 24px;
 }
 .home-support-item-body {
-  min-width: 0;
+    min-width: 0;
+    display: grid;
+    gap: 15px;
 }
 .home-support-item-link {
   color: #1d4ed8;
