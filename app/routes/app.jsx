@@ -134,7 +134,7 @@ export default function App() {
   const shouldShowEmbedWarning = hasReliableEmbedStatus && !isEmbedActive;
   const embedWarningTitle = "App embed is disabled";
   const embedWarningText =
-    'Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize -> App embeds and turn ON "Fomoify - Core Embed".';
+    '';
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const safeThemeId = toThemeEditorThemeId(themeId);
