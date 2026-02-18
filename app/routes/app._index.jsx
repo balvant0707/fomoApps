@@ -633,7 +633,10 @@ export default function AppIndex() {
   });
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const isEmbedActive = Boolean(appRouteData?.appEmbedEnabled || embedPing.isOn);
+  const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
+  const isEmbedActive = hasThemeEmbedCheck
+    ? Boolean(appRouteData?.appEmbedEnabled)
+    : Boolean(appRouteData?.appEmbedEnabled || embedPing.isOn);
 
   useEffect(() => {
     let active = true;
@@ -844,4 +847,3 @@ export default function AppIndex() {
     </Page>
   );
 }
-
