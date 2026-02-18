@@ -1,5 +1,4 @@
 import {
-  Badge,
   BlockStack,
   Button,
   Card,
@@ -41,14 +40,9 @@ const RANGE_OPTIONS = [
   { label: "Last 30 days", value: "30d" },
   { label: "Last 60 days", value: "60d" },
   { label: "Last 90 days", value: "90d" },
+  { label: "Last year", value: "365d" },
   { label: "Custom range", value: "custom" },
 ];
-
-function titleCase(value) {
-  return String(value || "")
-    .replace(/_/g, " ")
-    .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-}
 
 function toDayLabel(key) {
   const d = new Date(`${key}T00:00:00Z`);
@@ -58,6 +52,16 @@ function toDayLabel(key) {
     month: "2-digit",
     year: "numeric",
   });
+}
+
+function toPrettyDate(key) {
+  const d = new Date(`${key}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return key;
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = months[d.getUTCMonth()];
+  const year = d.getUTCFullYear();
+  return `${day}-${month}-${year}`;
 }
 
 function buildLinePoints(values, xAt, yAt) {
@@ -108,10 +112,11 @@ export default function StatsPanel({ stats }) {
   const navigate = useNavigate();
   const location = useLocation();
   const safeStats = stats || EMPTY_STATS;
-  const byType = safeStats.byType || {};
-  const entries = Object.entries(byType);
   const analytics = safeStats.analytics || EMPTY_STATS.analytics;
   const analyticsFilter = safeStats.analyticsFilter || EMPTY_STATS.analyticsFilter;
+  const breakdownRows = Array.isArray(analytics.breakdown)
+    ? analytics.breakdown
+    : [];
   const series = analytics.series || EMPTY_STATS.analytics.series || {};
   const labels = Array.isArray(series.labels) ? series.labels : [];
   const impressions = Array.isArray(series.visitors)
@@ -132,6 +137,7 @@ export default function StatsPanel({ stats }) {
   const initialMonthDate = parseDateKeyToDate(analyticsFilter.startDate) || new Date();
   const [calendarMonth, setCalendarMonth] = useState(initialMonthDate.getMonth());
   const [calendarYear, setCalendarYear] = useState(initialMonthDate.getFullYear());
+  const [expandedRows, setExpandedRows] = useState({});
   const [filterError, setFilterError] = useState("");
 
   useEffect(() => {
@@ -145,6 +151,10 @@ export default function StatsPanel({ stats }) {
     setCalendarMonth(anchorDate.getMonth());
     setCalendarYear(anchorDate.getFullYear());
     setFilterError("");
+  }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
+
+  useEffect(() => {
+    setExpandedRows({});
   }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
 
   const chartMax = Math.max(1, ...impressions, ...clicks);
@@ -269,6 +279,13 @@ export default function StatsPanel({ stats }) {
     closePicker();
   };
 
+  const toggleRow = (key) => {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
   const rangeButtonLabel =
     analyticsFilter.range === "custom" && analyticsFilter.startDate && analyticsFilter.endDate
       ? `${toDayLabel(analyticsFilter.startDate)} - ${toDayLabel(analyticsFilter.endDate)}`
@@ -375,13 +392,6 @@ export default function StatsPanel({ stats }) {
               </BlockStack>
             </div>
           </Popover>
-        </InlineStack>
-
-        <InlineStack gap="200" wrap>
-          <Badge tone="attention">Notification impressions: {analytics.visitors || 0}</Badge>
-          <Badge tone="info">Notification clicks: {analytics.clicks || 0}</Badge>
-          <Badge tone="success">Orders: {analytics.orders || 0}</Badge>
-          <Badge>{`Window: ${analytics.days || 0} day(s)`}</Badge>
         </InlineStack>
 
         <Card padding="300">
@@ -522,26 +532,115 @@ export default function StatsPanel({ stats }) {
           </BlockStack>
         </Card>
 
-        {entries.length > 0 ? (
-          <InlineStack gap="300" wrap>
-            {entries.map(([key, count]) => (
-              <Card key={key} padding="300">
-                <BlockStack gap="100">
-                  <Text variant="bodySm" as="p" tone="subdued">
-                    {titleCase(key)}
-                  </Text>
-                  <Text variant="headingMd" as="p">
-                    {count}
-                  </Text>
-                </BlockStack>
-              </Card>
-            ))}
-          </InlineStack>
-        ) : (
-          <Text as="p" tone="subdued">
-            No notification stats yet.
-          </Text>
-        )}
+        <Card padding="0">
+          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E5E7EB" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+                gap: 0,
+                padding: "14px 16px",
+                background: "#F6F6F7",
+                borderBottom: "1px solid #E5E7EB",
+              }}
+            >
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Type of notification
+              </Text>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Total impressions
+              </Text>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Total clicks
+              </Text>
+              <Text as="p" variant="bodyMd" fontWeight="semibold">
+                Close rate
+              </Text>
+            </div>
+
+            {breakdownRows.length === 0 ? (
+              <div style={{ padding: "14px 16px" }}>
+                <Text as="p" tone="subdued">
+                  No analytics data found for this range.
+                </Text>
+              </div>
+            ) : (
+              breakdownRows.map((row) => {
+                const isOpen = Boolean(expandedRows[row.key]);
+                return (
+                  <div key={row.key} style={{ borderBottom: "1px solid #E5E7EB" }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleRow(row.key)}
+                      style={{
+                        width: "100%",
+                        display: "grid",
+                        gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+                        gap: 0,
+                        padding: "12px 16px",
+                        border: "none",
+                        background: "#FFFFFF",
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {`${isOpen ? "\u02C4" : "\u02C5"}  ${row.label}`}
+                      </Text>
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {row.totalImpressions || 0}
+                      </Text>
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {row.totalClicks || 0}
+                      </Text>
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {`${row.closeRate || 0}%`}
+                      </Text>
+                    </button>
+
+                    {isOpen ? (
+                      <div style={{ background: "#FAFAFB" }}>
+                        {Array.isArray(row.details) && row.details.length > 0 ? (
+                          row.details.map((detail, index) => (
+                            <div
+                              key={`${row.key}-${detail.startDate}-${index}`}
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+                                gap: 0,
+                                padding: "10px 16px",
+                                borderTop: "1px solid #EEEFF1",
+                              }}
+                            >
+                              <Text as="span" variant="bodyMd" tone="subdued">
+                                {`${toPrettyDate(detail.startDate)} - ${toPrettyDate(detail.endDate)}`}
+                              </Text>
+                              <Text as="span" variant="bodyMd" tone="subdued">
+                                {detail.impressions || 0}
+                              </Text>
+                              <Text as="span" variant="bodyMd" tone="subdued">
+                                {detail.clicks || 0}
+                              </Text>
+                              <Text as="span" variant="bodyMd" tone="subdued">
+                                {`${detail.closeRate || 0}%`}
+                              </Text>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ padding: "10px 16px", borderTop: "1px solid #EEEFF1" }}>
+                            <Text as="p" tone="subdued" variant="bodyMd">
+                              No detailed rows for this range.
+                            </Text>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </Card>
       </BlockStack>
     </Card>
   );
