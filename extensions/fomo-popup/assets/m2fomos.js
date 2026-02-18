@@ -2125,7 +2125,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     let sessionReady = false,
       retries = 0,
       maxRetries = 3,
-      retryDelay = 2000;
+      retryDelay = 800;
     const sessionCacheKey = cacheKey("session");
     const cachedSession = cache.get(sessionCacheKey);
     if (cachedSession === true) sessionReady = true;
@@ -2155,7 +2155,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // App config
     let data = { records: [] };
-    const cachedConfig = await fetchJson(ENDPOINT, "config", 2000);
+    const cachedConfig = await fetchJson(ENDPOINT, "config", 10000);
     if (cachedConfig) data = cachedConfig;
     window.FOMOIFY = window.FOMOIFY || {};
     window.FOMOIFY.popupTables = data?.tables || {};
@@ -2179,24 +2179,30 @@ document.addEventListener("DOMContentLoaded", async function () {
       colHandle = currCollectionHandle(),
       isPd = pt === "product";
 
-    let currentProduct = null;
-    if (isPd && ch) {
-      currentProduct = await fetchJson(`/products/${ch}.js`, `prod:${ch}`, 600000);
-    }
-
-    let customerPool = [];
-    if (tableVisitor.length || tableAddToCart.length) {
-      try {
-        const limit = 100;
-        const payload = await fetchJson(
-          `${CUSTOMERS_ENDPOINT_BASE}?shop=${encodeURIComponent(SHOP)}&limit=${limit}`,
-          `customers:${limit}`,
+    const needsCustomers = tableVisitor.length || tableAddToCart.length;
+    const currentProductPromise =
+      isPd && ch
+        ? fetchJson(`/products/${ch}.js`, `prod:${ch}`, 600000)
+        : Promise.resolve(null);
+    const customerPayloadPromise = needsCustomers
+      ? fetchJson(
+          `${CUSTOMERS_ENDPOINT_BASE}?shop=${encodeURIComponent(SHOP)}&limit=100`,
+          "customers:100",
           600000
-        );
-        const customers = Array.isArray(payload?.customers) ? payload.customers : [];
-        customerPool = customers.map(normalizeCustomer).filter(Boolean);
-      } catch { }
-    }
+        )
+      : Promise.resolve(null);
+
+    const [currentProduct, customerPayload] = await Promise.all([
+      currentProductPromise,
+      customerPayloadPromise,
+    ]);
+    let customerPool = [];
+    try {
+      const customers = Array.isArray(customerPayload?.customers)
+        ? customerPayload.customers
+        : [];
+      customerPool = customers.map(normalizeCustomer).filter(Boolean);
+    } catch {}
 
     const flashConfigs = [],
       recentConfigs = [],

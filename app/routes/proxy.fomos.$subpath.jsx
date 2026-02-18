@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";                // <-- default import (IMPORTANT)
 import { ensureShopRow } from "../utils/ensureShop.server";
 import { normalizeShopDomain } from "../utils/shopDomain.server";
+import { getOrSetCache } from "../utils/serverCache.server";
 
 const norm = (s) =>
   (s || "")
@@ -32,6 +33,14 @@ const POPUPS = new Set([
   "addtocart",
   "review",
 ]);
+const CACHE_TTL = {
+  session: 5 * 1000,
+  popup: 8 * 1000,
+  orders: 30 * 1000,
+  customers: 60 * 1000,
+  products: 120 * 1000,
+};
+const SELECT_KEY_CACHE = new Map();
 const analyticsModel = () =>
   prisma.popupanalyticsevent || prisma.popupAnalyticsEvent || null;
 const embedPingModel = () => prisma.embedPing || prisma.embedping || null;
@@ -367,21 +376,36 @@ const removeSelectKey = (select, column) => {
 
 async function safeFindLatest(model, key, shop) {
   const baseSelect = { ...(TABLE_SELECTS[key] || {}) };
-  let select = Object.keys(baseSelect).length ? { ...baseSelect } : null;
+  const cachedKeys = SELECT_KEY_CACHE.get(key);
+  let select =
+    Array.isArray(cachedKeys) && cachedKeys.length
+      ? Object.fromEntries(
+          cachedKeys.filter((col) => baseSelect[col]).map((col) => [col, true])
+        )
+      : Object.keys(baseSelect).length
+        ? { ...baseSelect }
+        : null;
+  if (select && !Object.keys(select).length) {
+    select = { ...baseSelect };
+  }
 
   for (let attempt = 0; attempt < MAX_SCHEMA_FALLBACK_ATTEMPTS; attempt += 1) {
     try {
       if (select && Object.keys(select).length) {
-        return await model.findFirst({
+        const row = await model.findFirst({
           where: { shop },
           orderBy: { id: "desc" },
           select,
         });
+        SELECT_KEY_CACHE.set(key, Object.keys(select));
+        return row;
       }
-      return await model.findFirst({
+      const row = await model.findFirst({
         where: { shop },
         orderBy: { id: "desc" },
       });
+      SELECT_KEY_CACHE.delete(key);
+      return row;
     } catch (e) {
       if (!missingColumnError(e)) throw e;
       if (!select) throw e;
@@ -392,6 +416,7 @@ async function safeFindLatest(model, key, shop) {
         // Fallback to minimal row if parser couldn't isolate a column name.
         select = { id: true, enabled: true };
       }
+      SELECT_KEY_CACHE.set(key, Object.keys(select));
       console.warn("[FOMO popup] missing column fallback:", {
         key,
         shop,
@@ -687,30 +712,34 @@ export const loader = async ({ request, params }) => {
     }
 
     if (subpath === "session") {
-      // Self-heal: if shop row missing, try to create from session table
-      const shopRecord =
-        (await prisma.shop.findUnique({ where: { shop } })) ||
-        (await ensureShopRow(shop));
+      const payload = await getOrSetCache(
+        `proxy:session:${shop}`,
+        CACHE_TTL.session,
+        async () => {
+          const shopRecord =
+            (await prisma.shop.findUnique({ where: { shop } })) ||
+            (await ensureShopRow(shop));
 
-      if (!shopRecord) {
-        return ok({
-          sessionReady: false,
-          shop,
-          installed: false,
-          error: "Shop not found",
-          timestamp,
-        });
-      }
+          if (!shopRecord) {
+            return {
+              sessionReady: false,
+              shop,
+              installed: false,
+              error: "Shop not found",
+              timestamp,
+            };
+          }
 
-      const sessionReady = !!shopRecord.installed;
-
-      return ok({
-        sessionReady,
-        shop,
-        installed: !!shopRecord.installed,
-        hasAccessToken: !!shopRecord.accessToken,
-        timestamp,
-      });
+          return {
+            sessionReady: !!shopRecord.installed,
+            shop,
+            installed: !!shopRecord.installed,
+            hasAccessToken: !!shopRecord.accessToken,
+            timestamp,
+          };
+        }
+      );
+      return ok(payload);
     }
 
     if (subpath === "orders") {
@@ -719,58 +748,67 @@ export const loader = async ({ request, params }) => {
       const days = Number.isFinite(daysRaw) ? Math.max(1, Math.min(60, daysRaw)) : 7;
       const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(100, limitRaw)) : 30;
 
-      const shopRecord =
-        (await prisma.shop.findUnique({ where: { shop } })) ||
-        (await ensureShopRow(shop));
+      const payload = await getOrSetCache(
+        `proxy:orders:${shop}:${days}:${limit}`,
+        CACHE_TTL.orders,
+        async () => {
+          const shopRecord =
+            (await prisma.shop.findUnique({ where: { shop } })) ||
+            (await ensureShopRow(shop));
 
-      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
-        return ok({
-          orders: [],
-          sessionReady: false,
-          shop,
-          error: "Session not ready",
-          timestamp,
-        });
-      }
+          if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+            return {
+              orders: [],
+              sessionReady: false,
+              shop,
+              error: "Session not ready",
+              timestamp,
+            };
+          }
 
-      const createdAtMin = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-      const endpoint = `https://${shop}/admin/api/2025-01/orders.json?status=any&limit=${limit}&created_at_min=${encodeURIComponent(createdAtMin)}&fields=id,created_at,processed_at,customer,shipping_address,billing_address,line_items`;
+          const createdAtMin = new Date(
+            Date.now() - days * 24 * 60 * 60 * 1000
+          ).toISOString();
+          const endpoint = `https://${shop}/admin/api/2025-01/orders.json?status=any&limit=${limit}&created_at_min=${encodeURIComponent(createdAtMin)}&fields=id,created_at,processed_at,customer,shipping_address,billing_address,line_items`;
 
-      const resp = await fetch(endpoint, {
-        headers: {
-          "X-Shopify-Access-Token": shopRecord.accessToken,
-          "Content-Type": "application/json",
-        },
-      });
+          const resp = await fetch(endpoint, {
+            headers: {
+              "X-Shopify-Access-Token": shopRecord.accessToken,
+              "Content-Type": "application/json",
+            },
+          });
 
-      if (!resp.ok) {
-        const body = await resp.text();
-        console.warn("[FOMO Orders API] non-OK:", resp.status, body);
-        return ok({
-          orders: [],
-          sessionReady: true,
-          shop,
-          error: `Orders API failed (${resp.status})`,
-          timestamp,
-        });
-      }
+          if (!resp.ok) {
+            const body = await resp.text();
+            console.warn("[FOMO Orders API] non-OK:", resp.status, body);
+            return {
+              orders: [],
+              sessionReady: true,
+              shop,
+              error: `Orders API failed (${resp.status})`,
+              timestamp,
+            };
+          }
 
-      const payload = await resp.json();
-      const rawOrders = Array.isArray(payload?.orders) ? payload.orders : [];
-      const productIds = uniqueProductIdsFromOrders(rawOrders);
-      const productMap = await fetchProductsByIds({
-        shop,
-        accessToken: shopRecord.accessToken,
-        productIds,
-      });
-      const orders = enrichOrdersLineItems(rawOrders, productMap);
+          const data = await resp.json();
+          const rawOrders = Array.isArray(data?.orders) ? data.orders : [];
+          const productIds = uniqueProductIdsFromOrders(rawOrders);
+          const productMap = await fetchProductsByIds({
+            shop,
+            accessToken: shopRecord.accessToken,
+            productIds,
+          });
+          const orders = enrichOrdersLineItems(rawOrders, productMap);
 
-      return ok({
-        orders,
-        sessionReady: true,
-        shop,
-        timestamp,
-      });
+          return {
+            orders,
+            sessionReady: true,
+            shop,
+            timestamp,
+          };
+        }
+      );
+      return ok(payload);
     }
 
     if (subpath === "customers") {
@@ -779,57 +817,64 @@ export const loader = async ({ request, params }) => {
         ? Math.max(1, Math.min(250, limitRaw))
         : 100;
 
-      const shopRecord =
-        (await prisma.shop.findUnique({ where: { shop } })) ||
-        (await ensureShopRow(shop));
+      const payload = await getOrSetCache(
+        `proxy:customers:${shop}:${limit}`,
+        CACHE_TTL.customers,
+        async () => {
+          const shopRecord =
+            (await prisma.shop.findUnique({ where: { shop } })) ||
+            (await ensureShopRow(shop));
 
-      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
-        return ok({
-          customers: [],
-          sessionReady: false,
-          shop,
-          error: "Session not ready",
-          timestamp,
-        });
-      }
+          if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+            return {
+              customers: [],
+              sessionReady: false,
+              shop,
+              error: "Session not ready",
+              timestamp,
+            };
+          }
 
-      const endpoint = `https://${shop}/admin/api/2025-01/customers.json?limit=${limit}&fields=first_name,last_name,default_address`;
-      const resp = await fetch(endpoint, {
-        headers: {
-          "X-Shopify-Access-Token": shopRecord.accessToken,
-          "Content-Type": "application/json",
-        },
-      });
+          const endpoint = `https://${shop}/admin/api/2025-01/customers.json?limit=${limit}&fields=first_name,last_name,default_address`;
+          const resp = await fetch(endpoint, {
+            headers: {
+              "X-Shopify-Access-Token": shopRecord.accessToken,
+              "Content-Type": "application/json",
+            },
+          });
 
-      if (!resp.ok) {
-        const body = await resp.text();
-        console.warn("[FOMO Customers API] non-OK:", resp.status, body);
-        return ok({
-          customers: [],
-          sessionReady: true,
-          shop,
-          error: `Customers API failed (${resp.status})`,
-          timestamp,
-        });
-      }
+          if (!resp.ok) {
+            const body = await resp.text();
+            console.warn("[FOMO Customers API] non-OK:", resp.status, body);
+            return {
+              customers: [],
+              sessionReady: true,
+              shop,
+              error: `Customers API failed (${resp.status})`,
+              timestamp,
+            };
+          }
 
-      const payload = await resp.json();
-      const customers = Array.isArray(payload?.customers)
-        ? payload.customers.map((c) => ({
-            first_name: c?.first_name || "",
-            last_name: c?.last_name || "",
-            city: c?.default_address?.city || "",
-            state: c?.default_address?.province || "",
-            country: c?.default_address?.country || "",
-          }))
-        : [];
+          const data = await resp.json();
+          const customers = Array.isArray(data?.customers)
+            ? data.customers.map((c) => ({
+                first_name: c?.first_name || "",
+                last_name: c?.last_name || "",
+                city: c?.default_address?.city || "",
+                state: c?.default_address?.province || "",
+                country: c?.default_address?.country || "",
+              }))
+            : [];
 
-      return ok({
-        customers,
-        sessionReady: true,
-        shop,
-        timestamp,
-      });
+          return {
+            customers,
+            sessionReady: true,
+            shop,
+            timestamp,
+          };
+        }
+      );
+      return ok(payload);
     }
 
     if (subpath === "products") {
@@ -838,42 +883,49 @@ export const loader = async ({ request, params }) => {
         ? Math.max(1, Math.min(2000, limitRaw))
         : 1000;
 
-      const shopRecord =
-        (await prisma.shop.findUnique({ where: { shop } })) ||
-        (await ensureShopRow(shop));
+      const payload = await getOrSetCache(
+        `proxy:products:${shop}:${limit}`,
+        CACHE_TTL.products,
+        async () => {
+          const shopRecord =
+            (await prisma.shop.findUnique({ where: { shop } })) ||
+            (await ensureShopRow(shop));
 
-      if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
-        return ok({
-          products: [],
-          sessionReady: false,
-          shop,
-          error: "Session not ready",
-          timestamp,
-        });
-      }
+          if (!shopRecord || !shopRecord.installed || !shopRecord.accessToken) {
+            return {
+              products: [],
+              sessionReady: false,
+              shop,
+              error: "Session not ready",
+              timestamp,
+            };
+          }
 
-      try {
-        const products = await fetchLowStockProductsFromAdmin({
-          shop,
-          accessToken: shopRecord.accessToken,
-          limit,
-        });
-        return ok({
-          products,
-          sessionReady: true,
-          shop,
-          timestamp,
-        });
-      } catch (err) {
-        console.warn("[FOMO Products API] failed:", err);
-        return ok({
-          products: [],
-          sessionReady: true,
-          shop,
-          error: "Products API failed",
-          timestamp,
-        });
-      }
+          try {
+            const products = await fetchLowStockProductsFromAdmin({
+              shop,
+              accessToken: shopRecord.accessToken,
+              limit,
+            });
+            return {
+              products,
+              sessionReady: true,
+              shop,
+              timestamp,
+            };
+          } catch (err) {
+            console.warn("[FOMO Products API] failed:", err);
+            return {
+              products: [],
+              sessionReady: true,
+              shop,
+              error: "Products API failed",
+              timestamp,
+            };
+          }
+        }
+      );
+      return ok(payload);
     }
 
     if (subpath === "popup") {
@@ -893,68 +945,78 @@ export const loader = async ({ request, params }) => {
       }
 
       const wantTable = (url.searchParams.get("table") || "").toLowerCase();
-      const integrationModel = prisma?.notificationconfig || null;
-      let judgeMeConnected = false;
-      if (integrationModel?.findFirst) {
-        try {
-          const integration = await integrationModel.findFirst({
-            where: { shop, key: JUDGE_ME_INTEGRATION_KEY },
-            orderBy: { id: "desc" },
-            select: { messageText: true },
-          });
-          judgeMeConnected = Boolean(String(integration?.messageText || "").trim());
-        } catch (e) {
-          console.warn("[FOMO popup] Judge.me integration read failed:", e);
-        }
-      }
+      const payload = await getOrSetCache(
+        `proxy:popup:${shop}:${wantTable || "all"}`,
+        CACHE_TTL.popup,
+        async () => {
+          const integrationModel = prisma?.notificationconfig || null;
+          const judgeMePromise = (async () => {
+            if (!integrationModel?.findFirst) return false;
+            try {
+              const integration = await integrationModel.findFirst({
+                where: { shop, key: JUDGE_ME_INTEGRATION_KEY },
+                orderBy: { id: "desc" },
+                select: { messageText: true },
+              });
+              return Boolean(String(integration?.messageText || "").trim());
+            } catch (e) {
+              console.warn("[FOMO popup] Judge.me integration read failed:", e);
+              return false;
+            }
+          })();
 
-      // All popup tables
-      const keys = ["visitor", "lowstock", "addtocart", "review", "recent", "flash"];
-      const fetchTable = async (key) => {
-        const model = tableModel(key);
-        if (!model) return [];
-        try {
-          const row = await safeFindLatest(model, key, shop);
-          return row ? [row] : [];
-        } catch (e) {
-          console.warn(`[FOMO popup] table read failed for ${key}:`, e);
-          return [];
-        }
-      };
+          const keys = ["visitor", "lowstock", "addtocart", "review", "recent", "flash"];
+          const fetchTable = async (key) => {
+            const model = tableModel(key);
+            if (!model) return [];
+            try {
+              const row = await safeFindLatest(model, key, shop);
+              return row ? [row] : [];
+            } catch (e) {
+              console.warn(`[FOMO popup] table read failed for ${key}:`, e);
+              return [];
+            }
+          };
 
-      if (wantTable) {
-        if (!keys.includes(wantTable)) {
-          return bad({ error: "Unknown table" }, 404);
-        }
-        const rows = await fetchTable(wantTable);
-        return ok({
-          showPopup: rows.length > 0,
-          sessionReady: true,
-          table: wantTable,
-          records: rows,
-          integrations: { judgeMeConnected },
-          shop,
-          timestamp,
-        });
-      }
+          const judgeMeConnected = await judgeMePromise;
 
-      const tablePairs = await Promise.all(
-        keys.map(async (k) => [k, await fetchTable(k)])
+          if (wantTable) {
+            if (!keys.includes(wantTable)) {
+              return { __badRequest: true, status: 404, body: { error: "Unknown table" } };
+            }
+            const rows = await fetchTable(wantTable);
+            return {
+              showPopup: rows.length > 0,
+              sessionReady: true,
+              table: wantTable,
+              records: rows,
+              integrations: { judgeMeConnected },
+              shop,
+              timestamp,
+            };
+          }
+
+          const tablePairs = await Promise.all(
+            keys.map(async (k) => [k, await fetchTable(k)])
+          );
+          const tables = Object.fromEntries(tablePairs);
+          const hasAny = tablePairs.some(
+            ([, rows]) => Array.isArray(rows) && rows.length > 0
+          );
+
+          return {
+            showPopup: hasAny,
+            sessionReady: true,
+            records: [],
+            tables,
+            integrations: { judgeMeConnected },
+            shop,
+            timestamp,
+          };
+        }
       );
-      const tables = Object.fromEntries(tablePairs);
-      const hasAny = tablePairs.some(
-        ([, rows]) => Array.isArray(rows) && rows.length > 0
-      );
-
-      return ok({
-        showPopup: hasAny,
-        sessionReady: true,
-        records: [],
-        tables,
-        integrations: { judgeMeConnected },
-        shop,
-        timestamp,
-      });
+      if (payload?.__badRequest) return bad(payload.body, payload.status);
+      return ok(payload);
     }
 
     return bad({ error: "Unknown proxy path" }, 404);
