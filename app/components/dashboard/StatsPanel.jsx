@@ -3,7 +3,9 @@ import {
   BlockStack,
   Button,
   Card,
+  DatePicker,
   InlineStack,
+  Popover,
   Select,
   Text,
   TextField,
@@ -63,6 +65,45 @@ function buildLinePoints(values, xAt, yAt) {
   return values.map((value, idx) => `${xAt(idx)},${yAt(value)}`).join(" ");
 }
 
+function parseDateKeyToDate(value) {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const [year, month, day] = raw.split("-").map(Number);
+  const d = new Date(year, month - 1, day);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function toDateKeyFromDate(value) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return "";
+  const y = value.getFullYear();
+  const m = String(value.getMonth() + 1).padStart(2, "0");
+  const d = String(value.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function getTodayRange(days) {
+  const today = new Date();
+  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const start = new Date(end);
+  start.setDate(start.getDate() - (days - 1));
+  return {
+    start: toDateKeyFromDate(start),
+    end: toDateKeyFromDate(end),
+  };
+}
+
+function getRangeLabel(range) {
+  const found = RANGE_OPTIONS.find((item) => item.value === range);
+  return found?.label || "Last 7 days";
+}
+
+function getPresetDays(range) {
+  const matched = String(range || "").match(/^(\d{1,3})d$/);
+  const value = matched ? Number(matched[1]) : 7;
+  return Number.isFinite(value) && value > 0 ? value : 7;
+}
+
 export default function StatsPanel({ stats }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -80,15 +121,29 @@ export default function StatsPanel({ stats }) {
     ? series.clicks.map((value) => Number(value || 0))
     : [];
 
-  const [range, setRange] = useState(analyticsFilter.range || "7d");
-  const [startDate, setStartDate] = useState(analyticsFilter.startDate || "");
-  const [endDate, setEndDate] = useState(analyticsFilter.endDate || "");
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [draftRange, setDraftRange] = useState(analyticsFilter.range || "7d");
+  const [draftStartDate, setDraftStartDate] = useState(
+    analyticsFilter.startDate || ""
+  );
+  const [draftEndDate, setDraftEndDate] = useState(
+    analyticsFilter.endDate || ""
+  );
+  const initialMonthDate = parseDateKeyToDate(analyticsFilter.startDate) || new Date();
+  const [calendarMonth, setCalendarMonth] = useState(initialMonthDate.getMonth());
+  const [calendarYear, setCalendarYear] = useState(initialMonthDate.getFullYear());
   const [filterError, setFilterError] = useState("");
 
   useEffect(() => {
-    setRange(analyticsFilter.range || "7d");
-    setStartDate(analyticsFilter.startDate || "");
-    setEndDate(analyticsFilter.endDate || "");
+    const nextRange = analyticsFilter.range || "7d";
+    const nextStart = analyticsFilter.startDate || "";
+    const nextEnd = analyticsFilter.endDate || "";
+    const anchorDate = parseDateKeyToDate(nextStart) || new Date();
+    setDraftRange(nextRange);
+    setDraftStartDate(nextStart);
+    setDraftEndDate(nextEnd);
+    setCalendarMonth(anchorDate.getMonth());
+    setCalendarYear(anchorDate.getFullYear());
     setFilterError("");
   }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
 
@@ -136,24 +191,88 @@ export default function StatsPanel({ stats }) {
     navigate(`${location.pathname}${query ? `?${query}` : ""}`);
   };
 
-  const onRangeChange = (value) => {
-    setRange(value);
+  const resetDraftState = () => {
+    const nextRange = analyticsFilter.range || "7d";
+    const nextStart = analyticsFilter.startDate || "";
+    const nextEnd = analyticsFilter.endDate || "";
+    const anchorDate = parseDateKeyToDate(nextStart) || new Date();
+    setDraftRange(nextRange);
+    setDraftStartDate(nextStart);
+    setDraftEndDate(nextEnd);
+    setCalendarMonth(anchorDate.getMonth());
+    setCalendarYear(anchorDate.getFullYear());
     setFilterError("");
-    if (value !== "custom") applyQuery(value);
   };
 
-  const applyCustomFilter = () => {
-    if (!startDate || !endDate) {
+  const openPicker = () => {
+    resetDraftState();
+    setIsPickerOpen(true);
+  };
+
+  const closePicker = () => {
+    setIsPickerOpen(false);
+    setFilterError("");
+  };
+
+  const onDraftRangeChange = (value) => {
+    setDraftRange(value);
+    setFilterError("");
+    if (value !== "custom") {
+      const presetRange = getTodayRange(getPresetDays(value));
+      setDraftStartDate(presetRange.start);
+      setDraftEndDate(presetRange.end);
+      const anchorDate = parseDateKeyToDate(presetRange.start) || new Date();
+      setCalendarMonth(anchorDate.getMonth());
+      setCalendarYear(anchorDate.getFullYear());
+    }
+  };
+
+  const selectedRange = {
+    start:
+      parseDateKeyToDate(draftStartDate) ||
+      parseDateKeyToDate(analyticsFilter.startDate) ||
+      new Date(),
+    end:
+      parseDateKeyToDate(draftEndDate) ||
+      parseDateKeyToDate(draftStartDate) ||
+      parseDateKeyToDate(analyticsFilter.endDate) ||
+      parseDateKeyToDate(analyticsFilter.startDate) ||
+      new Date(),
+  };
+
+  const onCalendarChange = ({ start, end }) => {
+    const startKey = toDateKeyFromDate(start);
+    const endKey = toDateKeyFromDate(end || start);
+    if (!startKey) return;
+    setDraftRange("custom");
+    setDraftStartDate(startKey);
+    setDraftEndDate(endKey || startKey);
+    setFilterError("");
+  };
+
+  const applyFilter = () => {
+    if (draftRange !== "custom") {
+      applyQuery(draftRange);
+      closePicker();
+      return;
+    }
+    if (!draftStartDate || !draftEndDate) {
       setFilterError("Select both start and end date.");
       return;
     }
-    if (startDate > endDate) {
+    if (draftStartDate > draftEndDate) {
       setFilterError("Start date must be before end date.");
       return;
     }
     setFilterError("");
-    applyQuery("custom", startDate, endDate);
+    applyQuery("custom", draftStartDate, draftEndDate);
+    closePicker();
   };
+
+  const rangeButtonLabel =
+    analyticsFilter.range === "custom" && analyticsFilter.startDate && analyticsFilter.endDate
+      ? `${toDayLabel(analyticsFilter.startDate)} - ${toDayLabel(analyticsFilter.endDate)}`
+      : getRangeLabel(analyticsFilter.range || "7d");
 
   return (
     <Card>
@@ -168,51 +287,94 @@ export default function StatsPanel({ stats }) {
             </Text>
           </BlockStack>
 
-          <div
-            style={{
-              border: "1px solid #D9DCDE",
-              borderRadius: 12,
-              padding: 12,
-              minWidth: 320,
-              background: "#FFFFFF",
-            }}
+          <Popover
+            active={isPickerOpen}
+            onClose={closePicker}
+            preferredAlignment="right"
+            preferredPosition="below"
+            activator={
+              <Button onClick={openPicker} disclosure>
+                {rangeButtonLabel}
+              </Button>
+            }
           >
-            <BlockStack gap="200">
-              <Select
-                label="Date range"
-                labelHidden
-                options={RANGE_OPTIONS}
-                value={range}
-                onChange={onRangeChange}
-              />
-              {range === "custom" && (
-                <InlineStack gap="200" blockAlign="end" wrap>
-                  <TextField
-                    label="Start"
-                    type="date"
-                    value={startDate}
-                    onChange={setStartDate}
-                    autoComplete="off"
-                  />
-                  <TextField
-                    label="End"
-                    type="date"
-                    value={endDate}
-                    onChange={setEndDate}
-                    autoComplete="off"
-                  />
-                  <Button variant="primary" onClick={applyCustomFilter}>
+            <div style={{ width: 660, maxWidth: "86vw", padding: 16 }}>
+              <BlockStack gap="300">
+                <Select
+                  label="Date range"
+                  options={RANGE_OPTIONS}
+                  value={draftRange}
+                  onChange={onDraftRangeChange}
+                />
+
+                <InlineStack gap="200" blockAlign="center" wrap>
+                  <div style={{ minWidth: 220, flex: 1 }}>
+                    <TextField
+                      label="Start"
+                      type="date"
+                      value={draftStartDate}
+                      onChange={(value) => {
+                        setDraftRange("custom");
+                        setDraftStartDate(value);
+                        setFilterError("");
+                      }}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <Text as="span" variant="headingMd" tone="subdued">
+                    ->
+                  </Text>
+                  <div style={{ minWidth: 220, flex: 1 }}>
+                    <TextField
+                      label="End"
+                      type="date"
+                      value={draftEndDate}
+                      onChange={(value) => {
+                        setDraftRange("custom");
+                        setDraftEndDate(value);
+                        setFilterError("");
+                      }}
+                      autoComplete="off"
+                    />
+                  </div>
+                </InlineStack>
+
+                <DatePicker
+                  month={calendarMonth}
+                  year={calendarYear}
+                  selected={selectedRange}
+                  onMonthChange={(month, year) => {
+                    setCalendarMonth(month);
+                    setCalendarYear(year);
+                  }}
+                  onChange={onCalendarChange}
+                  allowRange
+                  multiMonth
+                />
+
+                {filterError ? (
+                  <Text as="p" tone="critical" variant="bodySm">
+                    {filterError}
+                  </Text>
+                ) : null}
+
+                <InlineStack align="end" gap="200">
+                  <Button
+                    variant="plain"
+                    onClick={() => {
+                      resetDraftState();
+                      closePicker();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button variant="primary" onClick={applyFilter}>
                     Apply
                   </Button>
                 </InlineStack>
-              )}
-              {filterError ? (
-                <Text as="p" tone="critical" variant="bodySm">
-                  {filterError}
-                </Text>
-              ) : null}
-            </BlockStack>
-          </div>
+              </BlockStack>
+            </div>
+          </Popover>
         </InlineStack>
 
         <InlineStack gap="200" wrap>
