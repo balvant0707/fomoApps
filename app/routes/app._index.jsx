@@ -729,8 +729,7 @@ export default function AppIndex() {
                 refresh status.
               </Text>
             )}
-            {hasReliableEmbedStatus && !isEmbedActive && (
-            )}
+            
             <InlineStack gap="300" align="start">
               <Button
                 variant="primary"
