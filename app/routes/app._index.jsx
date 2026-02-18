@@ -395,11 +395,35 @@ export const loader = async ({ request }) => {
   );
   const url = new URL(request.url);
   const normalizeShop = (value) => String(value || "").trim().toLowerCase();
+  const toShopSlug = (value) => {
+    const raw = normalizeShop(value).replace(/^https?:\/\//, "");
+    if (!raw) return "";
+
+    const storeMatch = raw.match(/\/store\/([a-z0-9-]+)/);
+    if (storeMatch?.[1]) return storeMatch[1];
+
+    const domainMatch = raw.match(/^([a-z0-9-]+)\.myshopify\.com\b/);
+    if (domainMatch?.[1]) return domainMatch[1];
+
+    const pathOnly = raw.split(/[?#]/)[0];
+    const parts = pathOnly
+      .split("/")
+      .filter(Boolean)
+      .filter((part) => part !== "store");
+    return parts[0] || "";
+  };
   const shop =
     normalizeShop(session?.shop) ||
     normalizeShop(url.searchParams.get("shop"));
   if (!shop) throw new Response("Unauthorized", { status: 401 });
-  const slug = shop.replace(".myshopify.com", "");
+  const slug =
+    toShopSlug(shop) ||
+    normalizeShop(shop)
+      .replace(".myshopify.com", "")
+      .split("/")
+      .filter(Boolean)
+      .filter((part) => part !== "store")[0] ||
+    "";
   const rawType = (url.searchParams.get("type") || "all").toLowerCase();
   const rawStatus = (url.searchParams.get("status") || "all").toLowerCase();
   const allowedTypes = new Set([
@@ -630,7 +654,15 @@ export default function AppIndex() {
     };
   }, [appEmbedState]);
 
+  const toThemeEditorThemeId = (value) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "current";
+    const idMatch = raw.match(/\d+/);
+    return idMatch ? idMatch[0] : "current";
+  };
+
   const openThemeEditor = (id, mode = "open") => {
+    const safeThemeId = toThemeEditorThemeId(id);
     const params = new URLSearchParams({
       context: "apps",
       template: "index",
@@ -640,8 +672,8 @@ export default function AppIndex() {
       params.set("activateAppId", embedId);
       params.set("appEmbed", embedId);
     }
-    const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?${params.toString()}`;
-    window.open(url, "_blank");
+    const url = `https://admin.shopify.com/store/${slug}/themes/${safeThemeId}/editor?${params.toString()}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (

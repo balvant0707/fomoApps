@@ -12,7 +12,29 @@ import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
-const norm = (s) => (s || "").toLowerCase();
+const norm = (s) => String(s || "").trim().toLowerCase();
+
+const toShopSlug = (value) => {
+  const raw = norm(value).replace(/^https?:\/\//, "");
+  if (!raw) return "";
+
+  const storeMatch = raw.match(/\/store\/([a-z0-9-]+)/);
+  if (storeMatch?.[1]) return storeMatch[1];
+
+  const domainMatch = raw.match(/^([a-z0-9-]+)\.myshopify\.com\b/);
+  if (domainMatch?.[1]) return domainMatch[1];
+
+  const pathOnly = raw.split(/[?#]/)[0];
+  const parts = pathOnly.split("/").filter(Boolean).filter((part) => part !== "store");
+  return parts[0] || "";
+};
+
+const toThemeEditorThemeId = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "current";
+  const idMatch = raw.match(/\d+/);
+  return idMatch ? idMatch[0] : "current";
+};
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request); // redirects to /auth if needed
@@ -60,7 +82,14 @@ export const loader = async ({ request }) => {
         appEmbedFound: false,
         appEmbedChecked: false,
       };
-  const slug = shop.replace(".myshopify.com", "");
+  const slug =
+    toShopSlug(shop) ||
+    norm(shop)
+      .replace(".myshopify.com", "")
+      .split("/")
+      .filter(Boolean)
+      .filter((part) => part !== "store")[0] ||
+    "";
 
   return {
     apiKey,
@@ -86,13 +115,14 @@ export default function App() {
     : "Theme Customize ma App embeds ma Fomoify embed ON kari ne Save karo.";
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
+    const safeThemeId = toThemeEditorThemeId(themeId);
     const params = new URLSearchParams({
       context: "apps",
       template: "index",
       activateAppId: embedId,
       appEmbed: embedId,
     });
-    const url = `https://admin.shopify.com/store/${slug}/themes/${themeId ?? "current"}/editor?${params.toString()}`;
+    const url = `https://admin.shopify.com/store/${slug}/themes/${safeThemeId}/editor?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
