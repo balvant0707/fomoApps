@@ -1,7 +1,6 @@
 import {
   BlockStack,
   Button,
-  Card,
   DatePicker,
   Icon,
   InlineStack,
@@ -371,7 +370,7 @@ export default function StatsPanel({ stats }) {
       : getRangeLabel(analyticsFilter.range || "7d");
 
   return (
-    <Card>
+    <div style={{ width: "100%", maxWidth: 1220, margin: "0 auto" }}>
       <BlockStack gap="400">
         <InlineStack align="space-between" blockAlign="start" wrap gap="300">
           <BlockStack gap="050">
@@ -473,364 +472,387 @@ export default function StatsPanel({ stats }) {
           </Popover>
         </InlineStack>
 
-        <Card padding="300">
-          <BlockStack gap="200">
-            <Text variant="headingSm" as="h3">
-              Date-wise Analysis
+        <div
+          style={{
+            minHeight: 320,
+            border: "1px solid #D4D7DC",
+            borderRadius: 14,
+            padding: "16px 16px 12px",
+            background: "#FFFFFF",
+          }}
+        >
+          {labels.length === 0 ? (
+            <Text as="p" tone="subdued">
+              No analytics data found for this range.
             </Text>
-
-            <div
-              style={{
-                minHeight: 320,
-                border: "1px solid #E5E7EB",
-                borderRadius: 10,
-                padding: 12,
-                background: "#FFFFFF",
-              }}
-            >
-              {labels.length === 0 ? (
-                <Text as="p" tone="subdued">
-                  No analytics data found for this range.
-                </Text>
-              ) : (
-                <>
-                  <div ref={chartFrameRef} style={{ overflowX: "auto" }}>
-                    <div style={{ minWidth: svgWidth, position: "relative" }}>
-                      <svg width={svgWidth} height={svgHeight}>
-                        {yTickValues.map((tick, idx) => {
-                          const y = paddingTop + (idx / yTicks) * plotHeight;
-                          return (
-                            <g key={`grid-${tick}-${idx}`}>
-                              <line
-                                x1={paddingLeft}
-                                y1={y}
-                                x2={paddingLeft + plotWidth}
-                                y2={y}
-                                stroke="#E7EAEE"
-                              />
-                              <text
-                                x={paddingLeft - 8}
-                                y={y + 4}
-                                fontSize="11"
-                                fill="#6B7280"
-                                textAnchor="end"
-                              >
-                                {tick}
-                              </text>
-                            </g>
-                          );
-                        })}
-
-                        {areaPoints ? (
-                          <polygon
-                            points={areaPoints}
-                            fill="rgba(38, 169, 230, 0.16)"
-                            stroke="none"
+          ) : (
+            <>
+              <div ref={chartFrameRef} style={{ overflowX: "auto" }}>
+                <div style={{ minWidth: svgWidth, position: "relative" }}>
+                  <svg width={svgWidth} height={svgHeight}>
+                    {yTickValues.map((tick, idx) => {
+                      const y = paddingTop + (idx / yTicks) * plotHeight;
+                      return (
+                        <g key={`grid-${tick}-${idx}`}>
+                          <line
+                            x1={paddingLeft}
+                            y1={y}
+                            x2={paddingLeft + plotWidth}
+                            y2={y}
+                            stroke="#E7EAEE"
                           />
-                        ) : null}
+                          <text
+                            x={paddingLeft - 8}
+                            y={y + 4}
+                            fontSize="11"
+                            fill="#6B7280"
+                            textAnchor="end"
+                          >
+                            {tick}
+                          </text>
+                        </g>
+                      );
+                    })}
 
-                        {impressionsLinePoints ? (
-                          <polyline
-                            points={impressionsLinePoints}
-                            fill="none"
-                            stroke="#26A9E6"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ) : null}
+                    {areaPoints ? (
+                      <polygon
+                        points={areaPoints}
+                        fill="rgba(38, 169, 230, 0.16)"
+                        stroke="none"
+                      />
+                    ) : null}
 
-                        {clicksLinePoints ? (
-                          <polyline
-                            points={clicksLinePoints}
-                            fill="none"
-                            stroke="#6F4CF6"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        ) : null}
+                    {impressionsLinePoints ? (
+                      <polyline
+                        points={impressionsLinePoints}
+                        fill="none"
+                        stroke="#26A9E6"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ) : null}
 
-                        {activeIndex !== null ? (
-                          <g>
-                            <line
-                              x1={activeX}
-                              y1={paddingTop}
-                              x2={activeX}
-                              y2={baseY}
-                              stroke="#C7CDD4"
-                              strokeDasharray="4 4"
-                            />
-                            <circle
-                              cx={activeX}
-                              cy={yAt(activeImpressions)}
-                              r="4.5"
-                              fill="#26A9E6"
-                              stroke="#FFFFFF"
-                              strokeWidth="2"
-                            />
-                            <circle
-                              cx={activeX}
-                              cy={yAt(activeClicks)}
-                              r="4.5"
-                              fill="#6F4CF6"
-                              stroke="#FFFFFF"
-                              strokeWidth="2"
-                            />
-                          </g>
-                        ) : null}
+                    {clicksLinePoints ? (
+                      <polyline
+                        points={clicksLinePoints}
+                        fill="none"
+                        stroke="#6F4CF6"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ) : null}
 
-                        <rect
-                          x={paddingLeft}
-                          y={paddingTop}
-                          width={plotWidth}
-                          height={plotHeight}
-                          fill="transparent"
-                          onMouseMove={onChartMouseMove}
-                          onMouseLeave={() => setHoveredIndex(null)}
-                          onTouchStart={onChartTouchMove}
-                          onTouchMove={onChartTouchMove}
-                          onTouchEnd={() => setHoveredIndex(null)}
+                    {activeIndex !== null ? (
+                      <g>
+                        <line
+                          x1={activeX}
+                          y1={paddingTop}
+                          x2={activeX}
+                          y2={baseY}
+                          stroke="#C7CDD4"
+                          strokeDasharray="4 4"
                         />
-                      </svg>
+                        <circle
+                          cx={activeX}
+                          cy={yAt(activeImpressions)}
+                          r="4.5"
+                          fill="#26A9E6"
+                          stroke="#FFFFFF"
+                          strokeWidth="2"
+                        />
+                        <circle
+                          cx={activeX}
+                          cy={yAt(activeClicks)}
+                          r="4.5"
+                          fill="#6F4CF6"
+                          stroke="#FFFFFF"
+                          strokeWidth="2"
+                        />
+                      </g>
+                    ) : null}
 
-                      {activeIndex !== null ? (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 48,
-                            left: tooltipLeft,
-                            width: tooltipWidth,
-                            background: "#FFFFFF",
-                            border: "1px solid #D8DDE3",
-                            borderRadius: 12,
-                            boxShadow: "0 8px 24px rgba(33, 43, 54, 0.12)",
-                            padding: 12,
-                            pointerEvents: "none",
-                          }}
-                        >
-                          <BlockStack gap="150">
-                            <Text as="p" variant="headingSm">
-                              {toDayLabel(activeDay)}
-                            </Text>
-                            <InlineStack align="space-between" blockAlign="center">
-                              <InlineStack gap="100" blockAlign="center">
-                                <span
-                                  style={{
-                                    width: 14,
-                                    height: 2,
-                                    borderRadius: 2,
-                                    background: "#26A9E6",
-                                    display: "inline-block",
-                                  }}
-                                />
-                                <Text as="span" variant="bodyMd">
-                                  Notification impression
-                                </Text>
-                              </InlineStack>
-                              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                                {activeImpressions}
-                              </Text>
-                            </InlineStack>
-                            <InlineStack align="space-between" blockAlign="center">
-                              <InlineStack gap="100" blockAlign="center">
-                                <span
-                                  style={{
-                                    width: 14,
-                                    height: 2,
-                                    borderRadius: 2,
-                                    background: "#6F4CF6",
-                                    display: "inline-block",
-                                  }}
-                                />
-                                <Text as="span" variant="bodyMd">
-                                  Notification clicks
-                                </Text>
-                              </InlineStack>
-                              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                                {activeClicks}
-                              </Text>
-                            </InlineStack>
-                          </BlockStack>
-                        </div>
-                      ) : null}
+                    <rect
+                      x={paddingLeft}
+                      y={paddingTop}
+                      width={plotWidth}
+                      height={plotHeight}
+                      fill="transparent"
+                      onMouseMove={onChartMouseMove}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                      onTouchStart={onChartTouchMove}
+                      onTouchMove={onChartTouchMove}
+                      onTouchEnd={() => setHoveredIndex(null)}
+                    />
+                  </svg>
 
-                      <div
-                        style={{
-                          marginTop: 6,
-                          display: "grid",
-                          gridTemplateColumns: `repeat(${labels.length}, minmax(0, 1fr))`,
-                          gap: 0,
-                          paddingLeft: 44,
-                          paddingRight: 18,
-                          width: svgWidth,
-                        }}
-                      >
-                        {labels.map((day, idx) => (
-                          <div key={`x-${day}`} style={{ textAlign: "center" }}>
-                            <Text as="span" variant="bodySm" tone="subdued">
-                              {idx % xTickEvery === 0 || idx === labels.length - 1
-                                ? toDayLabel(day)
-                                : ""}
-                            </Text>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <InlineStack gap="300" align="center">
-                    <InlineStack gap="100" blockAlign="center">
-                      <span
-                        style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 3,
-                          background: "#26A9E6",
-                          display: "inline-block",
-                        }}
-                      />
-                      <Text as="span" variant="bodySm">
-                        Notification impression
-                      </Text>
-                    </InlineStack>
-                    <InlineStack gap="100" blockAlign="center">
-                      <span
-                        style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 3,
-                          background: "#6F4CF6",
-                          display: "inline-block",
-                        }}
-                      />
-                      <Text as="span" variant="bodySm">
-                        Notification clicks
-                      </Text>
-                    </InlineStack>
-                  </InlineStack>
-                </>
-              )}
-            </div>
-          </BlockStack>
-        </Card>
-
-        <Card padding="0">
-          <div style={{ borderRadius: 12, overflow: "hidden", border: "1px solid #E5E7EB" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
-                gap: 0,
-                padding: "14px 16px",
-                background: "#F6F6F7",
-                borderBottom: "1px solid #E5E7EB",
-              }}
-            >
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                Type of notification
-              </Text>
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                Total impressions
-              </Text>
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                Total clicks
-              </Text>
-              <Text as="p" variant="bodyMd" fontWeight="semibold">
-                Close rate
-              </Text>
-            </div>
-
-            {breakdownRows.length === 0 ? (
-              <div style={{ padding: "14px 16px" }}>
-                <Text as="p" tone="subdued">
-                  No analytics data found for this range.
-                </Text>
-              </div>
-            ) : (
-              breakdownRows.map((row) => {
-                const isOpen = Boolean(expandedRows[row.key]);
-                return (
-                  <div key={row.key} style={{ borderBottom: "1px solid #E5E7EB" }}>
-                    <button
-                      type="button"
-                      onClick={() => toggleRow(row.key)}
-                      aria-expanded={isOpen}
+                  {activeIndex !== null ? (
+                    <div
                       style={{
-                        width: "100%",
-                        display: "grid",
-                        gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
-                        gap: 0,
-                        padding: "12px 16px",
-                        border: "none",
+                        position: "absolute",
+                        top: 48,
+                        left: tooltipLeft,
+                        width: tooltipWidth,
                         background: "#FFFFFF",
-                        textAlign: "left",
-                        cursor: "pointer",
+                        border: "1px solid #D8DDE3",
+                        borderRadius: 12,
+                        boxShadow: "0 8px 24px rgba(33, 43, 54, 0.12)",
+                        padding: 12,
+                        pointerEvents: "none",
                       }}
                     >
-                      <InlineStack gap="100" blockAlign="center">
-                        <span style={{ width: 20, display: "inline-flex", justifyContent: "center" }}>
-                          <Icon source={isOpen ? ChevronUpIcon : ChevronDownIcon} />
-                        </span>
-                        <Text as="span" variant="bodyMd" fontWeight="semibold">
-                          {row.label}
+                      <BlockStack gap="150">
+                        <Text as="p" variant="headingSm">
+                          {toDayLabel(activeDay)}
                         </Text>
-                      </InlineStack>
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">
-                        {row.totalImpressions || 0}
-                      </Text>
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">
-                        {row.totalClicks || 0}
-                      </Text>
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">
-                        {`${row.closeRate || 0}%`}
-                      </Text>
-                    </button>
-
-                    {isOpen ? (
-                      <div style={{ background: "#FAFAFB" }}>
-                        {Array.isArray(row.details) && row.details.length > 0 ? (
-                          row.details.map((detail, index) => (
-                            <div
-                              key={`${row.key}-${detail.startDate}-${index}`}
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="100" blockAlign="center">
+                            <span
                               style={{
-                                display: "grid",
-                                gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
-                                gap: 0,
-                                padding: "10px 16px",
-                                borderTop: "1px solid #EEEFF1",
+                                width: 14,
+                                height: 2,
+                                borderRadius: 2,
+                                background: "#26A9E6",
+                                display: "inline-block",
                               }}
-                            >
-                              <Text as="span" variant="bodyMd" tone="subdued">
-                                {`${toPrettyDate(detail.startDate)} - ${toPrettyDate(detail.endDate)}`}
-                              </Text>
-                              <Text as="span" variant="bodyMd" tone="subdued">
-                                {detail.impressions || 0}
-                              </Text>
-                              <Text as="span" variant="bodyMd" tone="subdued">
-                                {detail.clicks || 0}
-                              </Text>
-                              <Text as="span" variant="bodyMd" tone="subdued">
-                                {`${detail.closeRate || 0}%`}
-                              </Text>
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ padding: "10px 16px", borderTop: "1px solid #EEEFF1" }}>
-                            <Text as="p" tone="subdued" variant="bodyMd">
-                              No detailed rows for this range.
+                            />
+                            <Text as="span" variant="bodyMd">
+                              Notification impression
+                            </Text>
+                          </InlineStack>
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">
+                            {activeImpressions}
+                          </Text>
+                        </InlineStack>
+                        <InlineStack align="space-between" blockAlign="center">
+                          <InlineStack gap="100" blockAlign="center">
+                            <span
+                              style={{
+                                width: 14,
+                                height: 2,
+                                borderRadius: 2,
+                                background: "#6F4CF6",
+                                display: "inline-block",
+                              }}
+                            />
+                            <Text as="span" variant="bodyMd">
+                              Notification clicks
+                            </Text>
+                          </InlineStack>
+                          <Text as="span" variant="bodyMd" fontWeight="semibold">
+                            {activeClicks}
+                          </Text>
+                        </InlineStack>
+                      </BlockStack>
+                    </div>
+                  ) : null}
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${labels.length}, minmax(0, 1fr))`,
+                      gap: 0,
+                      paddingLeft: 44,
+                      paddingRight: 18,
+                      width: svgWidth,
+                    }}
+                  >
+                    {labels.map((day, idx) => (
+                      <div key={`x-${day}`} style={{ textAlign: "center" }}>
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {idx % xTickEvery === 0 || idx === labels.length - 1
+                            ? toDayLabel(day)
+                            : ""}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  flexWrap: "wrap",
+                  marginTop: 8,
+                }}
+              >
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    borderRadius: 6,
+                    background: "#F3F4F6",
+                    padding: "8px 12px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 14,
+                      height: 2,
+                      borderRadius: 2,
+                      background: "#26A9E6",
+                      display: "inline-block",
+                    }}
+                  />
+                  <Text as="span" variant="bodySm">
+                    Notification impression
+                  </Text>
+                </div>
+                <div
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    borderRadius: 6,
+                    background: "#F3F4F6",
+                    padding: "8px 12px",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 14,
+                      height: 2,
+                      borderRadius: 2,
+                      background: "#6F4CF6",
+                      display: "inline-block",
+                    }}
+                  />
+                  <Text as="span" variant="bodySm">
+                    Notification clicks
+                  </Text>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div
+          style={{
+            borderRadius: 14,
+            overflow: "hidden",
+            border: "1px solid #D4D7DC",
+            background: "#FFFFFF",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+              gap: 0,
+              padding: "14px 16px",
+              background: "#F6F6F7",
+              borderBottom: "1px solid #E5E7EB",
+            }}
+          >
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Type of notification
+            </Text>
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Total impressions
+            </Text>
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Total clicks
+            </Text>
+            <Text as="p" variant="bodyMd" fontWeight="semibold">
+              Close rate
+            </Text>
+          </div>
+
+          {breakdownRows.length === 0 ? (
+            <div style={{ padding: "14px 16px" }}>
+              <Text as="p" tone="subdued">
+                No analytics data found for this range.
+              </Text>
+            </div>
+          ) : (
+            breakdownRows.map((row) => {
+              const isOpen = Boolean(expandedRows[row.key]);
+              return (
+                <div key={row.key} style={{ borderBottom: "1px solid #E5E7EB" }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleRow(row.key)}
+                    aria-expanded={isOpen}
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+                      gap: 0,
+                      padding: "12px 16px",
+                      border: "none",
+                      background: "#FFFFFF",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <InlineStack gap="100" blockAlign="center">
+                      <span style={{ width: 20, display: "inline-flex", justifyContent: "center" }}>
+                        <Icon source={isOpen ? ChevronUpIcon : ChevronDownIcon} />
+                      </span>
+                      <Text as="span" variant="bodyMd" fontWeight="semibold">
+                        {row.label}
+                      </Text>
+                    </InlineStack>
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      {row.totalImpressions || 0}
+                    </Text>
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      {row.totalClicks || 0}
+                    </Text>
+                    <Text as="span" variant="bodyMd" fontWeight="semibold">
+                      {`${row.closeRate || 0}%`}
+                    </Text>
+                  </button>
+
+                  {isOpen ? (
+                    <div style={{ background: "#FAFAFB" }}>
+                      {Array.isArray(row.details) && row.details.length > 0 ? (
+                        row.details.map((detail, index) => (
+                          <div
+                            key={`${row.key}-${detail.startDate}-${index}`}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.8fr 1fr 1fr 0.9fr",
+                              gap: 0,
+                              padding: "10px 16px",
+                              borderTop: "1px solid #EEEFF1",
+                            }}
+                          >
+                            <Text as="span" variant="bodyMd" tone="subdued">
+                              {`${toPrettyDate(detail.startDate)} - ${toPrettyDate(detail.endDate)}`}
+                            </Text>
+                            <Text as="span" variant="bodyMd" tone="subdued">
+                              {detail.impressions || 0}
+                            </Text>
+                            <Text as="span" variant="bodyMd" tone="subdued">
+                              {detail.clicks || 0}
+                            </Text>
+                            <Text as="span" variant="bodyMd" tone="subdued">
+                              {`${detail.closeRate || 0}%`}
                             </Text>
                           </div>
-                        )}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
+                        ))
+                      ) : (
+                        <div style={{ padding: "10px 16px", borderTop: "1px solid #EEEFF1" }}>
+                          <Text as="p" tone="subdued" variant="bodyMd">
+                            No detailed rows for this range.
+                          </Text>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })
+          )}
+        </div>
       </BlockStack>
-    </Card>
+    </div>
   );
 }
