@@ -118,6 +118,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       .catch(() => { });
   };
   pingEmbedStatus();
+  setInterval(pingEmbedStatus, EMBED_PING_INTERVAL_MS);
+  window.addEventListener("focus", pingEmbedStatus);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") pingEmbedStatus();
+  });
 
   /* ========== helpers ========== */
   const safe = (v, fb = "") =>
