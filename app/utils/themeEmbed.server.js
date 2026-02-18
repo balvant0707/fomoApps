@@ -62,7 +62,7 @@ export async function getThemeEmbedState({
 
     const settingsRaw = await getOrSetCache(
       `themes:settings:${shop}:${themeId}`,
-      5000,
+      2000,
       () => fetchThemeSettingsData({ admin, themeId })
     );
     if (!settingsRaw) return { enabled: false, found: false, checked: false };

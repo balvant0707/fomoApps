@@ -2097,7 +2097,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     // App config
     let data = { records: [] };
-    const cachedConfig = await fetchJson(ENDPOINT, "config", 5000);
+    const cachedConfig = await fetchJson(ENDPOINT, "config", 2000);
     if (cachedConfig) data = cachedConfig;
     window.FOMOIFY = window.FOMOIFY || {};
     window.FOMOIFY.popupTables = data?.tables || {};
