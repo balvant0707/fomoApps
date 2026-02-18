@@ -1,5 +1,15 @@
-import { Badge, BlockStack, Card, InlineStack, Text } from "@shopify/polaris";
-import { useEffect, useMemo, useRef } from "react";
+import {
+  Badge,
+  BlockStack,
+  Button,
+  Card,
+  InlineStack,
+  Select,
+  Text,
+  TextField,
+} from "@shopify/polaris";
+import { useLocation, useNavigate } from "@remix-run/react";
+import { useEffect, useState } from "react";
 
 const EMPTY_STATS = {
   total: 0,
@@ -10,10 +20,27 @@ const EMPTY_STATS = {
     visitors: 0,
     clicks: 0,
     orders: 0,
-    days: 30,
+    days: 7,
+    startDate: "",
+    endDate: "",
     series: { labels: [], visitors: [], clicks: [], orders: [] },
   },
+  analyticsFilter: {
+    range: "7d",
+    days: 7,
+    startDate: "",
+    endDate: "",
+  },
 };
+
+const RANGE_OPTIONS = [
+  { label: "Last 7 days", value: "7d" },
+  { label: "Last 15 days", value: "15d" },
+  { label: "Last 30 days", value: "30d" },
+  { label: "Last 60 days", value: "60d" },
+  { label: "Last 90 days", value: "90d" },
+  { label: "Custom range", value: "custom" },
+];
 
 function titleCase(value) {
   return String(value || "")
@@ -21,116 +48,186 @@ function titleCase(value) {
     .replace(/\w\S*/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
+function toDayLabel(key) {
+  const d = new Date(`${key}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return key;
+  return d.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+function buildLinePoints(values, xAt, yAt) {
+  if (!Array.isArray(values) || !values.length) return "";
+  return values.map((value, idx) => `${xAt(idx)},${yAt(value)}`).join(" ");
+}
+
 export default function StatsPanel({ stats }) {
-  const scrollRef = useRef(null);
+  const navigate = useNavigate();
+  const location = useLocation();
   const safeStats = stats || EMPTY_STATS;
   const byType = safeStats.byType || {};
   const entries = Object.entries(byType);
   const analytics = safeStats.analytics || EMPTY_STATS.analytics;
+  const analyticsFilter = safeStats.analyticsFilter || EMPTY_STATS.analyticsFilter;
   const series = analytics.series || EMPTY_STATS.analytics.series || {};
   const labels = Array.isArray(series.labels) ? series.labels : [];
-  const visitorsSeries = Array.isArray(series.visitors) ? series.visitors : [];
-  const clicksSeries = Array.isArray(series.clicks) ? series.clicks : [];
-  const ordersSeries = Array.isArray(series.orders) ? series.orders : [];
-  const todayKey = useMemo(() => {
-    const t = new Date();
-    t.setHours(0, 0, 0, 0);
-    return t.toISOString().slice(0, 10);
-  }, []);
-  const dataByDay = useMemo(() => {
-    const m = new Map();
-    for (let i = 0; i < labels.length; i++) {
-      m.set(labels[i], {
-        visitors: Number(visitorsSeries[i] || 0),
-        clicks: Number(clicksSeries[i] || 0),
-        orders: Number(ordersSeries[i] || 0),
-      });
-    }
-    return m;
-  }, [labels, visitorsSeries, clicksSeries, ordersSeries]);
-  const displayLabels = useMemo(() => {
-    const start = new Date(`${todayKey}T00:00:00`);
-    start.setDate(start.getDate() - 30);
-    const end = new Date(`${todayKey}T00:00:00`);
-    end.setDate(end.getDate() + 30);
-    const out = [];
-    const d = new Date(start);
-    while (d <= end) {
-      out.push(d.toISOString().slice(0, 10));
-      d.setDate(d.getDate() + 1);
-    }
-    return out;
-  }, [labels, todayKey]);
-  const mergedVisitors = useMemo(
-    () => displayLabels.map((k) => dataByDay.get(k)?.visitors || 0),
-    [displayLabels, dataByDay]
-  );
-  const mergedClicks = useMemo(
-    () => displayLabels.map((k) => dataByDay.get(k)?.clicks || 0),
-    [displayLabels, dataByDay]
-  );
-  const mergedOrders = useMemo(
-    () => displayLabels.map((k) => dataByDay.get(k)?.orders || 0),
-    [displayLabels, dataByDay]
-  );
-  const chartMax = Math.max(1, ...mergedVisitors, ...mergedClicks, ...mergedOrders);
-  const yStep = Math.max(1, Math.ceil(chartMax / 6));
-  const yTickValues = [];
-  for (let v = chartMax; v >= 0; v -= yStep) yTickValues.push(v);
-  if (yTickValues[yTickValues.length - 1] !== 0) yTickValues.push(0);
-  const yTicks = yTickValues.length;
-  const chartHeight = 220;
-  const chartWidth = Math.max(420, displayLabels.length * 48);
-  const groupWidth = displayLabels.length > 0 ? chartWidth / displayLabels.length : chartWidth;
-  const clusterWidth = groupWidth * 0.82;
-  const barGap = 0;
-  const barWidth = clusterWidth / 3;
-  const formatDateLabel = (value) => {
-    const d = new Date(`${value}T00:00:00`);
-    return d.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
-  };
-  const getMonthShort = (value) =>
-    new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { month: "short" });
-  const getDayTwoDigit = (value) =>
-    new Date(`${value}T00:00:00`).toLocaleDateString("en-US", { day: "2-digit" });
+  const impressions = Array.isArray(series.visitors)
+    ? series.visitors.map((value) => Number(value || 0))
+    : [];
+  const clicks = Array.isArray(series.clicks)
+    ? series.clicks.map((value) => Number(value || 0))
+    : [];
+
+  const [range, setRange] = useState(analyticsFilter.range || "7d");
+  const [startDate, setStartDate] = useState(analyticsFilter.startDate || "");
+  const [endDate, setEndDate] = useState(analyticsFilter.endDate || "");
+  const [filterError, setFilterError] = useState("");
+
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const idx = displayLabels.indexOf(todayKey);
-    if (idx < 0) return;
-    const target = Math.max(0, idx * groupWidth - el.clientWidth / 2 + groupWidth / 2);
-    el.scrollLeft = target;
-  }, [displayLabels, groupWidth, todayKey]);
+    setRange(analyticsFilter.range || "7d");
+    setStartDate(analyticsFilter.startDate || "");
+    setEndDate(analyticsFilter.endDate || "");
+    setFilterError("");
+  }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
+
+  const chartMax = Math.max(1, ...impressions, ...clicks);
+  const yTicks = 4;
+  const yTickValues = Array.from({ length: yTicks + 1 }, (_, idx) =>
+    Math.round(chartMax - (chartMax * idx) / yTicks)
+  );
+
+  const plotHeight = 220;
+  const plotWidth = Math.max(640, labels.length * 120);
+  const paddingTop = 16;
+  const paddingBottom = 32;
+  const paddingLeft = 44;
+  const paddingRight = 18;
+  const svgWidth = paddingLeft + plotWidth + paddingRight;
+  const svgHeight = paddingTop + plotHeight + paddingBottom;
+  const baseY = paddingTop + plotHeight;
+  const xStep = labels.length > 1 ? plotWidth / (labels.length - 1) : 0;
+  const xAt = (idx) =>
+    paddingLeft + (labels.length <= 1 ? plotWidth / 2 : idx * xStep);
+  const yAt = (value) => paddingTop + (1 - Number(value || 0) / chartMax) * plotHeight;
+  const impressionsLinePoints = buildLinePoints(impressions, xAt, yAt);
+  const clicksLinePoints = buildLinePoints(clicks, xAt, yAt);
+  const areaPoints =
+    labels.length && impressionsLinePoints
+      ? `${xAt(0)},${baseY} ${impressionsLinePoints} ${xAt(labels.length - 1)},${baseY}`
+      : "";
+  const xTickEvery = Math.max(1, Math.ceil(labels.length / 7));
+
+  const applyQuery = (nextRange, nextStart = "", nextEnd = "") => {
+    const params = new URLSearchParams(location.search);
+    params.set("range", nextRange);
+    params.delete("days");
+
+    if (nextRange === "custom") {
+      params.set("start", nextStart);
+      params.set("end", nextEnd);
+    } else {
+      params.delete("start");
+      params.delete("end");
+    }
+
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ""}`);
+  };
+
+  const onRangeChange = (value) => {
+    setRange(value);
+    setFilterError("");
+    if (value !== "custom") applyQuery(value);
+  };
+
+  const applyCustomFilter = () => {
+    if (!startDate || !endDate) {
+      setFilterError("Select both start and end date.");
+      return;
+    }
+    if (startDate > endDate) {
+      setFilterError("Start date must be before end date.");
+      return;
+    }
+    setFilterError("");
+    applyQuery("custom", startDate, endDate);
+  };
 
   return (
     <Card>
-      <style>{`.chart-scroll-hidden::-webkit-scrollbar{display:none}`}</style>
       <BlockStack gap="400">
-        <InlineStack align="space-between" blockAlign="center" wrap>
-          <Text variant="headingMd" as="h2">
-            Overview
-          </Text>
-          <InlineStack gap="200" wrap>
-            <Badge tone="success">Enabled: {safeStats.enabled || 0}</Badge>
-            <Badge tone="critical">Disabled: {safeStats.disabled || 0}</Badge>
-            <Badge tone="info">Total: {safeStats.total || 0}</Badge>
-            <Badge tone="attention">
-              Visitors ({analytics.days || 30}d): {analytics.visitors || 0}
-            </Badge>
-            <Badge>
-              Popup Clicks ({analytics.days || 30}d): {analytics.clicks || 0}
-            </Badge>
-            <Badge tone="success">
-              Orders ({analytics.days || 30}d): {analytics.orders || 0}
-            </Badge>
-          </InlineStack>
+        <InlineStack align="space-between" blockAlign="start" wrap gap="300">
+          <BlockStack gap="050">
+            <Text variant="headingLg" as="h2">
+              Analytics
+            </Text>
+            <Text as="p" tone="subdued">
+              Data updates daily at 11:30 PM (UTC time)
+            </Text>
+          </BlockStack>
+
+          <div
+            style={{
+              border: "1px solid #D9DCDE",
+              borderRadius: 12,
+              padding: 12,
+              minWidth: 320,
+              background: "#FFFFFF",
+            }}
+          >
+            <BlockStack gap="200">
+              <Select
+                label="Date range"
+                labelHidden
+                options={RANGE_OPTIONS}
+                value={range}
+                onChange={onRangeChange}
+              />
+              {range === "custom" && (
+                <InlineStack gap="200" blockAlign="end" wrap>
+                  <TextField
+                    label="Start"
+                    type="date"
+                    value={startDate}
+                    onChange={setStartDate}
+                    autoComplete="off"
+                  />
+                  <TextField
+                    label="End"
+                    type="date"
+                    value={endDate}
+                    onChange={setEndDate}
+                    autoComplete="off"
+                  />
+                  <Button variant="primary" onClick={applyCustomFilter}>
+                    Apply
+                  </Button>
+                </InlineStack>
+              )}
+              {filterError ? (
+                <Text as="p" tone="critical" variant="bodySm">
+                  {filterError}
+                </Text>
+              ) : null}
+            </BlockStack>
+          </div>
+        </InlineStack>
+
+        <InlineStack gap="200" wrap>
+          <Badge tone="attention">Notification impressions: {analytics.visitors || 0}</Badge>
+          <Badge tone="info">Notification clicks: {analytics.clicks || 0}</Badge>
+          <Badge tone="success">Orders: {analytics.orders || 0}</Badge>
+          <Badge>{`Window: ${analytics.days || 0} day(s)`}</Badge>
         </InlineStack>
 
         <Card padding="300">
           <BlockStack gap="200">
             <Text variant="headingSm" as="h3">
-              Date-wise Analysis (30 days back + 30 days ahead)
+              Date-wise Analysis
             </Text>
+
             <div
               style={{
                 minHeight: 320,
@@ -140,126 +237,125 @@ export default function StatsPanel({ stats }) {
                 background: "#FFFFFF",
               }}
             >
-              <div style={{ display: "flex", alignItems: "flex-start" }}>
-                <div style={{ width: 28, flex: "0 0 28px" }}>
-                  <svg width="28" height={chartHeight + 40}>
-                    {yTickValues.map((tickValue, i) => {
-                      const y = 10 + (i / (yTicks - 1 || 1)) * chartHeight;
-                      return (
-                        <text key={`axis-${tickValue}-${i}`} x="24" y={y + 4} fontSize="11" fill="#6B7280" textAnchor="end">
-                          {tickValue}
-                        </text>
-                      );
-                    })}
-                  </svg>
-                </div>
-                <div
-                  ref={scrollRef}
-                  className="chart-scroll-hidden"
-                  style={{ overflowX: "auto", scrollbarWidth: "none", msOverflowStyle: "none", flex: 1 }}
-                >
-                  <div style={{ minWidth: chartWidth }}>
-                    <svg width={chartWidth} height={chartHeight + 40}>
-                      {yTickValues.map((tickValue, i) => {
-                        const y = 10 + (i / (yTicks - 1 || 1)) * chartHeight;
-                        return (
-                          <g key={`grid-${tickValue}-${i}`}>
-                            <line x1="0" y1={y} x2={chartWidth} y2={y} stroke="#E6E8EB" />
-                          </g>
-                        );
-                      })}
-                    {displayLabels.map((day, idx) => {
-                      const groupX = idx * groupWidth;
-                      const visitors = Number(mergedVisitors[idx] || 0);
-                      const clicks = Number(mergedClicks[idx] || 0);
-                      const orders = Number(mergedOrders[idx] || 0);
-                      const vh = (visitors / chartMax) * chartHeight;
-                      const ch = (clicks / chartMax) * chartHeight;
-                      const oh = (orders / chartMax) * chartHeight;
-                      const baseY = 10 + chartHeight;
-                      const startX = groupX + (groupWidth - clusterWidth) / 2;
-                      const dateTooltip =
-                        `${formatDateLabel(day)}\n` +
-                        `Visitors: ${visitors}\n` +
-                        `Clicks: ${clicks}\n` +
-                        `Orders: ${orders}`;
+              {labels.length === 0 ? (
+                <Text as="p" tone="subdued">
+                  No analytics data found for this range.
+                </Text>
+              ) : (
+                <>
+                  <div style={{ overflowX: "auto" }}>
+                    <div style={{ minWidth: svgWidth }}>
+                      <svg width={svgWidth} height={svgHeight}>
+                        {yTickValues.map((tick, idx) => {
+                          const y = paddingTop + (idx / yTicks) * plotHeight;
+                          return (
+                            <g key={`grid-${tick}-${idx}`}>
+                              <line
+                                x1={paddingLeft}
+                                y1={y}
+                                x2={paddingLeft + plotWidth}
+                                y2={y}
+                                stroke="#E7EAEE"
+                              />
+                              <text
+                                x={paddingLeft - 8}
+                                y={y + 4}
+                                fontSize="11"
+                                fill="#6B7280"
+                                textAnchor="end"
+                              >
+                                {tick}
+                              </text>
+                            </g>
+                          );
+                        })}
 
-                      return (
-                        <g key={`bars-${day}`}>
-                          <rect
-                            x={startX}
-                            y={baseY - vh}
-                            width={barWidth}
-                            height={Math.max(1, vh)}
-                            rx="0"
-                            fill="#E8C15F"
-                          >
-                            <title>{dateTooltip}</title>
-                          </rect>
-                          <rect
-                            x={startX + barWidth + barGap}
-                            y={baseY - ch}
-                            width={barWidth}
-                            height={Math.max(1, ch)}
-                            rx="0"
-                            fill="#4A98D0"
-                          >
-                            <title>{dateTooltip}</title>
-                          </rect>
-                          <rect
-                            x={startX + (barWidth + barGap) * 2}
-                            y={baseY - oh}
-                            width={barWidth}
-                            height={Math.max(1, oh)}
-                            rx="0"
-                            fill="#7A63B8"
-                          >
-                            <title>{dateTooltip}</title>
-                          </rect>
-                        </g>
-                      );
-                    })}
-                    </svg>
-                    <div
-                      style={{
-                        marginTop: 8,
-                        width: chartWidth,
-                        display: "grid",
-                        gridTemplateColumns: `repeat(${displayLabels.length}, 1fr)`,
-                      }}
-                    >
-                      {displayLabels.map((day, idx) => (
-                        <div key={`x-${day}`} style={{ minWidth: 18, textAlign: "center" }}>
-                          <Text as="span" variant="bodySm" tone={day === todayKey ? undefined : "subdued"}>
-                            {idx === 0 || getMonthShort(displayLabels[idx - 1]) !== getMonthShort(day)
-                              ? getMonthShort(day)
-                              : ""}
-                          </Text>
-                          <div>
-                            <Text as="span" variant="bodySm" tone={day === todayKey ? undefined : "subdued"}>
-                              {getDayTwoDigit(day)}
-                            </Text>
-                          </div>
-                        </div>
-                      ))}
+                        {areaPoints ? (
+                          <polygon
+                            points={areaPoints}
+                            fill="rgba(38, 169, 230, 0.16)"
+                            stroke="none"
+                          />
+                        ) : null}
+
+                        {impressionsLinePoints ? (
+                          <polyline
+                            points={impressionsLinePoints}
+                            fill="none"
+                            stroke="#26A9E6"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        ) : null}
+
+                        {clicksLinePoints ? (
+                          <polyline
+                            points={clicksLinePoints}
+                            fill="none"
+                            stroke="#6F4CF6"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        ) : null}
+                      </svg>
                     </div>
                   </div>
-                </div>
-              </div>
-              <InlineStack gap="300" align="center">
-                <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#E8C15F", display: "inline-block" }} />
-                  <Text as="span" variant="bodySm">Visitors</Text>
-                </InlineStack>
-                <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#4A98D0", display: "inline-block" }} />
-                  <Text as="span" variant="bodySm">Clicks</Text>
-                </InlineStack>
-                <InlineStack gap="100" blockAlign="center">
-                  <span style={{ width: 12, height: 12, borderRadius: 3, background: "#7A63B8", display: "inline-block" }} />
-                  <Text as="span" variant="bodySm">Orders</Text>
-                </InlineStack>
-              </InlineStack>
+
+                  <div
+                    style={{
+                      marginTop: 6,
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${labels.length}, minmax(80px, 1fr))`,
+                      gap: 0,
+                      paddingLeft: 44,
+                      paddingRight: 18,
+                    }}
+                  >
+                    {labels.map((day, idx) => (
+                      <div key={`x-${day}`} style={{ textAlign: "center" }}>
+                        <Text as="span" variant="bodySm" tone="subdued">
+                          {idx % xTickEvery === 0 || idx === labels.length - 1
+                            ? toDayLabel(day)
+                            : ""}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+
+                  <InlineStack gap="300" align="center">
+                    <InlineStack gap="100" blockAlign="center">
+                      <span
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 3,
+                          background: "#26A9E6",
+                          display: "inline-block",
+                        }}
+                      />
+                      <Text as="span" variant="bodySm">
+                        Notification impression
+                      </Text>
+                    </InlineStack>
+                    <InlineStack gap="100" blockAlign="center">
+                      <span
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 3,
+                          background: "#6F4CF6",
+                          display: "inline-block",
+                        }}
+                      />
+                      <Text as="span" variant="bodySm">
+                        Notification clicks
+                      </Text>
+                    </InlineStack>
+                  </InlineStack>
+                </>
+              )}
             </div>
           </BlockStack>
         </Card>

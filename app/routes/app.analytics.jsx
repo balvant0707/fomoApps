@@ -23,7 +23,84 @@ const EMPTY_ANALYTICS = {
   series: { labels: [], visitors: [], clicks: [], orders: [] },
 };
 
-function buildStats(rows, analytics = EMPTY_ANALYTICS) {
+const PRESET_DAY_OPTIONS = [7, 15, 30, 60, 90];
+const MAX_CUSTOM_RANGE_DAYS = 180;
+
+const formatDateKey = (date) => {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const parseDateKey = (value) => {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+  const dt = new Date(`${raw}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return null;
+  return formatDateKey(dt) === raw ? raw : null;
+};
+
+const buildDayList = (startKey, endKey) => {
+  const out = [];
+  const start = new Date(`${startKey}T00:00:00Z`);
+  const end = new Date(`${endKey}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return out;
+  if (start > end) return out;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    out.push(formatDateKey(cursor));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return out;
+};
+
+const pickPresetDays = (value, fallback = 7) => {
+  const n = Number(value);
+  if (PRESET_DAY_OPTIONS.includes(n)) return n;
+  return fallback;
+};
+
+function resolveAnalyticsFilter(url) {
+  const rangeRaw = String(url.searchParams.get("range") || "").toLowerCase();
+  const startRaw = parseDateKey(url.searchParams.get("start"));
+  const endRaw = parseDateKey(url.searchParams.get("end"));
+
+  if (rangeRaw === "custom" && startRaw && endRaw && startRaw <= endRaw) {
+    const customDays = buildDayList(startRaw, endRaw).length;
+    if (customDays >= 1 && customDays <= MAX_CUSTOM_RANGE_DAYS) {
+      return {
+        range: "custom",
+        days: customDays,
+        startDate: startRaw,
+        endDate: endRaw,
+      };
+    }
+  }
+
+  const legacyDays = Number(url.searchParams.get("days"));
+  const rangeDaysMatch = rangeRaw.match(/^(\d{1,3})d$/);
+  const rangeDays = rangeDaysMatch ? Number(rangeDaysMatch[1]) : Number.NaN;
+  const days = pickPresetDays(
+    Number.isFinite(rangeDays) ? rangeDays : legacyDays,
+    7
+  );
+  const now = new Date();
+  const end = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+
+  return {
+    range: `${days}d`,
+    days,
+    startDate: formatDateKey(start),
+    endDate: formatDateKey(end),
+  };
+}
+
+function buildStats(rows, analytics = EMPTY_ANALYTICS, analyticsFilter = null) {
   const total = rows.length;
   const enabled = rows.filter((r) => r.enabled).length;
   const disabled = total - enabled;
@@ -31,7 +108,7 @@ function buildStats(rows, analytics = EMPTY_ANALYTICS) {
     acc[row.key] = (acc[row.key] || 0) + 1;
     return acc;
   }, {});
-  return { total, enabled, disabled, byType, analytics };
+  return { total, enabled, disabled, byType, analytics, analyticsFilter };
 }
 
 async function fetchRows(shop) {
@@ -169,13 +246,22 @@ async function fetchRows(shop) {
   return { rows, total: rows.length };
 }
 
-async function fetchAnalytics(shop, days = 30) {
+async function fetchAnalytics(shop, filter) {
   const model = prisma.popupAnalyticsEvent || prisma.popupanalyticsevent;
-  if (!model) return { ...EMPTY_ANALYTICS, days };
+  const fallback = {
+    ...EMPTY_ANALYTICS,
+    days: filter.days,
+    startDate: filter.startDate,
+    endDate: filter.endDate,
+  };
+  if (!model) return fallback;
 
-  const d = Number(days) || 30;
-  const since = new Date(Date.now() - d * 24 * 60 * 60 * 1000);
-  const where = { shop, createdAt: { gte: since } };
+  const dayList = buildDayList(filter.startDate, filter.endDate);
+  if (!dayList.length) return fallback;
+
+  const startAt = new Date(`${filter.startDate}T00:00:00.000Z`);
+  const endAt = new Date(`${filter.endDate}T23:59:59.999Z`);
+  const where = { shop, createdAt: { gte: startAt, lte: endAt } };
 
   try {
     const [clicks, orders, visitors, events] = await Promise.all([
@@ -192,20 +278,12 @@ async function fetchAnalytics(shop, days = 30) {
       }),
     ]);
 
-    const dayList = [];
-    for (let i = d - 1; i >= 0; i--) {
-      const dt = new Date();
-      dt.setHours(0, 0, 0, 0);
-      dt.setDate(dt.getDate() - i);
-      dayList.push(dt.toISOString().slice(0, 10));
-    }
-
     const clicksByDay = new Map(dayList.map((k) => [k, 0]));
     const ordersByDay = new Map(dayList.map((k) => [k, 0]));
     const visitorsByDaySet = new Map(dayList.map((k) => [k, new Set()]));
 
     for (const ev of events || []) {
-      const day = new Date(ev.createdAt).toISOString().slice(0, 10);
+      const day = formatDateKey(new Date(ev.createdAt));
       if (!clicksByDay.has(day)) continue;
       if (ev.eventType === "click") {
         clicksByDay.set(day, (clicksByDay.get(day) || 0) + 1);
@@ -220,7 +298,9 @@ async function fetchAnalytics(shop, days = 30) {
       visitors: visitors.length,
       clicks,
       orders,
-      days: d,
+      days: dayList.length,
+      startDate: filter.startDate,
+      endDate: filter.endDate,
       series: {
         labels: dayList,
         visitors: dayList.map((k) => visitorsByDaySet.get(k)?.size || 0),
@@ -230,7 +310,7 @@ async function fetchAnalytics(shop, days = 30) {
     };
   } catch (e) {
     console.error("[dashboard.analytics] query failed:", e);
-    return { ...EMPTY_ANALYTICS, days: d };
+    return fallback;
   }
 }
 
@@ -238,6 +318,8 @@ export async function loader({ request }) {
   const { session } = await authenticate.admin(request);
   const shop = session?.shop;
   if (!shop) throw new Response("Unauthorized", { status: 401 });
+  const url = new URL(request.url);
+  const analyticsFilter = resolveAnalyticsFilter(url);
 
   const cacheKey = `dashboard:rows:${shop}`;
 
@@ -253,13 +335,13 @@ export async function loader({ request }) {
   );
 
   const analyticsPromise = getOrSetCache(
-    `dashboard:analytics:${shop}`,
+    `dashboard:analytics:${shop}:${analyticsFilter.startDate}:${analyticsFilter.endDate}`,
     15000,
-    () => fetchAnalytics(shop, 30)
+    () => fetchAnalytics(shop, analyticsFilter)
   ).catch(() => EMPTY_ANALYTICS);
 
   const statsPromise = Promise.all([rowsPromise, analyticsPromise]).then(
-    ([data, analytics]) => buildStats(data.rows || [], analytics)
+    ([data, analytics]) => buildStats(data.rows || [], analytics, analyticsFilter)
   );
 
   return defer({
@@ -392,7 +474,7 @@ export default function NotificationList() {
 
   return (
     <Frame>
-      <Page title="Dashboard" fullWidth>
+      <Page title="Analytics" fullWidth>
         <Suspense fallback={null}>
           <Await resolve={stats} errorElement={null}>
             {(data) => (
