@@ -113,13 +113,10 @@ export default function App() {
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const shouldShowEmbedWarning = !appEmbedEnabled;
-  const embedWarningTitle = appEmbedChecked
-    ? "Enable app embed to show notifications on storefront"
-    : "Could not verify app embed status";
-  const embedWarningText = appEmbedChecked
-    ? "Theme Customize ma App embeds ma Fomoify embed ON karo."
-    : "Theme Customize ma App embeds ma Fomoify embed ON kari ne Save karo.";
+  const shouldShowEmbedWarning = appEmbedChecked && !appEmbedEnabled;
+  const embedWarningTitle = "App embed is disabled";
+  const embedWarningText =
+    "In Theme editor > App embeds, turn on Fomoify - Core Embed and click Save.";
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const safeThemeId = toThemeEditorThemeId(themeId);
