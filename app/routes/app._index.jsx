@@ -633,14 +633,15 @@ export default function AppIndex() {
   });
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
+  const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
   const hasThemeEmbedSignal =
-    appRouteData?.appEmbedChecked === true &&
+    hasThemeEmbedCheck &&
     appRouteData?.appEmbedFound === true;
   const isEmbedActive = hasThemeEmbedSignal
     ? Boolean(appRouteData?.appEmbedEnabled)
     : Boolean(embedPing.isOn);
   const hasReliableEmbedStatus =
-    hasThemeEmbedSignal || Boolean(embedPing.isOn);
+    hasThemeEmbedCheck || Boolean(embedPing.isOn);
   const embedBadgeTone = hasReliableEmbedStatus
     ? isEmbedActive
       ? "success"

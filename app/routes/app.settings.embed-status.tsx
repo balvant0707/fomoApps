@@ -46,20 +46,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const storeHandle = getStoreHandleFromShopDomain(shop);
   const pingStatus = await getEmbedPingStatus(shop);
+  const hasThemeEmbedCheck = Boolean(embedContext.appEmbedChecked);
   const hasThemeEmbedSignal =
-    Boolean(embedContext.appEmbedChecked) &&
+    hasThemeEmbedCheck &&
     Boolean(embedContext.appEmbedFound);
   const isEmbedOn = hasThemeEmbedSignal
     ? Boolean(embedContext.appEmbedEnabled)
     : Boolean(pingStatus?.isOn);
   const hasReliableStatus =
-    hasThemeEmbedSignal || Boolean(pingStatus?.isOn);
+    hasThemeEmbedCheck || Boolean(pingStatus?.isOn);
 
   return json({
     shop,
     storeHandle,
     isEmbedOn,
     hasReliableStatus,
+    hasThemeEmbedCheck,
     hasThemeEmbedSignal,
     appEmbedChecked: Boolean(embedContext.appEmbedChecked),
     appEmbedFound: Boolean(embedContext.appEmbedFound),

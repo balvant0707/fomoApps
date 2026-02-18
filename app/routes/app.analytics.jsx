@@ -1,5 +1,5 @@
-// app/routes/app.dashboard.jsx
-import { defer, json, redirect } from "@remix-run/node";
+// app/routes/app.analytics.jsx
+import { defer } from "@remix-run/node";
 import { Await, useLoaderData } from "@remix-run/react";
 import {
   Frame,
@@ -136,152 +136,6 @@ function resolveAnalyticsFilter(url) {
   };
 }
 
-function buildStats(rows, analytics = EMPTY_ANALYTICS, analyticsFilter = null) {
-  const total = rows.length;
-  const enabled = rows.filter((r) => r.enabled).length;
-  const disabled = total - enabled;
-  const byType = rows.reduce((acc, row) => {
-    acc[row.key] = (acc[row.key] || 0) + 1;
-    return acc;
-  }, {});
-  return { total, enabled, disabled, byType, analytics, analyticsFilter };
-}
-
-async function fetchRows(shop) {
-  const hasMissingColumnError = (error) => {
-    const code = String(error?.code || "").toUpperCase();
-    const msg = String(error?.message || "").toLowerCase();
-    return (
-      code === "P2022" ||
-      msg.includes("unknown column") ||
-      (msg.includes("column") && msg.includes("does not exist"))
-    );
-  };
-
-  const tableModel = (key) => {
-    switch (key) {
-      case "recent":
-        return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
-      case "flash":
-        return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
-      case "visitor":
-        return prisma.visitorpopupconfig || prisma.visitorPopupConfig || null;
-      case "lowstock":
-        return prisma.lowstockpopupconfig || prisma.lowStockPopupConfig || null;
-      case "addtocart":
-        return prisma.addtocartpopupconfig || prisma.addToCartPopupConfig || null;
-      case "review":
-        return prisma.reviewpopupconfig || prisma.reviewPopupConfig || null;
-      default:
-        return null;
-    }
-  };
-
-  const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
-  const legacySelectByKey = {
-    recent: { id: true, enabled: true, showType: true, messageText: true },
-    flash: {
-      id: true,
-      enabled: true,
-      showType: true,
-      messageTitle: true,
-      name: true,
-      messageText: true,
-    },
-    visitor: {
-      id: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-    lowstock: {
-      id: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-    },
-    addtocart: {
-      id: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-    review: {
-      id: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-  };
-  const rows = [];
-  for (const key of keys) {
-    const model = tableModel(key);
-    if (!model?.findFirst) continue;
-    try {
-      const row = await model.findFirst({
-        where: { shop },
-        orderBy: { id: "desc" },
-      });
-      if (row) {
-        rows.push({
-          ...row,
-          key,
-          enabled:
-            row.enabled === true ||
-            row.enabled === 1 ||
-            row.enabled === "1",
-        });
-      }
-    } catch (e) {
-      if (!hasMissingColumnError(e)) {
-        console.error(`[dashboard.loader] ${key} fetch failed:`, e);
-        continue;
-      }
-      try {
-        const select = legacySelectByKey[key];
-        if (!select) continue;
-        const row = await model.findFirst({
-          where: { shop },
-          orderBy: { id: "desc" },
-          select,
-        });
-        if (!row) continue;
-        rows.push({
-          ...row,
-          key,
-          enabled:
-            row.enabled === true ||
-            row.enabled === 1 ||
-            row.enabled === "1",
-        });
-      } catch (retryError) {
-        console.error(`[dashboard.loader] ${key} legacy fetch failed:`, retryError);
-      }
-    }
-  }
-
-  return { rows, total: rows.length };
-}
-
 async function fetchAnalytics(shop, filter) {
   const model = prisma.popupAnalyticsEvent || prisma.popupanalyticsevent;
   const fallback = {
@@ -404,7 +258,7 @@ async function fetchAnalytics(shop, filter) {
       },
     };
   } catch (e) {
-    console.error("[dashboard.analytics] query failed:", e);
+    console.error("[analytics.query] failed:", e);
     return fallback;
   }
 }
@@ -416,152 +270,27 @@ export async function loader({ request }) {
   const url = new URL(request.url);
   const analyticsFilter = resolveAnalyticsFilter(url);
 
-  const cacheKey = `dashboard:rows:${shop}`;
-
-  const rowsPromise = getOrSetCache(cacheKey, 10000, () => fetchRows(shop)).catch(
-    (e) => {
-      console.error("[dashboard.loader] Prisma error:", e);
-      return {
-        rows: [],
-        total: 0,
-        error: "Failed to load dashboard data.",
-      };
-    }
-  );
-
   const analyticsPromise = getOrSetCache(
-    `dashboard:analytics:${shop}:${analyticsFilter.startDate}:${analyticsFilter.endDate}`,
+    `analytics:stats:${shop}:${analyticsFilter.startDate}:${analyticsFilter.endDate}`,
     15000,
     () => fetchAnalytics(shop, analyticsFilter)
-  ).catch(() => EMPTY_ANALYTICS);
-
-  const statsPromise = Promise.all([rowsPromise, analyticsPromise]).then(
-    ([data, analytics]) => buildStats(data.rows || [], analytics, analyticsFilter)
-  );
+  ).catch((e) => {
+    console.error("[analytics.loader] analytics query failed:", e);
+    return {
+      ...EMPTY_ANALYTICS,
+      days: analyticsFilter.days,
+      startDate: analyticsFilter.startDate,
+      endDate: analyticsFilter.endDate,
+      breakdown: createEmptyBreakdown(),
+    };
+  });
 
   return defer({
-    stats: statsPromise,
+    stats: analyticsPromise.then((analytics) => ({
+      analytics,
+      analyticsFilter,
+    })),
   });
-}
-
-export async function action({ request }) {
-  const { session } = await authenticate.admin(request);
-  const shop = session?.shop;
-  if (!shop) throw new Response("Unauthorized", { status: 401 });
-
-  const url = new URL(request.url);
-  const search = new URLSearchParams(url.search);
-  const form = await request.formData();
-  const _action = form.get("_action");
-  const isFetch = request.headers.get("X-Remix-Request") === "yes";
-
-  const safeJson = (data, init = {}) => json(data, init);
-
-  if (_action === "delete") {
-    const id = Number(form.get("id"));
-    const key = String(form.get("key") || "").toLowerCase();
-    try {
-      const model =
-        key === "recent"
-          ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : key === "visitor"
-              ? prisma.visitorpopupconfig || prisma.visitorPopupConfig
-              : key === "lowstock"
-                ? prisma.lowstockpopupconfig || prisma.lowStockPopupConfig
-                : key === "addtocart"
-                  ? prisma.addtocartpopupconfig || prisma.addToCartPopupConfig
-                  : key === "review"
-                    ? prisma.reviewpopupconfig || prisma.reviewPopupConfig
-                    : null;
-      if (id && model?.deleteMany) {
-        await model.deleteMany({ where: { id, shop } });
-      }
-      if (isFetch) return safeJson({ ok: true });
-      search.set("deleted", "1");
-      return redirect(`/app/dashboard?${search.toString()}`);
-    } catch (e) {
-      console.error("[dashboard.action:delete] error:", e);
-      if (isFetch) {
-        return safeJson({ ok: false, error: "Delete failed" }, { status: 500 });
-      }
-      search.set("error", "1");
-      return redirect(`/app/dashboard?${search.toString()}`);
-    }
-  }
-
-  if (_action === "update") {
-    const id = Number(form.get("id"));
-    const key = String(form.get("key") || "").toLowerCase();
-    const messageText = form.get("messageText")?.toString() ?? "";
-    const showType = form.get("showType")?.toString() ?? "allpage";
-    const enabled = form.get("enabled") === "on";
-
-    try {
-      const model =
-        key === "recent"
-          ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : null;
-      if (id && model?.updateMany) {
-        await model.updateMany({
-          where: { id, shop },
-          data: { messageText, showType, enabled },
-        });
-      }
-      if (isFetch) return safeJson({ ok: true, saved: true });
-      search.set("saved", "1");
-      return redirect(`/app/dashboard?${search.toString()}`);
-    } catch (e) {
-      console.error("[dashboard.action:update] error:", e);
-      if (isFetch) {
-        return safeJson({ ok: false, error: "Update failed" }, { status: 500 });
-      }
-      search.set("error", "1");
-      return redirect(`/app/dashboard?${search.toString()}`);
-    }
-  }
-
-  if (_action === "toggle-enabled") {
-    const id = Number(form.get("id"));
-    const key = String(form.get("key") || "").toLowerCase();
-    const enabled = form.get("enabled") === "on";
-    try {
-      const model =
-        key === "recent"
-          ? prisma.recentpopupconfig || prisma.recentPopupConfig
-          : key === "flash"
-            ? prisma.flashpopupconfig || prisma.flashPopupConfig
-            : key === "visitor"
-              ? prisma.visitorpopupconfig || prisma.visitorPopupConfig
-              : key === "lowstock"
-                ? prisma.lowstockpopupconfig || prisma.lowStockPopupConfig
-                : key === "addtocart"
-                  ? prisma.addtocartpopupconfig || prisma.addToCartPopupConfig
-                  : key === "review"
-                    ? prisma.reviewpopupconfig || prisma.reviewPopupConfig
-                    : null;
-      if (id && model?.updateMany) {
-        await model.updateMany({
-          where: { id, shop },
-          data: { enabled },
-        });
-      }
-      if (isFetch) return safeJson({ ok: true });
-      return redirect(`/app/dashboard?${search.toString()}`);
-    } catch (e) {
-      console.error("[dashboard.action:toggle] error:", e);
-      if (isFetch) {
-        return safeJson({ ok: false, error: "Toggle failed" }, { status: 500 });
-      }
-      search.set("error", "1");
-      return redirect(`/app/dashboard?${search.toString()}`);
-    }
-  }
-
-  return safeJson({ ok: false, error: "Unknown action" }, { status: 400 });
 }
 
 export default function NotificationList() {

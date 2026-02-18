@@ -170,7 +170,7 @@ export async function getThemeEmbedState({
     }
     const blocks = parsed?.current?.blocks;
     if (!blocks || typeof blocks !== "object") {
-      return { enabled: false, found: false, checked: false };
+      return { enabled: false, found: false, checked: true };
     }
 
     const handleToken = toLower(embedHandle);
