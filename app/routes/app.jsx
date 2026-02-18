@@ -118,6 +118,7 @@ export default function App() {
     shopDomain,
     themeId,
     appEmbedEnabled,
+    appEmbedFound,
     appEmbedChecked,
     embedPingStatus,
   } = useLoaderData();
@@ -125,8 +126,11 @@ export default function App() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appEmbedChecked === true;
+  const hasThemeEmbedMatch = appEmbedFound === true;
   const isEmbedActive = hasThemeEmbedCheck
-    ? Boolean(appEmbedEnabled)
+    ? hasThemeEmbedMatch
+      ? Boolean(appEmbedEnabled)
+      : Boolean(embedPingStatus?.isOn)
     : Boolean(embedPingStatus?.isOn);
   const shouldShowEmbedWarning = !isEmbedActive;
   const embedWarningTitle = "App embed is disabled";

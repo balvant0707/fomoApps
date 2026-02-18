@@ -2,6 +2,7 @@
 import { json } from "@remix-run/node";
 import prisma from "../db.server";                // <-- default import (IMPORTANT)
 import { ensureShopRow } from "../utils/ensureShop.server";
+import { normalizeShopDomain } from "../utils/shopDomain.server";
 
 const norm = (s) =>
   (s || "")
@@ -9,6 +10,15 @@ const norm = (s) =>
     .replace(/^https?:\/\//, "")
     .replace(/\/.*$/, "")
     .trim();
+const getShopFromRequest = (request) => {
+  const url = new URL(request.url);
+  const fromHeader = normalizeShopDomain(
+    request.headers.get("x-shopify-shop-domain")
+  );
+  const fromQuery = normalizeShopDomain(url.searchParams.get("shop"));
+  const fallback = norm(url.searchParams.get("shop"));
+  return fromHeader || fromQuery || fallback || "";
+};
 const ok = (d, s = 200) => json(d, { status: s });
 const bad = (d, s = 400) => json(d, { status: s });
 const EVENTS = new Set(["view", "click", "order"]);
@@ -24,6 +34,7 @@ const POPUPS = new Set([
 ]);
 const analyticsModel = () =>
   prisma.popupanalyticsevent || prisma.popupAnalyticsEvent || null;
+const embedPingModel = () => prisma.embedPing || prisma.embedping || null;
 const tableModel = (key) => {
   switch (key) {
     case "visitor":
@@ -647,12 +658,33 @@ async function saveTrackEvent({ shop, body }) {
 export const loader = async ({ request, params }) => {
   try {
     const url = new URL(request.url);
-    const rawShop = url.searchParams.get("shop");
-    const shop = norm(rawShop);
+    const shop = getShopFromRequest(request);
     const subpath = (params.subpath || "").toLowerCase();
     const timestamp = Date.now();
 
     if (!shop) return bad({ error: "Missing shop" });
+
+    if (subpath === "embed-status") {
+      const model = embedPingModel();
+      if (!model?.upsert) {
+        return bad({ error: "EmbedPing model unavailable" }, 500);
+      }
+      const now = new Date();
+      await model.upsert({
+        where: { shop },
+        create: { shop, lastPingAt: now },
+        update: { lastPingAt: now },
+      });
+      return ok(
+        {
+          ok: true,
+          shop,
+          lastPingAt: now.toISOString(),
+          timestamp,
+        },
+        200
+      );
+    }
 
     if (subpath === "session") {
       // Self-heal: if shop row missing, try to create from session table
@@ -934,11 +966,23 @@ export const loader = async ({ request, params }) => {
 
 export const action = async ({ request, params }) => {
   try {
-    const url = new URL(request.url);
-    const shop = norm(url.searchParams.get("shop"));
+    const shop = getShopFromRequest(request);
     const subpath = (params.subpath || "").toLowerCase();
 
     if (!shop) return bad({ error: "Missing shop" });
+
+    if (subpath === "embed-status") {
+      const model = embedPingModel();
+      if (!model?.upsert) return bad({ error: "EmbedPing model unavailable" }, 500);
+      const now = new Date();
+      await model.upsert({
+        where: { shop },
+        create: { shop, lastPingAt: now },
+        update: { lastPingAt: now },
+      });
+      return ok({ ok: true, shop, lastPingAt: now.toISOString() });
+    }
+
     if (subpath !== "track") return bad({ error: "Unknown proxy path" }, 404);
     if (request.method !== "POST") {
       return bad({ error: "Method not allowed" }, 405);

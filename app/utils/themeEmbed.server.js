@@ -84,15 +84,27 @@ export async function getThemeEmbedState({
     }
 
     const handleToken = toLower(embedHandle);
-    const appHandleNeedle = `/apps/${handleToken}`;
-    const blockHandleNeedle = `/blocks/${handleToken}`;
+    const handleVariants = Array.from(
+      new Set([
+        handleToken,
+        handleToken.replace(/-/g, "_"),
+        handleToken.replace(/_/g, "-"),
+        handleToken.replace(/[-_]/g, ""),
+      ])
+    ).filter(Boolean);
 
-    const allBlocks = Object.values(blocks);
-    const matches = allBlocks.filter((block) => {
-      const type = toLower(block?.type);
-      if (!type) return false;
-      return type.includes(appHandleNeedle) || type.includes(blockHandleNeedle);
-    });
+    const entries = Object.entries(blocks);
+    const matches = entries
+      .map(([blockId, block]) => ({ blockId, block }))
+      .filter(({ blockId, block }) => {
+        const type = toLower(block?.type);
+        if (!type.includes("/apps/") || !type.includes("/blocks/")) {
+          return false;
+        }
+        const haystack = `${type} ${toLower(blockId)}`;
+        return handleVariants.some((variant) => haystack.includes(variant));
+      })
+      .map(({ block }) => block);
     const found = matches.length > 0;
     const enabled = matches.some((block) => !toBool(block?.disabled));
 
