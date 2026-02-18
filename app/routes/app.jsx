@@ -113,7 +113,7 @@ export default function App() {
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const shouldShowEmbedWarning = appEmbedChecked && !appEmbedEnabled;
+  const shouldShowEmbedWarning = !appEmbedEnabled;
   const embedWarningTitle = appEmbedChecked
     ? "Enable app embed to show notifications on storefront"
     : "Could not verify app embed status";
@@ -162,3 +162,4 @@ export default function App() {
 
 export function ErrorBoundary() { return boundary.error(useRouteError()); }
 export const headers = (h) => boundary.headers(h);
+export const shouldRevalidate = () => true;
