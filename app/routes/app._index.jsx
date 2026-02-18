@@ -110,54 +110,65 @@ const INDEX_SUPPORT_STYLES = `
   color: #166534;
 }
 .home-review-panel {
-  border: 1px solid #c8d9be;
-  border-radius: 16px;
-  padding: 16px;
-  min-height: 184px;
+  border: 1px solid #aec69c;
+  border-radius: 20px;
+  padding: 20px;
+  min-height: 260px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-    linear-gradient(150deg, #cde3bf 0%, #b5d49e 100%);
-  background-size: 28px 28px, 28px 28px, auto;
+    linear-gradient(0deg, rgba(255,255,255,0.26) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.26) 1px, transparent 1px),
+    linear-gradient(160deg, #c2dcb3 0%, #adc995 100%);
+  background-size: 36px 36px, 36px 36px, auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .home-review-balloon {
-  width: 62px;
-  height: 62px;
-  border-radius: 18px;
-  margin: 0 auto 8px;
-  background: radial-gradient(circle at 35% 35%, #ff9ca9 10%, #f14666 55%, #cc2747 100%);
+  width: 80px;
+  height: 80px;
+  border-radius: 24px;
+  margin: 2px auto 12px;
+  background: radial-gradient(circle at 35% 32%, #ff9eb0 8%, #f14e72 56%, #cf2f55 100%);
   display: grid;
   place-items: center;
   color: #ffffff;
-  box-shadow: 0 10px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 12px 22px rgba(181, 44, 83, 0.34);
 }
 .home-review-balloon svg {
-  width: 30px;
-  height: 30px;
+  width: 31px;
+  height: 31px;
+}
+.home-review-copy {
+  max-width: 290px;
+  margin: 0 auto;
+  color: #1f2937;
+  font-size: 16px;
+  line-height: 1.35;
 }
 .home-review-actions {
   display: flex;
-  gap: 8px;
+  gap: 10px;
 }
 .home-review-btn {
   flex: 1;
-  border-radius: 12px;
-  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  border: 1px solid transparent;
   font-weight: 700;
-  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 12px 14px;
   cursor: pointer;
 }
 .home-review-btn.primary {
-  background: #121212;
+  background: #111111;
   color: #ffffff;
-  border-color: #121212;
+  border-color: #111111;
 }
 .home-review-btn.secondary {
   background: #ffffff;
   color: #111827;
+  border-color: #d8dadd;
 }
 @media (max-width: 980px) {
   .home-support-grid {
@@ -167,6 +178,20 @@ const INDEX_SUPPORT_STYLES = `
 @media (max-width: 740px) {
   .home-support-items {
     grid-template-columns: 1fr;
+  }
+  .home-review-panel {
+    min-height: 220px;
+  }
+  .home-review-copy {
+    font-size: 16px;
+  }
+  .home-review-btn {
+    font-size: 15px;
+  }
+}
+@media (max-width: 420px) {
+  .home-review-actions {
+    flex-direction: column;
   }
 }
 `;
@@ -711,7 +736,12 @@ export default function AppIndex() {
                   <path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.4A4 4 0 0 1 19 11c0 5.6-7 10-7 10z" />
                 </svg>
               </div>
-              <Text as="p" alignment="center" fontWeight="semibold">
+              <Text
+                as="p"
+                alignment="center"
+                fontWeight="semibold"
+                className="home-review-copy"
+              >
                 Motivate our team for future app development
               </Text>
             </div>
