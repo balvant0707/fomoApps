@@ -788,6 +788,24 @@ document.addEventListener("DOMContentLoaded", async function () {
     const days = Math.floor(diff / (24 * 60 * 60 * 1000));
     return `${days} Day${days === 1 ? "" : "s"} Ago`;
   };
+  const reviewDaysAgo = (iso) => {
+    const d = toDate(iso);
+    if (!d || Number.isNaN(d.getTime())) return "";
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const reviewStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const days = Math.max(
+      0,
+      Math.floor((todayStart.getTime() - reviewStart.getTime()) / (24 * 60 * 60 * 1000))
+    );
+    return `${days} day${days === 1 ? "" : "s"} Ago`;
+  };
+  const formatReviewDateLabel = (value) => {
+    const raw = safe(value, "").trim();
+    if (!raw) return "0 days Ago";
+    return reviewDaysAgo(raw) || raw;
+  };
   const pad2 = (n) => String(n).padStart(2, "0");
   const formatAbs = (isoOrDate) => {
     const d = isoOrDate instanceof Date ? isoOrDate : toDate(isoOrDate);
@@ -1420,6 +1438,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       cfg.fontFamily,
       "system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif"
     );
+    const truncateSnippet = (value, max = 52) => {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      if (!text) return "";
+      if (text.length <= max) return text;
+      return `${text.slice(0, Math.max(1, max - 3)).trimEnd()}...`;
+    };
 
     const hasSize = cfg.size !== undefined && cfg.size !== null && cfg.size !== "";
     const sizeScale = hasSize
@@ -1650,11 +1674,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       const reviewTitle = document.createElement("div");
       reviewTitle.textContent = safe(cfg.productTitle, "Product");
       reviewTitle.style.cssText = `
-        font-weight:800;
+        font-weight:700;
         font-size:${Math.max(14, Math.round(fontSize + 2))}px;
-        line-height:1.08;
+        line-height:1.2;
         letter-spacing:.15px;
-        text-transform:uppercase;
+        white-space:nowrap;
+        overflow:hidden;
+        text-overflow:ellipsis;
       `;
       body.appendChild(reviewTitle);
     }
@@ -1806,9 +1832,66 @@ document.addEventListener("DOMContentLoaded", async function () {
       body.appendChild(line);
     };
 
+    const appendReviewLine = () => {
+      const tokens =
+        cfg.messageTokens && typeof cfg.messageTokens === "object"
+          ? cfg.messageTokens
+          : {};
+      const reviewerName = truncateSnippet(
+        safe(
+          tokens.reviewer_name ||
+            tokens.full_name ||
+            tokens.first_name ||
+            cfg.reviewer_name ||
+            cfg.name,
+          "Someone"
+        ),
+        26
+      );
+      const reviewRaw = safe(
+        tokens.review_body || tokens.review_title || cfg.review_body || cfg.message,
+        ""
+      );
+      const reviewText = truncateSnippet(reviewRaw, 64);
+      if (!reviewerName && !reviewText) return;
+
+      const row = document.createElement("div");
+      row.style.cssText = `
+        color:${cfg.textColor || "#111"};
+        font-size:${Math.max(12, fontSize)}px;
+        line-height:1.32;
+        min-width:0;
+        display:flex;
+        align-items:baseline;
+        gap:6px;
+        flex-wrap:nowrap;
+        overflow:hidden;
+      `;
+
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = reviewerName || "Someone";
+      nameSpan.style.cssText = "font-weight:700;white-space:nowrap;";
+      row.appendChild(nameSpan);
+
+      if (reviewText) {
+        const reviewSpan = document.createElement("span");
+        reviewSpan.textContent = `- "${reviewText}"`;
+        reviewSpan.style.cssText = `
+          font-style:italic;
+          white-space:nowrap;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          display:block;
+        `;
+        row.appendChild(reviewSpan);
+      }
+
+      body.appendChild(row);
+    };
+
     if (isReview) {
       appendPriceLine();
-      appendMessageLine();
+      appendReviewLine();
     } else {
       appendMessageLine();
       appendPriceLine();
@@ -2920,10 +3003,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         )
           .replace(/\s+/g, " ")
           .trim();
-        const dateLabel =
-          relDaysAgo(dateRaw) ||
-          normalizeReviewSnippet(dateRaw, 40) ||
-          "Just now";
+        const dateLabel = formatReviewDateLabel(dateRaw);
 
         const { city, country } = parseJudgeMeLocation(
           node.querySelector?.(
@@ -2984,8 +3064,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             review.datePublished || review.dateCreated || review.createdAt || "",
             ""
           ).trim();
-          const reviewDate =
-            relDaysAgo(dateRaw) || normalizeReviewSnippet(dateRaw, 40) || "Just now";
+          const reviewDate = formatReviewDateLabel(dateRaw);
 
           const ratingRaw = Number(
             review.reviewRating?.ratingValue ??
@@ -4007,9 +4086,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             : null;
           const reviewDateToken =
             type === "review"
-              ? safe(reviewDetails?.review_date, "").trim() ||
-                relDaysAgo(new Date().toISOString()) ||
-                "Just now"
+              ? formatReviewDateLabel(safe(reviewDetails?.review_date, "").trim())
               : relDaysAgo(new Date().toISOString()) || "Just now";
 
           const tokens = {

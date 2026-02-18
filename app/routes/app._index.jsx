@@ -33,10 +33,12 @@ const INDEX_SUPPORT_STYLES = `
   gap: 16px;
 }
 .home-support-panel {
-  border: 1px solid #e6e6e8;
-  border-radius: 16px;
-  background: #f9f9fa;
-  padding: 18px;
+    border: 1px solid #e6e6e8;
+    border-radius: 16px;
+    padding: 18px;
+    background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px), linear-gradient(160deg, #c2dcb3 0%, #adc995 100%);
+    background-size: 36px 36px, 36px 36px, auto;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .home-support-items {
   display: grid;
@@ -634,14 +636,11 @@ export default function AppIndex() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
-  const hasThemeEmbedSignal =
-    hasThemeEmbedCheck &&
-    appRouteData?.appEmbedFound === true;
-  const isEmbedActive = hasThemeEmbedSignal
+  const isEmbedActive = hasThemeEmbedCheck
     ? Boolean(appRouteData?.appEmbedEnabled)
     : Boolean(embedPing.isOn);
   const hasReliableEmbedStatus =
-    hasThemeEmbedCheck || Boolean(embedPing.isOn);
+    hasThemeEmbedCheck || Boolean(embedPing.lastPingAt);
   const embedBadgeTone = hasReliableEmbedStatus
     ? isEmbedActive
       ? "success"
