@@ -2,7 +2,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (window.__fomoOneFile) return;
   window.__fomoOneFile = true;
 
-  const SHOP = (window.Shopify && window.Shopify.shop) || "";
+  const ROOT = document.getElementById("fomo-embed-root");
+  if (!ROOT) return;
+
+  const rootShopDomain = String(
+    ROOT.getAttribute("data-shop-domain") || ""
+  )
+    .trim()
+    .toLowerCase();
+  const SHOP = String((window.Shopify && window.Shopify.shop) || rootShopDomain)
+    .trim()
+    .toLowerCase();
   const PROXY_BASES = ["/apps/fomo-v2"];
   const PROXY_STORE_KEY = "__fomo_proxy_base__";
   const readSavedProxyBase = () => {
@@ -39,7 +49,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const res = await fetch(candidate, options);
         const isLast = i === candidates.length - 1;
         const contentType = res.headers?.get("content-type") || "";
-        const isProxyApi = /\/(session|popup|orders|customers|products|track)(\?|$)/.test(candidate);
+        const isProxyApi = /\/(session|popup|orders|customers|products|track|embed-status)(\?|$)/.test(candidate);
 
         if (!res.ok && !isLast) continue;
         if (res.ok && isProxyApi && !contentType.includes("application/json") && !isLast) {
@@ -57,14 +67,57 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
 
   const PROXY_BASE = ACTIVE_PROXY_BASE;
-  const ENDPOINT = `${PROXY_BASE}/popup?shop=${SHOP}`;
-  const SESSION_ENDPOINT = `${PROXY_BASE}/session?shop=${SHOP}`;
+  const appendShopQuery = (path, shop) => {
+    const p = String(path || "").replace(/^\//, "");
+    const url = new URL(`${PROXY_BASE}/${p}`, window.location.origin);
+    if (shop) url.searchParams.set("shop", shop);
+    return `${url.pathname}${url.search}`;
+  };
+  const ENDPOINT = appendShopQuery("popup", SHOP);
+  const SESSION_ENDPOINT = appendShopQuery("session", SHOP);
   const ORDERS_ENDPOINT_BASE = `${PROXY_BASE}/orders`; // expects ?shop=&days=&limit=
   const CUSTOMERS_ENDPOINT_BASE = `${PROXY_BASE}/customers`; // expects ?shop=&limit=
   const PRODUCTS_ENDPOINT_BASE = `${PROXY_BASE}/products`; // expects ?shop=&limit=
-  const TRACK_ENDPOINT = `${PROXY_BASE}/track?shop=${SHOP}`;
-  const ROOT = document.getElementById("fomo-embed-root");
-  if (!ROOT) return;
+  const TRACK_ENDPOINT = appendShopQuery("track", SHOP);
+  const EMBED_STATUS_ENDPOINT = appendShopQuery("embed-status", SHOP);
+
+  const EMBED_PING_STORE_KEY = "__fomo_embed_ping_ts__";
+  const EMBED_PING_INTERVAL_MS = 60 * 1000;
+  const shouldPingEmbedStatus = () => {
+    try {
+      const raw = window.sessionStorage.getItem(EMBED_PING_STORE_KEY);
+      const ts = Number(raw || "0");
+      if (!Number.isFinite(ts) || ts <= 0) return true;
+      return Date.now() - ts >= EMBED_PING_INTERVAL_MS;
+    } catch {
+      return true;
+    }
+  };
+  const markEmbedPing = () => {
+    try {
+      window.sessionStorage.setItem(EMBED_PING_STORE_KEY, String(Date.now()));
+    } catch {}
+  };
+  const pingEmbedStatus = () => {
+    if (!SHOP || !shouldPingEmbedStatus()) return;
+    const pingUrl = `${EMBED_STATUS_ENDPOINT}${
+      EMBED_STATUS_ENDPOINT.includes("?") ? "&" : "?"
+    }_ts=${Date.now()}`;
+    fetchWithProxyFallback(pingUrl, {
+      method: "GET",
+      cache: "no-store",
+      keepalive: true,
+    })
+      .then(async (res) => {
+        if (!res || !res.ok) return;
+        const contentType = res.headers?.get("content-type") || "";
+        if (!contentType.includes("application/json")) return;
+        const payload = await res.json().catch(() => null);
+        if (payload?.ok) markEmbedPing();
+      })
+      .catch(() => { });
+  };
+  pingEmbedStatus();
 
   /* ========== helpers ========== */
   const safe = (v, fb = "") =>

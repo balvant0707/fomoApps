@@ -117,15 +117,17 @@ export default function App() {
     slug,
     shopDomain,
     themeId,
+    appEmbedEnabled,
     embedPingStatus,
   } = useLoaderData();
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const shouldShowEmbedWarning = !Boolean(embedPingStatus?.isOn);
+  const isEmbedActive = Boolean(appEmbedEnabled || embedPingStatus?.isOn);
+  const shouldShowEmbedWarning = !isEmbedActive;
   const embedWarningTitle = "App embed is disabled";
   const embedWarningText =
-    "Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize \u2192 App embeds and turn ON \u201cFomoify - Core Embed\u201d.";
+    'Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize -> App embeds and turn ON "Fomoify - Core Embed".';
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const safeThemeId = toThemeEditorThemeId(themeId);
@@ -145,7 +147,6 @@ export default function App() {
         <a href={appUrl("/app/notification")}>Notification</a>
         <a href={appUrl("/app/dashboard")}>Analytics</a>
         <a href={appUrl("/app/integrations")}>Integrations</a>
-        <a href={appUrl("/app/settings/embed-status")}>Embed Settings</a>
         <a href={appUrl("/app/documents")}>Documents</a>
         <a href={appUrl("/app/help")}>Help</a>
       </NavMenu>

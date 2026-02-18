@@ -1,5 +1,11 @@
 import { defer, json, redirect } from "@remix-run/node";
-import { useLoaderData, useLocation, useNavigate, useRevalidator } from "@remix-run/react";
+import {
+  useLoaderData,
+  useLocation,
+  useNavigate,
+  useRevalidator,
+  useRouteLoaderData,
+} from "@remix-run/react";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -17,7 +23,6 @@ import { getOrSetCache } from "../utils/serverCache.server";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
-const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
 const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
 const WRITE_REVIEW_URL = "https://apps.shopify.com";
 
@@ -393,7 +398,7 @@ async function fetchRows(shop) {
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const { getMainThemeId, getThemeEmbedState } = await import(
+  const { getMainThemeId } = await import(
     "../utils/themeEmbed.server"
   );
   const url = new URL(request.url);
@@ -468,16 +473,6 @@ export const loader = async ({ request }) => {
     process.env.SHOPIFY_API_KEY ||
     process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
     "";
-  const appEmbedStatePromise = Promise.resolve(themeIdPromise).then((themeId) =>
-    getThemeEmbedState({
-      admin,
-      shop,
-      themeId,
-      apiKey,
-      extId: THEME_EXTENSION_ID,
-      embedHandle: APP_EMBED_HANDLE,
-    })
-  );
   const embedPingStatusPromise = getEmbedPingStatus(shop);
 
   return defer({
@@ -485,8 +480,6 @@ export const loader = async ({ request }) => {
     shopDomain,
     themeId: themeIdPromise,
     apiKey,
-    extId: THEME_EXTENSION_ID,
-    appEmbedState: appEmbedStatePromise,
     embedPingStatus: embedPingStatusPromise,
     critical: { page, pageSize, filters: { type, status, q } },
     rows: rowsPromise,
@@ -626,13 +619,12 @@ export async function action({ request }) {
 }
 
 export default function AppIndex() {
-  const { slug, shopDomain, themeId, apiKey, appEmbedState, embedPingStatus } = useLoaderData();
+  const { slug, shopDomain, themeId, apiKey, embedPingStatus } = useLoaderData();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const location = useLocation();
+  const appRouteData = useRouteLoaderData("routes/app");
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
-  const [isEmbedEnabled, setIsEmbedEnabled] = useState(false);
-  const [isEmbedStateLoading, setIsEmbedStateLoading] = useState(true);
   const [isEmbedPingLoading, setIsEmbedPingLoading] = useState(true);
   const [embedPing, setEmbedPing] = useState({
     isOn: false,
@@ -641,6 +633,7 @@ export default function AppIndex() {
   });
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
+  const isEmbedActive = Boolean(appRouteData?.appEmbedEnabled || embedPing.isOn);
 
   useEffect(() => {
     let active = true;
@@ -651,26 +644,6 @@ export default function AppIndex() {
       active = false;
     };
   }, [themeId]);
-
-  useEffect(() => {
-    let active = true;
-    setIsEmbedStateLoading(true);
-    Promise.resolve(appEmbedState)
-      .then((state) => {
-        if (!active) return;
-        setIsEmbedEnabled(Boolean(state?.enabled));
-      })
-      .catch(() => {
-        if (!active) return;
-        setIsEmbedEnabled(false);
-      })
-      .finally(() => {
-        if (active) setIsEmbedStateLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [appEmbedState]);
 
   useEffect(() => {
     let active = true;
@@ -734,34 +707,12 @@ export default function AppIndex() {
         <style>{INDEX_SUPPORT_STYLES}</style>
         <Card>
           <BlockStack gap="300">
-            <Text as="p">
-              Open Theme Customize - <b>App embeds</b> with this app selected.
-            </Text>
-            <InlineStack gap="300" align="start">
-              <Button
-                variant="secondary"
-                loading={isEmbedStateLoading}
-                onClick={() =>
-                  openThemeEditor(
-                    resolvedThemeId,
-                    isEmbedEnabled ? "open" : "activate"
-                  )
-                }
-              >
-                {isEmbedEnabled ? "Deactivate" : "Activate"}
-              </Button>
-            </InlineStack>
-          </BlockStack>
-        </Card>
-
-        <Card>
-          <BlockStack gap="300">
             <InlineStack align="space-between" blockAlign="center">
               <Text as="h3" variant="headingMd">
                 App embed status
               </Text>
-              <Badge tone={embedPing.isOn ? "success" : "critical"}>
-                {`App embed: ${embedPing.isOn ? "ON" : "OFF"}`}
+              <Badge tone={isEmbedActive ? "success" : "critical"}>
+                {`App embed: ${isEmbedActive ? "ON" : "OFF"}`}
               </Badge>
             </InlineStack>
             <Text as="p" tone="subdued">
@@ -770,19 +721,19 @@ export default function AppIndex() {
             <Text as="p" tone="subdued">
               Checked at: {formatDateTime(embedPing.checkedAt)}
             </Text>
-            {!embedPing.isOn && (
+            {!isEmbedActive && (
               <Banner tone="warning">
                 <p>
                   Fomoify App Embed is currently disabled. To enable popups and
-                  social proof on your storefront, go to Theme Customize → App
-                  embeds and turn ON “Fomoify - Core Embed”.
+                  social proof on your storefront, go to Theme Customize -&gt;
+                  App embeds and turn ON "Fomoify - Core Embed".
                 </p>
               </Banner>
             )}
             <InlineStack gap="300" align="start">
               <Button
                 variant="primary"
-                onClick={() => openThemeEditor(resolvedThemeId, "open")}
+                onClick={() => openThemeEditor(resolvedThemeId, "activate")}
               >
                 Open App Embeds
               </Button>
@@ -899,3 +850,4 @@ export default function AppIndex() {
     </Page>
   );
 }
+
