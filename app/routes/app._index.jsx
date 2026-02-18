@@ -74,19 +74,21 @@ const INDEX_SUPPORT_STYLES = `
   border-color: #8ebd95;
 }
 .home-support-item-row {
-  display: flex;
+  display: block;
   align-items: center;
   gap: 12px;
+  text-align: center;
 }
 .home-support-item-icon {
-  width: 46px;
-  height: 46px;
+  width: 60px;
+  height: 60px;
   border-radius: 14px;
   display: grid;
   place-items: center;
-  flex: 0 0 46px;
+  flex: 0 0 60px;
   color: #ffffff;
   box-shadow: 0 8px 14px rgba(0, 0, 0, 0.12);
+  margin: 0 auto;
 }
 .home-support-item.chat .home-support-item-icon {
   background: radial-gradient(circle at 35% 35%, #76a7ff 12%, #2f6de7 60%, #1e4ba8 100%);
@@ -113,7 +115,7 @@ const INDEX_SUPPORT_STYLES = `
   border: 1px solid #aec69c;
   border-radius: 20px;
   padding: 20px;
-  min-height: 260px;
+  min-height: 220px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -125,8 +127,8 @@ const INDEX_SUPPORT_STYLES = `
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 .home-review-balloon {
-  width: 80px;
-  height: 80px;
+  width: 60px;
+  height: 60px;
   border-radius: 24px;
   margin: 2px auto 12px;
   background: radial-gradient(circle at 35% 32%, #ff9eb0 8%, #f14e72 56%, #cf2f55 100%);
@@ -154,8 +156,7 @@ const INDEX_SUPPORT_STYLES = `
   flex: 1;
   border-radius: 14px;
   border: 1px solid transparent;
-  font-weight: 700;
-  font-size: 15px;
+  font-size: 12px;
   line-height: 1.2;
   padding: 12px 14px;
   cursor: pointer;
@@ -633,7 +634,9 @@ export default function AppIndex() {
       template: "index",
     });
     if (mode === "activate" && apiKey) {
-      params.set("activateAppId", `${apiKey}/${APP_EMBED_HANDLE}`);
+      const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
+      params.set("activateAppId", embedId);
+      params.set("appEmbed", embedId);
     }
     const url = `https://admin.shopify.com/store/${slug}/themes/${id ?? "current"}/editor?${params.toString()}`;
     window.open(url, "_blank");
@@ -659,7 +662,7 @@ export default function AppIndex() {
                   )
                 }
               >
-                {isEmbedEnabled ? "Deactivate" : "Activate"}
+                {isEmbedEnabled ? "Open Theme Editor" : "Activate"}
               </Button>
             </InlineStack>
           </BlockStack>

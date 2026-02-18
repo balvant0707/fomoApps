@@ -1,1 +1,1 @@
-export const APP_EMBED_HANDLE = "fomoify-popup-test";
+export const APP_EMBED_HANDLE = "fomo-embed";

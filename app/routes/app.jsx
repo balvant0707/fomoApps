@@ -78,10 +78,12 @@ export default function App() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const openThemeEmbedActivation = () => {
+    const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const params = new URLSearchParams({
       context: "apps",
       template: "index",
-      activateAppId: `${apiKey}/${APP_EMBED_HANDLE}`,
+      activateAppId: embedId,
+      appEmbed: embedId,
     });
     const url = `https://admin.shopify.com/store/${slug}/themes/${themeId ?? "current"}/editor?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
