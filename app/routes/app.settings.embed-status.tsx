@@ -46,27 +46,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const storeHandle = getStoreHandleFromShopDomain(shop);
   const pingStatus = await getEmbedPingStatus(shop);
-  const isEmbedOn = embedContext.appEmbedChecked
-    ? embedContext.appEmbedFound
-      ? Boolean(embedContext.appEmbedEnabled)
-      : Boolean(pingStatus?.isOn)
+  const hasThemeEmbedSignal =
+    Boolean(embedContext.appEmbedChecked) &&
+    Boolean(embedContext.appEmbedFound);
+  const isEmbedOn = hasThemeEmbedSignal
+    ? Boolean(embedContext.appEmbedEnabled)
     : Boolean(pingStatus?.isOn);
   const hasReliableStatus =
-    Boolean(embedContext.appEmbedChecked) || Boolean(pingStatus?.isOn);
+    hasThemeEmbedSignal || Boolean(pingStatus?.isOn);
 
   return json({
     shop,
     storeHandle,
     isEmbedOn,
     hasReliableStatus,
+    hasThemeEmbedSignal,
     appEmbedChecked: Boolean(embedContext.appEmbedChecked),
+    appEmbedFound: Boolean(embedContext.appEmbedFound),
     lastPingAt: pingStatus?.lastPingAt || null,
     checkedAt: pingStatus?.checkedAt || new Date().toISOString(),
   });
 };
 
 export default function AppEmbedStatusSettingsPage() {
-  const { storeHandle, isEmbedOn, hasReliableStatus, appEmbedChecked } =
+  const { storeHandle, isEmbedOn, hasReliableStatus, hasThemeEmbedSignal } =
     useLoaderData<typeof loader>();
   const app = useAppBridge();
   const revalidator = useRevalidator();
@@ -107,7 +110,7 @@ export default function AppEmbedStatusSettingsPage() {
                 refresh status.
               </Text>
             )}
-            {hasReliableStatus && !appEmbedChecked && (
+            {hasReliableStatus && !hasThemeEmbedSignal && (
               <Text as="p" tone="subdued">
                 Theme-based embed check unavailable right now. Using storefront
                 ping status.

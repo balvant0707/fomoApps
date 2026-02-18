@@ -5,6 +5,7 @@ export const THEME_SETTINGS_DATA_KEY = "config/settings_data.json";
 export { APP_EMBED_HANDLE };
 
 const toLower = (value) => String(value || "").trim().toLowerCase();
+const normalizeToken = (value) => toLower(value).replace(/[^a-z0-9]/g, "");
 const toBool = (value) => {
   if (value === true || value === 1) return true;
   const v = toLower(value);
@@ -159,17 +160,17 @@ export async function getThemeEmbedState({
       2000,
       () => fetchThemeSettingsData({ admin, themeId })
     );
-    if (!settingsRaw) return { enabled: false, found: false, checked: true };
+    if (!settingsRaw) return { enabled: false, found: false, checked: false };
 
     let parsed = null;
     try {
       parsed = JSON.parse(settingsRaw);
     } catch {
-      return { enabled: false, found: false, checked: true };
+      return { enabled: false, found: false, checked: false };
     }
     const blocks = parsed?.current?.blocks;
     if (!blocks || typeof blocks !== "object") {
-      return { enabled: false, found: false, checked: true };
+      return { enabled: false, found: false, checked: false };
     }
 
     const handleToken = toLower(embedHandle);
@@ -181,6 +182,16 @@ export async function getThemeEmbedState({
         handleToken.replace(/[-_]/g, ""),
       ])
     ).filter(Boolean);
+    const normalizedHandleVariants = handleVariants
+      .map((item) => normalizeToken(item))
+      .filter(Boolean);
+    const appMarkers = Array.from(
+      new Set(
+        [apiKey, extId, embedHandle, "fomoify", "fomo", "coreembed"]
+          .map((item) => normalizeToken(item))
+          .filter(Boolean)
+      )
+    );
 
     const entries = Object.entries(blocks);
     const matches = entries
@@ -190,8 +201,15 @@ export async function getThemeEmbedState({
         if (!type.includes("/apps/") || !type.includes("/blocks/")) {
           return false;
         }
-        const haystack = `${type} ${toLower(blockId)}`;
-        return handleVariants.some((variant) => haystack.includes(variant));
+        const normalizedType = normalizeToken(type);
+        const normalizedBlockId = normalizeToken(blockId);
+        const haystack = `${normalizedType} ${normalizedBlockId}`;
+        const hasHandleMatch = normalizedHandleVariants.some((variant) =>
+          haystack.includes(variant)
+        );
+        if (hasHandleMatch) return true;
+        const hasAppMarker = appMarkers.some((marker) => haystack.includes(marker));
+        return hasAppMarker && normalizedType.includes("embed");
       })
       .map(({ block }) => block);
     const found = matches.length > 0;
