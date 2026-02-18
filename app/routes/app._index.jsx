@@ -620,7 +620,7 @@ export default function AppIndex() {
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <img src="/assets/live-chat-icon.svg" alt="" width={"100px"} />
+                    <img src="/public/images/live-chat.png" alt="" width={"100px"} />
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Live chat</div>
@@ -637,7 +637,7 @@ export default function AppIndex() {
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <img src="/assets/document-icon.svg" alt="" width={"100px"} />
+                    <img src="/public/images/document.png" alt="" width={"100px"} />
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Knowledge base</div>
