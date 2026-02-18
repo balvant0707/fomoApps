@@ -634,11 +634,8 @@ export default function AppIndex() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
-  const hasThemeEmbedMatch = appRouteData?.appEmbedFound === true;
   const isEmbedActive = hasThemeEmbedCheck
-    ? hasThemeEmbedMatch
-      ? Boolean(appRouteData?.appEmbedEnabled)
-      : Boolean(embedPing.isOn)
+    ? Boolean(appRouteData?.appEmbedFound && appRouteData?.appEmbedEnabled)
     : Boolean(embedPing.isOn);
 
   useEffect(() => {

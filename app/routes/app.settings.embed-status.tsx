@@ -47,9 +47,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const storeHandle = getStoreHandleFromShopDomain(shop);
   const pingStatus = await getEmbedPingStatus(shop);
   const isEmbedOn = embedContext.appEmbedChecked
-    ? embedContext.appEmbedFound
-      ? Boolean(embedContext.appEmbedEnabled)
-      : Boolean(pingStatus?.isOn)
+    ? Boolean(embedContext.appEmbedFound && embedContext.appEmbedEnabled)
     : Boolean(pingStatus?.isOn);
 
   return json({
