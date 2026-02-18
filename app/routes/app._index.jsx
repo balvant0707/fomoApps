@@ -636,7 +636,7 @@ export default function AppIndex() {
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
   const isEmbedActive = hasThemeEmbedCheck
     ? Boolean(appRouteData?.appEmbedEnabled)
-    : false;
+    : Boolean(embedPing.isOn);
 
   useEffect(() => {
     let active = true;

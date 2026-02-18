@@ -1,6 +1,6 @@
 import prisma from "../db.server";
 
-const EMBED_ON_WINDOW_MS = 15 * 60 * 1000;
+const EMBED_ON_WINDOW_MS = 2 * 60 * 1000;
 
 const embedPingModel = () => prisma.embedPing || prisma.embedping || null;
 
@@ -39,4 +39,3 @@ export async function getEmbedPingStatus(shopDomain) {
     return fallback;
   }
 }
-

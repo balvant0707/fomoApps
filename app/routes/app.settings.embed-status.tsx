@@ -48,7 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const pingStatus = await getEmbedPingStatus(shop);
   const isEmbedOn = embedContext.appEmbedChecked
     ? Boolean(embedContext.appEmbedEnabled)
-    : false;
+    : Boolean(pingStatus?.isOn);
 
   return json({
     shop,
