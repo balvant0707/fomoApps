@@ -5,6 +5,11 @@ export const THEME_SETTINGS_DATA_KEY = "config/settings_data.json";
 export { APP_EMBED_HANDLE };
 
 const toLower = (value) => String(value || "").trim().toLowerCase();
+const toBool = (value) => {
+  if (value === true || value === 1) return true;
+  const v = toLower(value);
+  return v === "true" || v === "1" || v === "yes" || v === "on";
+};
 
 async function fetchThemeSettingsData({ admin, themeId }) {
   const params = {
@@ -65,46 +70,46 @@ export async function getThemeEmbedState({
       2000,
       () => fetchThemeSettingsData({ admin, themeId })
     );
-    if (!settingsRaw) return { enabled: false, found: false, checked: false };
+    if (!settingsRaw) return { enabled: false, found: false, checked: true };
 
     let parsed = null;
     try {
       parsed = JSON.parse(settingsRaw);
     } catch {
-      return { enabled: false, found: false, checked: false };
+      return { enabled: false, found: false, checked: true };
     }
     const blocks = parsed?.current?.blocks;
     if (!blocks || typeof blocks !== "object") {
-      return { enabled: false, found: false, checked: false };
+      return { enabled: false, found: false, checked: true };
     }
 
     const handleToken = toLower(embedHandle);
-    const appHandleNeedle = `/apps/${handleToken}/`;
-    const blockHandleNeedle = `/blocks/${handleToken}/`;
+    const appHandleNeedle = `/apps/${handleToken}`;
+    const blockHandleNeedle = `/blocks/${handleToken}`;
     const extNeedle = toLower(extId);
     const apiNeedle = toLower(apiKey);
 
-    let found = false;
-    let enabled = false;
-
-    for (const block of Object.values(blocks)) {
+    const allBlocks = Object.values(blocks);
+    const handleMatches = allBlocks.filter((block) => {
       const type = toLower(block?.type);
-      if (!type) continue;
+      if (!type) return false;
+      return type.includes(appHandleNeedle) || type.includes(blockHandleNeedle);
+    });
 
-      const matchesHandle =
-        type.includes(appHandleNeedle) || type.includes(blockHandleNeedle);
-      const matchesExtension = extNeedle ? type.includes(extNeedle) : false;
-      const matchesApiKey = apiNeedle ? type.includes(apiNeedle) : false;
-      if (!matchesHandle && !matchesExtension && !matchesApiKey) continue;
+    const fallbackMatches =
+      handleMatches.length > 0
+        ? []
+        : allBlocks.filter((block) => {
+            const type = toLower(block?.type);
+            if (!type) return false;
+            const matchesExtension = extNeedle ? type.includes(extNeedle) : false;
+            const matchesApiKey = apiNeedle ? type.includes(apiNeedle) : false;
+            return matchesExtension || matchesApiKey;
+          });
 
-      found = true;
-      const isDisabled =
-        block?.disabled === true || toLower(block?.disabled) === "true";
-      if (!isDisabled) {
-        enabled = true;
-        break;
-      }
-    }
+    const matches = handleMatches.length > 0 ? handleMatches : fallbackMatches;
+    const found = matches.length > 0;
+    const enabled = matches.some((block) => !toBool(block?.disabled));
 
     return { enabled, found, checked: true };
   } catch (error) {
