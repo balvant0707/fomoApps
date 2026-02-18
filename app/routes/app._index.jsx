@@ -730,9 +730,6 @@ export default function AppIndex() {
               </Text>
             )}
             {hasReliableEmbedStatus && !isEmbedActive && (
-              <Banner tone="warning">
-                
-              </Banner>
             )}
             <InlineStack gap="300" align="start">
               <Button

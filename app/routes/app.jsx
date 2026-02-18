@@ -162,9 +162,9 @@ export default function App() {
           <Banner status="warning" title={embedWarningTitle}>
             <p>{embedWarningText}</p>
             <div style={{ marginTop: 10 }}>
-              <Button primary onClick={openThemeEmbedActivation}>
+              {/* <Button primary onClick={openThemeEmbedActivation}>
                 Turn on app embed
-              </Button>
+              </Button> */}
             </div>
           </Banner>
         </div>
