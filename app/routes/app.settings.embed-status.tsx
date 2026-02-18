@@ -50,11 +50,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasThemeEmbedSignal =
     hasThemeEmbedCheck &&
     Boolean(embedContext.appEmbedFound);
-  const isEmbedOn = hasThemeEmbedSignal
+  const isEmbedOn = hasThemeEmbedCheck
     ? Boolean(embedContext.appEmbedEnabled)
     : Boolean(pingStatus?.isOn);
   const hasReliableStatus =
-    hasThemeEmbedCheck || Boolean(pingStatus?.isOn);
+    hasThemeEmbedCheck || Boolean(pingStatus?.lastPingAt);
 
   return json({
     shop,
@@ -71,7 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function AppEmbedStatusSettingsPage() {
-  const { storeHandle, isEmbedOn, hasReliableStatus, hasThemeEmbedSignal } =
+  const { storeHandle, isEmbedOn, hasReliableStatus, hasThemeEmbedCheck } =
     useLoaderData<typeof loader>();
   const app = useAppBridge();
   const revalidator = useRevalidator();
@@ -112,7 +112,7 @@ export default function AppEmbedStatusSettingsPage() {
                 refresh status.
               </Text>
             )}
-            {hasReliableStatus && !hasThemeEmbedSignal && (
+            {hasReliableStatus && !hasThemeEmbedCheck && (
               <Text as="p" tone="subdued">
                 Theme-based embed check unavailable right now. Using storefront
                 ping status.

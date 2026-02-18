@@ -118,7 +118,6 @@ export default function App() {
     shopDomain,
     themeId,
     appEmbedEnabled,
-    appEmbedFound,
     appEmbedChecked,
     embedPingStatus,
   } = useLoaderData();

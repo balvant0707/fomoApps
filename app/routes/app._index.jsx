@@ -688,13 +688,6 @@ export default function AppIndex() {
     };
   }, [embedPingStatus]);
 
-  const formatDateTime = (value) => {
-    if (!value) return "never";
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return "never";
-    return d.toLocaleString();
-  };
-
   const toThemeEditorThemeId = (value) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "current";
