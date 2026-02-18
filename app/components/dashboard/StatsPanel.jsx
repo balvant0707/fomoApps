@@ -3,14 +3,16 @@ import {
   Button,
   Card,
   DatePicker,
+  Icon,
   InlineStack,
   Popover,
   Select,
   Text,
   TextField,
 } from "@shopify/polaris";
+import { ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { useLocation, useNavigate } from "@remix-run/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const EMPTY_STATS = {
   total: 0,
@@ -108,6 +110,10 @@ function getPresetDays(range) {
   return Number.isFinite(value) && value > 0 ? value : 7;
 }
 
+function clampNumber(value, min, max) {
+  return Math.min(Math.max(value, min), max);
+}
+
 export default function StatsPanel({ stats }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -139,6 +145,9 @@ export default function StatsPanel({ stats }) {
   const [calendarYear, setCalendarYear] = useState(initialMonthDate.getFullYear());
   const [expandedRows, setExpandedRows] = useState({});
   const [filterError, setFilterError] = useState("");
+  const [chartViewportWidth, setChartViewportWidth] = useState(0);
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const chartFrameRef = useRef(null);
 
   useEffect(() => {
     const nextRange = analyticsFilter.range || "7d";
@@ -157,6 +166,31 @@ export default function StatsPanel({ stats }) {
     setExpandedRows({});
   }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
 
+  useEffect(() => {
+    const node = chartFrameRef.current;
+    if (!node) return undefined;
+
+    const updateWidth = () => {
+      const nextWidth = Math.max(0, Math.floor(node.clientWidth || 0));
+      setChartViewportWidth(nextWidth);
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateWidth);
+      return () => window.removeEventListener("resize", updateWidth);
+    }
+
+    const observer = new ResizeObserver(() => updateWidth());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    setHoveredIndex(null);
+  }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
+
   const chartMax = Math.max(1, ...impressions, ...clicks);
   const yTicks = 4;
   const yTickValues = Array.from({ length: yTicks + 1 }, (_, idx) =>
@@ -164,11 +198,16 @@ export default function StatsPanel({ stats }) {
   );
 
   const plotHeight = 220;
-  const plotWidth = Math.max(640, labels.length * 120);
   const paddingTop = 16;
   const paddingBottom = 32;
   const paddingLeft = 44;
   const paddingRight = 18;
+  const containerWidth = chartViewportWidth > 0 ? chartViewportWidth : 960;
+  const fillWidth = Math.max(320, containerWidth - paddingLeft - paddingRight);
+  const pointGap =
+    labels.length > 180 ? 8 : labels.length > 90 ? 12 : labels.length > 45 ? 18 : 30;
+  const naturalWidth = labels.length > 1 ? (labels.length - 1) * pointGap : fillWidth;
+  const plotWidth = Math.max(fillWidth, naturalWidth);
   const svgWidth = paddingLeft + plotWidth + paddingRight;
   const svgHeight = paddingTop + plotHeight + paddingBottom;
   const baseY = paddingTop + plotHeight;
@@ -183,6 +222,46 @@ export default function StatsPanel({ stats }) {
       ? `${xAt(0)},${baseY} ${impressionsLinePoints} ${xAt(labels.length - 1)},${baseY}`
       : "";
   const xTickEvery = Math.max(1, Math.ceil(labels.length / 7));
+  const hasActivePoint = hoveredIndex !== null && hoveredIndex >= 0 && hoveredIndex < labels.length;
+  const activeIndex = hasActivePoint ? hoveredIndex : null;
+  const activeX = activeIndex !== null ? xAt(activeIndex) : 0;
+  const activeDay = activeIndex !== null ? labels[activeIndex] : "";
+  const activeImpressions = activeIndex !== null ? impressions[activeIndex] || 0 : 0;
+  const activeClicks = activeIndex !== null ? clicks[activeIndex] || 0 : 0;
+  const tooltipWidth = 230;
+  const tooltipLeft =
+    activeIndex !== null
+      ? clampNumber(activeX + 14, paddingLeft + 8, paddingLeft + plotWidth - tooltipWidth - 8)
+      : 0;
+
+  const resolveHoverIndex = (clientX, bounds) => {
+    if (!labels.length || !bounds) return null;
+    if (labels.length === 1) return 0;
+    const xFromSvg = clientX - bounds.left;
+    const xFromPlot = clampNumber(xFromSvg - paddingLeft, 0, plotWidth);
+    const index = Math.round(xFromPlot / xStep);
+    return clampNumber(index, 0, labels.length - 1);
+  };
+
+  const onChartMouseMove = (event) => {
+    const svgBounds =
+      event.currentTarget.ownerSVGElement?.getBoundingClientRect() ||
+      event.currentTarget.getBoundingClientRect();
+    const next = resolveHoverIndex(event.clientX, svgBounds);
+    if (next === null) return;
+    setHoveredIndex(next);
+  };
+
+  const onChartTouchMove = (event) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const svgBounds =
+      event.currentTarget.ownerSVGElement?.getBoundingClientRect() ||
+      event.currentTarget.getBoundingClientRect();
+    const next = resolveHoverIndex(touch.clientX, svgBounds);
+    if (next === null) return;
+    setHoveredIndex(next);
+  };
 
   const applyQuery = (nextRange, nextStart = "", nextEnd = "") => {
     const params = new URLSearchParams(location.search);
@@ -415,8 +494,8 @@ export default function StatsPanel({ stats }) {
                 </Text>
               ) : (
                 <>
-                  <div style={{ overflowX: "auto" }}>
-                    <div style={{ minWidth: svgWidth }}>
+                  <div ref={chartFrameRef} style={{ overflowX: "auto" }}>
+                    <div style={{ minWidth: svgWidth, position: "relative" }}>
                       <svg width={svgWidth} height={svgHeight}>
                         {yTickValues.map((tick, idx) => {
                           const y = paddingTop + (idx / yTicks) * plotHeight;
@@ -471,29 +550,133 @@ export default function StatsPanel({ stats }) {
                             strokeLinejoin="round"
                           />
                         ) : null}
-                      </svg>
-                    </div>
-                  </div>
 
-                  <div
-                    style={{
-                      marginTop: 6,
-                      display: "grid",
-                      gridTemplateColumns: `repeat(${labels.length}, minmax(80px, 1fr))`,
-                      gap: 0,
-                      paddingLeft: 44,
-                      paddingRight: 18,
-                    }}
-                  >
-                    {labels.map((day, idx) => (
-                      <div key={`x-${day}`} style={{ textAlign: "center" }}>
-                        <Text as="span" variant="bodySm" tone="subdued">
-                          {idx % xTickEvery === 0 || idx === labels.length - 1
-                            ? toDayLabel(day)
-                            : ""}
-                        </Text>
+                        {activeIndex !== null ? (
+                          <g>
+                            <line
+                              x1={activeX}
+                              y1={paddingTop}
+                              x2={activeX}
+                              y2={baseY}
+                              stroke="#C7CDD4"
+                              strokeDasharray="4 4"
+                            />
+                            <circle
+                              cx={activeX}
+                              cy={yAt(activeImpressions)}
+                              r="4.5"
+                              fill="#26A9E6"
+                              stroke="#FFFFFF"
+                              strokeWidth="2"
+                            />
+                            <circle
+                              cx={activeX}
+                              cy={yAt(activeClicks)}
+                              r="4.5"
+                              fill="#6F4CF6"
+                              stroke="#FFFFFF"
+                              strokeWidth="2"
+                            />
+                          </g>
+                        ) : null}
+
+                        <rect
+                          x={paddingLeft}
+                          y={paddingTop}
+                          width={plotWidth}
+                          height={plotHeight}
+                          fill="transparent"
+                          onMouseMove={onChartMouseMove}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                          onTouchStart={onChartTouchMove}
+                          onTouchMove={onChartTouchMove}
+                          onTouchEnd={() => setHoveredIndex(null)}
+                        />
+                      </svg>
+
+                      {activeIndex !== null ? (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 48,
+                            left: tooltipLeft,
+                            width: tooltipWidth,
+                            background: "#FFFFFF",
+                            border: "1px solid #D8DDE3",
+                            borderRadius: 12,
+                            boxShadow: "0 8px 24px rgba(33, 43, 54, 0.12)",
+                            padding: 12,
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <BlockStack gap="150">
+                            <Text as="p" variant="headingSm">
+                              {toDayLabel(activeDay)}
+                            </Text>
+                            <InlineStack align="space-between" blockAlign="center">
+                              <InlineStack gap="100" blockAlign="center">
+                                <span
+                                  style={{
+                                    width: 14,
+                                    height: 2,
+                                    borderRadius: 2,
+                                    background: "#26A9E6",
+                                    display: "inline-block",
+                                  }}
+                                />
+                                <Text as="span" variant="bodyMd">
+                                  Notification impression
+                                </Text>
+                              </InlineStack>
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                                {activeImpressions}
+                              </Text>
+                            </InlineStack>
+                            <InlineStack align="space-between" blockAlign="center">
+                              <InlineStack gap="100" blockAlign="center">
+                                <span
+                                  style={{
+                                    width: 14,
+                                    height: 2,
+                                    borderRadius: 2,
+                                    background: "#6F4CF6",
+                                    display: "inline-block",
+                                  }}
+                                />
+                                <Text as="span" variant="bodyMd">
+                                  Notification clicks
+                                </Text>
+                              </InlineStack>
+                              <Text as="span" variant="bodyMd" fontWeight="semibold">
+                                {activeClicks}
+                              </Text>
+                            </InlineStack>
+                          </BlockStack>
+                        </div>
+                      ) : null}
+
+                      <div
+                        style={{
+                          marginTop: 6,
+                          display: "grid",
+                          gridTemplateColumns: `repeat(${labels.length}, minmax(0, 1fr))`,
+                          gap: 0,
+                          paddingLeft: 44,
+                          paddingRight: 18,
+                          width: svgWidth,
+                        }}
+                      >
+                        {labels.map((day, idx) => (
+                          <div key={`x-${day}`} style={{ textAlign: "center" }}>
+                            <Text as="span" variant="bodySm" tone="subdued">
+                              {idx % xTickEvery === 0 || idx === labels.length - 1
+                                ? toDayLabel(day)
+                                : ""}
+                            </Text>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
 
                   <InlineStack gap="300" align="center">
@@ -572,6 +755,7 @@ export default function StatsPanel({ stats }) {
                     <button
                       type="button"
                       onClick={() => toggleRow(row.key)}
+                      aria-expanded={isOpen}
                       style={{
                         width: "100%",
                         display: "grid",
@@ -584,9 +768,14 @@ export default function StatsPanel({ stats }) {
                         cursor: "pointer",
                       }}
                     >
-                      <Text as="span" variant="bodyMd" fontWeight="semibold">
-                        {`${isOpen ? "\u02C4" : "\u02C5"}  ${row.label}`}
-                      </Text>
+                      <InlineStack gap="100" blockAlign="center">
+                        <span style={{ width: 20, display: "inline-flex", justifyContent: "center" }}>
+                          <Icon source={isOpen ? ChevronUpIcon : ChevronDownIcon} />
+                        </span>
+                        <Text as="span" variant="bodyMd" fontWeight="semibold">
+                          {row.label}
+                        </Text>
+                      </InlineStack>
                       <Text as="span" variant="bodyMd" fontWeight="semibold">
                         {row.totalImpressions || 0}
                       </Text>
