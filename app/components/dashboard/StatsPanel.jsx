@@ -387,6 +387,7 @@ export default function StatsPanel({ stats }) {
             onClose={closePicker}
             preferredAlignment="right"
             preferredPosition="below"
+            fluidContent
             activator={
               <Button onClick={openPicker} disclosure>
                 {rangeButtonLabel}
@@ -395,7 +396,7 @@ export default function StatsPanel({ stats }) {
           >
             <div
               style={{
-                width: 760,
+                width: 860,
                 maxWidth: "calc(100vw - 48px)",
                 padding: 10,
                 border: "1px solid #D4D7DC",
