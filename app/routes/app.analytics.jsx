@@ -569,7 +569,7 @@ export default function NotificationList() {
 
   return (
     <Frame>
-      <Page title="Analytics">
+      <Page>
         <Suspense fallback={null}>
           <Await resolve={stats} errorElement={null}>
             {(data) => (
