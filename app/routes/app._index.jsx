@@ -731,11 +731,7 @@ export default function AppIndex() {
             )}
             {hasReliableEmbedStatus && !isEmbedActive && (
               <Banner tone="warning">
-                <p>
-                  Fomoify App Embed is currently disabled. To enable popups and
-                  social proof on your storefront, go to Theme Customize -&gt;
-                  App embeds and turn ON "Fomoify - Core Embed".
-                </p>
+                
               </Banner>
             )}
             <InlineStack gap="300" align="start">
