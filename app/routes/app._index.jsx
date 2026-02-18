@@ -39,42 +39,75 @@ const INDEX_SUPPORT_STYLES = `
 .home-support-item {
   border: 1px solid #d8dadd;
   border-radius: 14px;
-  background: #ffffff;
   padding: 14px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+  position: relative;
+  overflow: hidden;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(150deg, #f1f5ff 0%, #e5edff 100%);
+  background-size: 24px 24px, 24px 24px, auto;
+}
+.home-support-item.chat {
+  border-color: #c8d7f3;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
+}
+.home-support-item.knowledge {
+  border-color: #c6d9ca;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+    linear-gradient(150deg, #ebf4e7 0%, #d9eccf 100%);
 }
 .home-support-item:hover {
   border-color: #96b6ff;
   box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.08);
+  transform: translateY(-1px);
+}
+.home-support-item.knowledge:hover {
+  border-color: #8ebd95;
 }
 .home-support-item-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 .home-support-item-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 10px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
   display: grid;
   place-items: center;
-  flex: 0 0 30px;
-  color: #1260d8;
-  background: #eff6ff;
+  flex: 0 0 46px;
+  color: #ffffff;
+  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.12);
+}
+.home-support-item.chat .home-support-item-icon {
+  background: radial-gradient(circle at 35% 35%, #76a7ff 12%, #2f6de7 60%, #1e4ba8 100%);
+}
+.home-support-item.knowledge .home-support-item-icon {
+  background: radial-gradient(circle at 35% 35%, #80c47f 12%, #449c5c 60%, #2f6b3f 100%);
 }
 .home-support-item-icon svg {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
 }
 .home-support-item-body {
   min-width: 0;
 }
 .home-support-item-link {
-  color: #1260d8;
+  color: #1d4ed8;
   font-weight: 700;
   margin-bottom: 2px;
+}
+.home-support-item.knowledge .home-support-item-link {
+  color: #166534;
 }
 .home-review-panel {
   border: 1px solid #c8d9be;
@@ -615,12 +648,22 @@ export default function AppIndex() {
             <div className="home-support-items">
               <button
                 type="button"
-                className="home-support-item"
+                className="home-support-item chat"
                 onClick={() => navigate(appUrl("/app/help"))}
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <img src="/public/images/live-chat.png" alt="" width={"100px"} />
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M7.4 17.5H4V14a7 7 0 0 1 7-7h2a7 7 0 1 1 0 14h-2.6L7.4 23v-5.5z" />
+                      <path d="M9 12h6M9 9h3" />
+                    </svg>
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Live chat</div>
@@ -632,12 +675,23 @@ export default function AppIndex() {
               </button>
               <button
                 type="button"
-                className="home-support-item"
+                className="home-support-item knowledge"
                 onClick={() => navigate(appUrl("/app/documents"))}
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
-                    <img src="/public/images/document.png" alt="" width={"100px"} />
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.9"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M4 6.8A2.8 2.8 0 0 1 6.8 4H19v14H6.8A2.8 2.8 0 0 0 4 20.8V6.8z" />
+                      <path d="M6.8 4A2.8 2.8 0 0 0 4 6.8v14" />
+                      <path d="M9 8h7M9 11h7M9 14h5" />
+                    </svg>
                   </div>
                   <div className="home-support-item-body">
                     <div className="home-support-item-link">Knowledge base</div>
