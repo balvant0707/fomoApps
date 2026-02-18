@@ -1,5 +1,5 @@
 import { defer, json, redirect } from "@remix-run/node";
-import { useLoaderData, useLocation, useNavigate } from "@remix-run/react";
+import { useLoaderData, useLocation, useNavigate, useRevalidator } from "@remix-run/react";
 import { useEffect, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -10,9 +10,12 @@ import {
   Text,
   Button,
   InlineStack,
+  Badge,
+  Banner,
 } from "@shopify/polaris";
 import { getOrSetCache } from "../utils/serverCache.server";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
+import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
 const THEME_EXTENSION_ID = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
 const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
@@ -475,6 +478,7 @@ export const loader = async ({ request }) => {
       embedHandle: APP_EMBED_HANDLE,
     })
   );
+  const embedPingStatusPromise = getEmbedPingStatus(shop);
 
   return defer({
     slug,
@@ -483,6 +487,7 @@ export const loader = async ({ request }) => {
     apiKey,
     extId: THEME_EXTENSION_ID,
     appEmbedState: appEmbedStatePromise,
+    embedPingStatus: embedPingStatusPromise,
     critical: { page, pageSize, filters: { type, status, q } },
     rows: rowsPromise,
   });
@@ -621,12 +626,19 @@ export async function action({ request }) {
 }
 
 export default function AppIndex() {
-  const { slug, shopDomain, themeId, apiKey, appEmbedState } = useLoaderData();
+  const { slug, shopDomain, themeId, apiKey, appEmbedState, embedPingStatus } = useLoaderData();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const location = useLocation();
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
   const [isEmbedEnabled, setIsEmbedEnabled] = useState(false);
   const [isEmbedStateLoading, setIsEmbedStateLoading] = useState(true);
+  const [isEmbedPingLoading, setIsEmbedPingLoading] = useState(true);
+  const [embedPing, setEmbedPing] = useState({
+    isOn: false,
+    lastPingAt: null,
+    checkedAt: null,
+  });
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
 
@@ -659,6 +671,41 @@ export default function AppIndex() {
       active = false;
     };
   }, [appEmbedState]);
+
+  useEffect(() => {
+    let active = true;
+    setIsEmbedPingLoading(true);
+    Promise.resolve(embedPingStatus)
+      .then((state) => {
+        if (!active) return;
+        setEmbedPing({
+          isOn: Boolean(state?.isOn),
+          lastPingAt: state?.lastPingAt || null,
+          checkedAt: state?.checkedAt || null,
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setEmbedPing({
+          isOn: false,
+          lastPingAt: null,
+          checkedAt: null,
+        });
+      })
+      .finally(() => {
+        if (active) setIsEmbedPingLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [embedPingStatus]);
+
+  const formatDateTime = (value) => {
+    if (!value) return "never";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "never";
+    return d.toLocaleString();
+  };
 
   const toThemeEditorThemeId = (value) => {
     const raw = String(value ?? "").trim();
@@ -702,6 +749,49 @@ export default function AppIndex() {
                 }
               >
                 {isEmbedEnabled ? "Deactivate" : "Activate"}
+              </Button>
+            </InlineStack>
+          </BlockStack>
+        </Card>
+
+        <Card>
+          <BlockStack gap="300">
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingMd">
+                App embed status
+              </Text>
+              <Badge tone={embedPing.isOn ? "success" : "critical"}>
+                {`App embed: ${embedPing.isOn ? "ON" : "OFF"}`}
+              </Badge>
+            </InlineStack>
+            <Text as="p" tone="subdued">
+              Last embed ping: {formatDateTime(embedPing.lastPingAt)}
+            </Text>
+            <Text as="p" tone="subdued">
+              Checked at: {formatDateTime(embedPing.checkedAt)}
+            </Text>
+            {!embedPing.isOn && (
+              <Banner tone="warning">
+                <p>
+                  Fomoify App Embed is currently disabled. To enable popups and
+                  social proof on your storefront, go to Theme Customize → App
+                  embeds and turn ON “Fomoify - Core Embed”.
+                </p>
+              </Banner>
+            )}
+            <InlineStack gap="300" align="start">
+              <Button
+                variant="primary"
+                onClick={() => openThemeEditor(resolvedThemeId, "open")}
+              >
+                Open App Embeds
+              </Button>
+              <Button
+                variant="secondary"
+                loading={isEmbedPingLoading || revalidator.state !== "idle"}
+                onClick={() => revalidator.revalidate()}
+              >
+                Refresh Status
               </Button>
             </InlineStack>
           </BlockStack>

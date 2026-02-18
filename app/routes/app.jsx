@@ -9,6 +9,7 @@ import { authenticate } from "../shopify.server";
 import LcpObserver from "../components/LcpObserver";
 import { upsertInstalledShop } from "../utils/upsertShop.server";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
+import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
@@ -96,11 +97,13 @@ export const loader = async ({ request }) => {
       .filter((part) => part !== "store")[0] ||
     "";
   const shopDomain = toShopDomain(shop);
+  const embedPingStatus = await getEmbedPingStatus(shop);
 
   return {
     apiKey,
     slug,
     shopDomain,
+    embedPingStatus,
     themeId: embedContext.themeId,
     appEmbedEnabled: embedContext.appEmbedEnabled,
     appEmbedFound: embedContext.appEmbedFound,
@@ -109,14 +112,20 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, slug, shopDomain, themeId, appEmbedEnabled, appEmbedChecked } = useLoaderData();
+  const {
+    apiKey,
+    slug,
+    shopDomain,
+    themeId,
+    embedPingStatus,
+  } = useLoaderData();
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
-  const shouldShowEmbedWarning = appEmbedChecked && !appEmbedEnabled;
+  const shouldShowEmbedWarning = !Boolean(embedPingStatus?.isOn);
   const embedWarningTitle = "App embed is disabled";
   const embedWarningText =
-    "In Theme editor > App embeds, turn on Fomoify - Core Embed and click Save.";
+    "Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize \u2192 App embeds and turn ON \u201cFomoify - Core Embed\u201d.";
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const safeThemeId = toThemeEditorThemeId(themeId);
