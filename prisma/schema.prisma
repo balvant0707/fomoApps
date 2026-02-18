@@ -435,3 +435,13 @@ model popupanalyticsevent {
   @@index([shop, popupType, eventType, createdAt], map: "PopupAnalyticsEvent_shop_type_event_createdAt_idx")
   @@index([shop, visitorId], map: "PopupAnalyticsEvent_shop_visitorId_idx")
 }
+
+model EmbedPing {
+  id         Int      @id @default(autoincrement())
+  shop       String   @unique(map: "EmbedPing_shop_key") @db.VarChar(255)
+  lastPingAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("embedping")
+}
