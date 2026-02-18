@@ -16,23 +16,15 @@ import {
   Page,
   Text,
 } from "@shopify/polaris";
-import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
+import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 import {
   getStoreHandleFromShopDomain,
   normalizeShopDomain,
 } from "../utils/shopDomain.server";
 
-const STATUS_WINDOW_MS = 15 * 60 * 1000;
 const DISABLED_MESSAGE =
   "Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize \u2192 App embeds and turn ON \u201cFomoify - Core Embed\u201d.";
-
-type EmbedPingRecord = {
-  lastPingAt: Date;
-};
-
-const getEmbedPingModel = () =>
-  (prisma as any).embedPing || (prisma as any).embedping || null;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -40,26 +32,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
   const storeHandle = getStoreHandleFromShopDomain(shop);
-  const model = getEmbedPingModel();
-
-  let ping: EmbedPingRecord | null = null;
-  if (model?.findUnique) {
-    ping = await model.findUnique({
-      where: { shop },
-      select: { lastPingAt: true },
-    });
-  }
-
-  const nowMs = Date.now();
-  const lastPingMs = ping?.lastPingAt ? ping.lastPingAt.getTime() : 0;
-  const isEmbedOn = lastPingMs > 0 && nowMs - lastPingMs <= STATUS_WINDOW_MS;
+  const pingStatus = await getEmbedPingStatus(shop);
 
   return json({
     shop,
     storeHandle,
-    isEmbedOn,
-    lastPingAt: ping?.lastPingAt?.toISOString() ?? null,
-    checkedAt: new Date(nowMs).toISOString(),
+    isEmbedOn: Boolean(pingStatus?.isOn),
+    lastPingAt: pingStatus?.lastPingAt || null,
+    checkedAt: pingStatus?.checkedAt || new Date().toISOString(),
   });
 };
 
