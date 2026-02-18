@@ -86,28 +86,13 @@ export async function getThemeEmbedState({
     const handleToken = toLower(embedHandle);
     const appHandleNeedle = `/apps/${handleToken}`;
     const blockHandleNeedle = `/blocks/${handleToken}`;
-    const extNeedle = toLower(extId);
-    const apiNeedle = toLower(apiKey);
 
     const allBlocks = Object.values(blocks);
-    const handleMatches = allBlocks.filter((block) => {
+    const matches = allBlocks.filter((block) => {
       const type = toLower(block?.type);
       if (!type) return false;
       return type.includes(appHandleNeedle) || type.includes(blockHandleNeedle);
     });
-
-    const fallbackMatches =
-      handleMatches.length > 0
-        ? []
-        : allBlocks.filter((block) => {
-            const type = toLower(block?.type);
-            if (!type) return false;
-            const matchesExtension = extNeedle ? type.includes(extNeedle) : false;
-            const matchesApiKey = apiNeedle ? type.includes(apiNeedle) : false;
-            return matchesExtension || matchesApiKey;
-          });
-
-    const matches = handleMatches.length > 0 ? handleMatches : fallbackMatches;
     const found = matches.length > 0;
     const enabled = matches.some((block) => !toBool(block?.disabled));
 

@@ -27,24 +27,41 @@ const DISABLED_MESSAGE =
   "Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize \u2192 App embeds and turn ON \u201cFomoify - Core Embed\u201d.";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = normalizeShopDomain(session?.shop);
   if (!shop) throw new Response("Unauthorized", { status: 401 });
 
+  const { getAppEmbedContext } = await import("../utils/themeEmbed.server");
+  const apiKey =
+    process.env.SHOPIFY_API_KEY ||
+    process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
+    "";
+  const extId = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
+  const embedContext = await getAppEmbedContext({
+    admin,
+    shop,
+    apiKey,
+    extId,
+  });
+
   const storeHandle = getStoreHandleFromShopDomain(shop);
   const pingStatus = await getEmbedPingStatus(shop);
+  const isEmbedOn = embedContext.appEmbedChecked
+    ? Boolean(embedContext.appEmbedEnabled)
+    : false;
 
   return json({
     shop,
     storeHandle,
-    isEmbedOn: Boolean(pingStatus?.isOn),
+    isEmbedOn,
+    appEmbedChecked: Boolean(embedContext.appEmbedChecked),
     lastPingAt: pingStatus?.lastPingAt || null,
     checkedAt: pingStatus?.checkedAt || new Date().toISOString(),
   });
 };
 
 export default function AppEmbedStatusSettingsPage() {
-  const { storeHandle, isEmbedOn, lastPingAt, checkedAt } =
+  const { storeHandle, isEmbedOn, appEmbedChecked } =
     useLoaderData<typeof loader>();
   const app = useAppBridge();
   const revalidator = useRevalidator();
@@ -69,6 +86,11 @@ export default function AppEmbedStatusSettingsPage() {
                 {`App embed: ${isEmbedOn ? "ON" : "OFF"}`}
               </Badge>
             </InlineStack>
+            {!appEmbedChecked && (
+              <Text as="p" tone="subdued">
+                Embed status check unavailable right now. Showing safe OFF state.
+              </Text>
+            )}
 
             {!isEmbedOn && (
               <Banner tone="warning">

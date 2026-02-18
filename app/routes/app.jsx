@@ -125,9 +125,7 @@ export default function App() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appEmbedChecked === true;
-  const isEmbedActive = hasThemeEmbedCheck
-    ? Boolean(appEmbedEnabled)
-    : Boolean(appEmbedEnabled || embedPingStatus?.isOn);
+  const isEmbedActive = hasThemeEmbedCheck ? Boolean(appEmbedEnabled) : false;
   const shouldShowEmbedWarning = !isEmbedActive;
   const embedWarningTitle = "App embed is disabled";
   const embedWarningText =
