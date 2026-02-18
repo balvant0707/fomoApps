@@ -4,14 +4,19 @@ import { Page, Button, Loading } from "@shopify/polaris";
 import { useNavigate } from "@remix-run/react";
 import { authenticate } from "../shopify.server";
 
+export const links = () => [
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap",
+  },
+];
+
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
   return null;
 };
 
 const DASHBOARD_STYLES = `
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap");
-
 .notify-page {
   font-family: "DM Sans", sans-serif;
   color: #1b1b1b;
