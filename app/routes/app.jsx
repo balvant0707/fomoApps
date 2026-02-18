@@ -29,6 +29,11 @@ const toShopSlug = (value) => {
   return parts[0] || "";
 };
 
+const toShopDomain = (value) => {
+  const slug = toShopSlug(value);
+  return slug ? `${slug}.myshopify.com` : "";
+};
+
 const toThemeEditorThemeId = (value) => {
   const raw = String(value ?? "").trim();
   if (!raw) return "current";
@@ -90,10 +95,12 @@ export const loader = async ({ request }) => {
       .filter(Boolean)
       .filter((part) => part !== "store")[0] ||
     "";
+  const shopDomain = toShopDomain(shop);
 
   return {
     apiKey,
     slug,
+    shopDomain,
     themeId: embedContext.themeId,
     appEmbedEnabled: embedContext.appEmbedEnabled,
     appEmbedFound: embedContext.appEmbedFound,
@@ -102,7 +109,7 @@ export const loader = async ({ request }) => {
 };
 
 export default function App() {
-  const { apiKey, slug, themeId, appEmbedEnabled, appEmbedChecked } = useLoaderData();
+  const { apiKey, slug, shopDomain, themeId, appEmbedEnabled, appEmbedChecked } = useLoaderData();
   const location = useLocation();
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
@@ -116,13 +123,12 @@ export default function App() {
   const openThemeEmbedActivation = () => {
     const embedId = `${apiKey}/${APP_EMBED_HANDLE}`;
     const safeThemeId = toThemeEditorThemeId(themeId);
-    const params = new URLSearchParams({
-      context: "apps",
-      template: "index",
-      activateAppId: embedId,
-      appEmbed: embedId,
-    });
-    const url = `https://admin.shopify.com/store/${slug}/themes/${safeThemeId}/editor?${params.toString()}`;
+    const params = new URLSearchParams({ context: "apps" });
+    params.set("activateAppId", embedId);
+    const editorBase = shopDomain
+      ? `https://${shopDomain}/admin`
+      : `https://admin.shopify.com/store/${slug}`;
+    const url = `${editorBase}/themes/${safeThemeId}/editor?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
