@@ -393,19 +393,31 @@ export default function StatsPanel({ stats }) {
               </Button>
             }
           >
-            <div style={{ width: 660, maxWidth: "86vw", padding: 16 }}>
-              <BlockStack gap="300">
+            <div
+              style={{
+                width: 660,
+                maxWidth: "86vw",
+                padding: 10,
+                border: "1px solid #D4D7DC",
+                borderRadius: 12,
+                background: "#FFFFFF",
+                boxShadow: "0 14px 28px rgba(33, 43, 54, 0.12)",
+              }}
+            >
+              <BlockStack gap="200">
                 <Select
                   label="Date range"
+                  labelHidden
                   options={RANGE_OPTIONS}
                   value={draftRange}
                   onChange={onDraftRangeChange}
                 />
 
-                <InlineStack gap="200" blockAlign="center" wrap>
+                <InlineStack gap="100" blockAlign="center" wrap={false}>
                   <div style={{ minWidth: 220, flex: 1 }}>
                     <TextField
                       label="Start"
+                      labelHidden
                       type="date"
                       value={draftStartDate}
                       onChange={(value) => {
@@ -416,12 +428,13 @@ export default function StatsPanel({ stats }) {
                       autoComplete="off"
                     />
                   </div>
-                  <Text as="span" variant="headingMd" tone="subdued">
-                    ->
+                  <Text as="span" variant="headingLg" tone="subdued">
+                    →
                   </Text>
                   <div style={{ minWidth: 220, flex: 1 }}>
                     <TextField
                       label="End"
+                      labelHidden
                       type="date"
                       value={draftEndDate}
                       onChange={(value) => {
@@ -455,7 +468,6 @@ export default function StatsPanel({ stats }) {
 
                 <InlineStack align="end" gap="200">
                   <Button
-                    variant="plain"
                     onClick={() => {
                       resetDraftState();
                       closePicker();
