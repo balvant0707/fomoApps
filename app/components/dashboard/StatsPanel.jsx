@@ -395,13 +395,14 @@ export default function StatsPanel({ stats }) {
           >
             <div
               style={{
-                width: 660,
-                maxWidth: "86vw",
+                width: 760,
+                maxWidth: "calc(100vw - 48px)",
                 padding: 10,
                 border: "1px solid #D4D7DC",
                 borderRadius: 12,
                 background: "#FFFFFF",
                 boxShadow: "0 14px 28px rgba(33, 43, 54, 0.12)",
+                overflowX: "visible",
               }}
             >
               <BlockStack gap="200">
@@ -414,7 +415,7 @@ export default function StatsPanel({ stats }) {
                 />
 
                 <InlineStack gap="100" blockAlign="center" wrap={false}>
-                  <div style={{ minWidth: 220, flex: 1 }}>
+                  <div style={{ minWidth: 200, flex: 1 }}>
                     <TextField
                       label="Start"
                       labelHidden
@@ -431,7 +432,7 @@ export default function StatsPanel({ stats }) {
                   <Text as="span" variant="headingLg" tone="subdued">
                     →
                   </Text>
-                  <div style={{ minWidth: 220, flex: 1 }}>
+                  <div style={{ minWidth: 200, flex: 1 }}>
                     <TextField
                       label="End"
                       labelHidden
