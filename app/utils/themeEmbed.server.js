@@ -10,42 +10,131 @@ const toBool = (value) => {
   const v = toLower(value);
   return v === "true" || v === "1" || v === "yes" || v === "on";
 };
+const toNumericThemeId = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/\d+/);
+  return match?.[0] || "";
+};
+const toThemeGid = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (raw.startsWith("gid://")) return raw;
+  const id = toNumericThemeId(raw);
+  return id ? `gid://shopify/OnlineStoreTheme/${id}` : "";
+};
+const hasRestAssetResources = (admin) =>
+  Boolean(admin?.rest?.resources?.Asset?.all);
+const hasRestThemeResources = (admin) =>
+  Boolean(admin?.rest?.resources?.Theme?.all);
+const hasRestGet = (admin) => Boolean(admin?.rest?.get);
+const hasGraphql = (admin) => typeof admin?.graphql === "function";
+const graphqlJson = async (admin, query, variables) => {
+  const response = await admin.graphql(query, { variables });
+  const payload = response?.json ? await response.json() : response;
+  if (Array.isArray(payload?.errors) && payload.errors.length) {
+    const message = payload.errors[0]?.message || "Shopify GraphQL request failed";
+    throw new Error(message);
+  }
+  return payload;
+};
 
 async function fetchThemeSettingsData({ admin, themeId }) {
-  const params = {
-    session: admin.session,
-    theme_id: themeId,
-    asset: { key: THEME_SETTINGS_DATA_KEY },
-  };
+  const restThemeId = toNumericThemeId(themeId);
+  const themeGid = toThemeGid(themeId);
 
-  try {
-    const resp = await admin.rest.resources.Asset.all(params);
-    const data = resp?.data;
-    if (Array.isArray(data)) return data[0]?.value || "";
-    if (data?.asset?.value) return data.asset.value;
-    return data?.value || "";
-  } catch (assetError) {
-    if (!admin?.rest?.get) throw assetError;
-    const fallbackResp = await admin.rest.get({
-      path: `themes/${themeId}/assets`,
-      query: { "asset[key]": THEME_SETTINGS_DATA_KEY },
-    });
-    const body = fallbackResp?.body || fallbackResp?.data || {};
-    return body?.asset?.value || "";
+  if (hasRestAssetResources(admin) && restThemeId) {
+    const params = {
+      session: admin.session,
+      theme_id: restThemeId,
+      asset: { key: THEME_SETTINGS_DATA_KEY },
+    };
+
+    try {
+      const resp = await admin.rest.resources.Asset.all(params);
+      const data = resp?.data;
+      if (Array.isArray(data)) return data[0]?.value || "";
+      if (data?.asset?.value) return data.asset.value;
+      return data?.value || "";
+    } catch (assetError) {
+      if (!hasRestGet(admin)) throw assetError;
+      const fallbackResp = await admin.rest.get({
+        path: `themes/${restThemeId}/assets`,
+        query: { "asset[key]": THEME_SETTINGS_DATA_KEY },
+      });
+      const body = fallbackResp?.body || fallbackResp?.data || {};
+      return body?.asset?.value || "";
+    }
   }
+
+  if (hasGraphql(admin) && themeGid) {
+    const query = `
+      query ThemeSettingsData($id: ID!, $filename: String!) {
+        theme(id: $id) {
+          files(first: 1, filenames: [$filename]) {
+            nodes {
+              body {
+                ... on OnlineStoreThemeFileBodyText {
+                  content
+                }
+                ... on OnlineStoreThemeFileBodyBase64 {
+                  contentBase64
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const payload = await graphqlJson(admin, query, {
+      id: themeGid,
+      filename: THEME_SETTINGS_DATA_KEY,
+    });
+    const body = payload?.data?.theme?.files?.nodes?.[0]?.body;
+    if (typeof body?.content === "string") return body.content;
+    if (typeof body?.contentBase64 === "string") {
+      return Buffer.from(body.contentBase64, "base64").toString("utf8");
+    }
+    return "";
+  }
+
+  throw new Error("Theme settings fetch unavailable: no REST or GraphQL transport");
 }
 
 export async function getMainThemeId({ admin, shop }) {
   try {
     const cacheKey = `themes:main:${shop}`;
     const cached = await getOrSetCache(cacheKey, 60000, async () => {
-      const resp = await admin.rest.resources.Theme.all({
-        session: admin.session,
-        fields: "id,role",
-      });
-      const themes = resp?.data || [];
-      const live = themes.find((t) => t.role === "main");
-      return live?.id ?? null;
+      if (hasRestThemeResources(admin)) {
+        const resp = await admin.rest.resources.Theme.all({
+          session: admin.session,
+          fields: "id,role",
+        });
+        const themes = resp?.data || [];
+        const live = themes.find((t) => t.role === "main");
+        return live?.id ?? null;
+      }
+
+      if (hasGraphql(admin)) {
+        const query = `
+          query MainThemeId {
+            themes(first: 50) {
+              nodes {
+                id
+                role
+              }
+            }
+          }
+        `;
+        const payload = await graphqlJson(admin, query, {});
+        const themes = payload?.data?.themes?.nodes || [];
+        const live = themes.find(
+          (t) => toLower(t?.role) === "main" || t?.role === "MAIN"
+        );
+        return live?.id ?? null;
+      }
+
+      throw new Error("Theme listing unavailable: no REST or GraphQL transport");
     });
     return cached ?? null;
   } catch (error) {
