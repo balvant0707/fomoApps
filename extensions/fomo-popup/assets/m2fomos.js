@@ -1190,7 +1190,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const rightPad = 44;
     const iSize = mode === "mobile" ? Math.max(mt.img || 0, 52) : 62;
     const iRad = Math.round(iSize * 0.18);
-    const portraitImageSize = mode === "mobile" ? 120 : 160;
+    const portraitImageSize = mode === "mobile" ? 60 : 80;
     const inlineImageSize = isPortrait ? portraitImageSize : iSize;
     const inlineImageRadius = isPortrait ? 14 : iRad;
     const inlineImageWidth =
