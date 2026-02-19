@@ -11,94 +11,139 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 
-const DOC_SECTIONS = [
-  {
-    key: "overview",
-    title: "1) Fomoify Popup Documentation Overview",
-    image: "/images/doc1.webp",
-    alt: "Fomoify popup overview",
-    summary:
-      "This page now uses accordion-style documentation for every popup type and includes detailed setting explanation, font size guidance, and ready content.",
-    panels: [
-      {
-        key: "setup",
-        title: "How To Use This Document",
-        items: [
-          "Open one popup section at a time from the accordion below.",
-          "Inside each popup, open sub-accordion panels: Setup, Settings, Font Size, Content, Tokens.",
-          "Use the same setting names that appear in actual popup configuration pages.",
-          "After changes, always test on Home, Product, Collection, and Cart pages.",
-        ],
-      },
-      {
-        key: "notes",
-        title: "Common Rules For All Popups",
-        items: [
-          "Keep message copy short and factual to maintain trust.",
-          "Use readable contrast between background and text colors.",
-          "Avoid running too many popup types at the same time.",
-          "Balance duration and interval to avoid notification fatigue.",
-        ],
-      },
-    ],
-  },
+const POPUP_DOCS = [
   {
     key: "recent",
-    title: "2) Recent Purchases Popup",
-    image: "/images/doc2.webp",
-    alt: "Recent purchases popup",
+    title: "1) Recent Purchases Popup",
     summary:
-      "Recent popup shows real Shopify order activity. It focuses on social proof using customer location, product, and order time.",
-    panels: [
+      "This popup shows real purchase activity from Shopify orders. Use this when you want social proof.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
-        items: [
-          "Enable popup and select page visibility (Home, Product, Collection list, Collection page, Cart).",
-          "Set order window from 1 to 60 days in Show orders from last.",
-          "Pick hidden fields from Hide Fields (name, city, state, country, product name, product image, order time).",
-          "Set display timing: delay, duration, and interval.",
-          "Save and verify with latest usable Shopify orders.",
+        key: "recent-content-data",
+        title: "Content And Data Fields",
+        fields: [
+          {
+            name: "messageText",
+            description: "Main text line shown after purchase context.",
+          },
+          {
+            name: "orderDays",
+            description:
+              "Fetch window for orders. Allowed range is 1 to 60 days.",
+          },
+          {
+            name: "createOrderTime",
+            description:
+              "Latest order timestamp in selected window (reference field).",
+          },
+          {
+            name: "namesJson",
+            description:
+              "Hide fields list. Can hide name/city/state/country/productTitle/productImage/time.",
+          },
+          {
+            name: "productNameMode",
+            description:
+              "full = show full product title, half = show shortened title.",
+          },
+          {
+            name: "productNameLimit",
+            description:
+              "Character limit applied when productNameMode is half.",
+          },
+          {
+            name: "selectedProductsJson",
+            description: "Product list used for selection/scope mapping.",
+          },
+          {
+            name: "locationsJson, messageTitlesJson",
+            description:
+              "Additional arrays used by popup data/rendering workflows.",
+          },
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
-          { name: "enabled", description: "Enable or disable popup without deleting saved config." },
-          { name: "showType", description: "Controls where popup appears based on selected page checkboxes." },
-          { name: "orderDays", description: "Order fetch window in days (1 to 60)." },
-          { name: "messageText", description: "Main descriptive line shown with purchase activity." },
-          { name: "productNameMode", description: "full = full title, half = shortened title." },
-          { name: "productNameLimit", description: "Character limit used when productNameMode is half." },
-          { name: "namesJson", description: "Hide-fields internal list used to hide specific data points." },
-          { name: "layout", description: "Landscape or portrait popup layout." },
-          { name: "template", description: "Solid or gradient style template." },
-          { name: "imageAppearance", description: "cover or contain for product image rendering." },
-          { name: "fontFamily", description: "Popup font family." },
-          { name: "fontWeight", description: "Text weight for key content emphasis." },
-          { name: "rounded", description: "Text size control in px for preview and rendering scale." },
-          { name: "position/mobilePosition", description: "Desktop and mobile popup position." },
-          { name: "bg/text/price colors", description: "Control popup readability and branding colors." },
-          { name: "firstDelaySeconds", description: "Delay before first popup appears." },
-          { name: "durationSeconds", description: "How long each popup stays visible." },
-          { name: "alternateSeconds + intervalUnit", description: "Gap between consecutive popups." },
-          { name: "animation", description: "Popup entrance style." },
+        key: "recent-display",
+        title: "Display Fields",
+        fields: [
+          {
+            name: "enabled",
+            description: "Master on/off toggle for popup.",
+          },
+          {
+            name: "showType",
+            description:
+              "Derived display target. Controlled by page checkboxes.",
+          },
+          {
+            name: "showHome, showProduct, showCollectionList, showCollection, showCart",
+            description: "Page-level visibility controls.",
+          },
+          {
+            name: "position",
+            description: "Desktop popup position.",
+          },
+          {
+            name: "mobilePosition",
+            description: "Mobile popup position.",
+          },
+          {
+            name: "mobileSize",
+            description: "Mobile size preset.",
+          },
         ],
       },
       {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "Use fontFamily consistent with your store theme.",
-          "Use fontWeight 500 to 700 for better readability.",
-          "Keep rounded/text-size value around 13 to 16 px for desktop.",
-          "If popup looks dense on mobile, lower text size by 1 to 2 px.",
-          "Use half product name mode with a limit around 15 to 24 when titles are long.",
+        key: "recent-design-font",
+        title: "Design And Font Fields",
+        fields: [
+          { name: "layout", description: "Landscape or portrait layout." },
+          { name: "template", description: "Solid or gradient template." },
+          {
+            name: "imageAppearance",
+            description: "Product image fit mode: cover or contain.",
+          },
+          { name: "fontFamily", description: "Text font family." },
+          { name: "fontWeight", description: "Text weight for emphasis." },
+          {
+            name: "rounded",
+            description: "Text size control in px for this popup.",
+          },
+          {
+            name: "bgColor, bgAlt, textColor, numberColor",
+            description: "Main visual color controls.",
+          },
+          {
+            name: "priceTagBg, priceTagAlt, priceColor, starColor",
+            description: "Price and accent color controls.",
+          },
         ],
       },
       {
-        key: "content",
+        key: "recent-behavior",
+        title: "Behavior And Timing Fields",
+        fields: [
+          { name: "animation", description: "Popup animation style." },
+          {
+            name: "firstDelaySeconds",
+            description: "Delay before first popup appears.",
+          },
+          {
+            name: "durationSeconds",
+            description: "How long each popup remains visible.",
+          },
+          {
+            name: "alternateSeconds",
+            description: "Gap between popups in seconds.",
+          },
+          {
+            name: "intervalUnit",
+            description: "Interval unit selector (seconds/minutes).",
+          },
+        ],
+      },
+      {
+        key: "recent-examples",
         title: "Ready Content Examples",
         items: [
           "bought this product recently",
@@ -111,57 +156,106 @@ const DOC_SECTIONS = [
   },
   {
     key: "flash",
-    title: "3) Flash Sale / Countdown Bar",
-    image: "/images/doc6.webp",
-    alt: "Flash sale popup",
+    title: "2) Flash Sale / Countdown Bar",
     summary:
-      "Flash bar rotates multiple message chips for headline, offer title, and urgency text to create time-based attention.",
-    panels: [
+      "This bar rotates headline, offer title, and urgency message values for campaign-style announcements.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
-        items: [
-          "Enable flash bar and select page visibility checkboxes.",
-          "Add multiple values in headline, offer, and countdown fields (press Enter to add chip).",
-          "Set delay, duration, and interval.",
-          "Set desktop/mobile position and animation style.",
-          "Save and verify rotating combinations on storefront.",
+        key: "flash-content",
+        title: "Content Fields",
+        fields: [
+          { name: "messageTitle", description: "Headline text." },
+          { name: "name", description: "Offer title/discount title text." },
+          { name: "messageText", description: "Countdown/urgency text." },
+          {
+            name: "messageTitlesJson",
+            description: "Multiple headline values (chips list).",
+          },
+          {
+            name: "locationsJson",
+            description: "Multiple offer title values (chips list).",
+          },
+          {
+            name: "namesJson",
+            description: "Multiple urgency values (chips list).",
+          },
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
+        key: "flash-display",
+        title: "Display Fields",
+        fields: [
           { name: "enabled", description: "Master on/off for flash bar." },
-          { name: "messageTitle", description: "Primary headline text." },
-          { name: "name", description: "Offer title or discount label." },
-          { name: "messageText", description: "Urgency/countdown text." },
-          { name: "messageTitlesJson/locationsJson/namesJson", description: "Multi-chip values rotated in runtime." },
-          { name: "showType + visibility flags", description: "Page targeting rules (Home, Product, Collection, Cart)." },
-          { name: "layout/template/imageAppearance", description: "Visual style and icon/image behavior." },
-          { name: "fontFamily/fontWeight/rounded", description: "Typography and text-size control." },
-          { name: "position/mobilePosition", description: "Desktop and mobile bar placement." },
-          { name: "mobileSize", description: "Compact, comfortable, or large mobile size." },
-          { name: "animation", description: "Fade, slide, bounce, or zoom." },
-          { name: "iconKey/iconSvg", description: "Built-in SVG icon or custom uploaded icon." },
-          { name: "bg/text/number/price colors", description: "Color controls for bar components." },
-          { name: "firstDelaySeconds", description: "Delay before first bar display." },
-          { name: "durationSeconds", description: "Display duration per item." },
-          { name: "alternateSeconds + intervalUnit", description: "Gap between flash bar items." },
+          {
+            name: "showType",
+            description:
+              "Derived visibility target from page checkboxes.",
+          },
+          {
+            name: "showHome, showProduct, showCollectionList, showCollection, showCart",
+            description: "Page visibility controls.",
+          },
+          { name: "position", description: "Desktop bar position." },
+          { name: "mobilePosition", description: "Mobile bar position." },
+          { name: "mobileSize", description: "Compact/comfortable/large." },
         ],
       },
       {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "Set rounded/text-size between 12 and 18 px for most themes.",
-          "Use fontWeight 600 for headline-heavy flash bars.",
-          "Keep countdown text slightly smaller than headline for hierarchy.",
-          "If bar wraps to two lines too often, reduce size or shorten copy.",
+        key: "flash-design-font",
+        title: "Design And Font Fields",
+        fields: [
+          { name: "layout", description: "Landscape or portrait style." },
+          { name: "template", description: "Solid or gradient template." },
+          {
+            name: "imageAppearance",
+            description: "Icon/image fit mode: cover or contain.",
+          },
+          { name: "fontFamily", description: "Flash bar font family." },
+          { name: "fontWeight", description: "Text weight." },
+          {
+            name: "rounded",
+            description: "Text size value in px for bar copy.",
+          },
+          {
+            name: "iconKey, iconSvg",
+            description:
+              "Built-in icon or uploaded SVG icon source.",
+          },
+          {
+            name: "bgColor, bgAlt, textColor, numberColor",
+            description: "Main bar color controls.",
+          },
+          {
+            name: "priceTagBg, priceTagAlt, priceColor, starColor",
+            description: "Price/accent color controls.",
+          },
         ],
       },
       {
-        key: "content",
+        key: "flash-behavior",
+        title: "Behavior And Timing Fields",
+        fields: [
+          { name: "animation", description: "Fade/slide/bounce/zoom style." },
+          {
+            name: "firstDelaySeconds",
+            description: "Initial delay before first item.",
+          },
+          {
+            name: "durationSeconds",
+            description: "Display duration for each item.",
+          },
+          {
+            name: "alternateSeconds",
+            description: "Interval gap between items.",
+          },
+          {
+            name: "intervalUnit",
+            description: "Interval unit (seconds/minutes).",
+          },
+        ],
+      },
+      {
+        key: "flash-examples",
         title: "Ready Content Examples",
         items: [
           "Headline: Flash Sale | Weekend Deal | Limited Time Offer",
@@ -173,139 +267,277 @@ const DOC_SECTIONS = [
   },
   {
     key: "visitor",
-    title: "4) Visitor Popup",
-    image: "/images/doc3.webp",
-    alt: "Visitor popup",
+    title: "3) Visitor Popup",
     summary:
-      "Visitor popup supports visitor_list and visitor_counter modes. It can use product, customer, rating, and timing data.",
-    panels: [
+      "Visitor popup supports visitor list and visitor counter mode with tokenized content.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
+        key: "visitor-content",
+        title: "Content Fields",
+        fields: [
+          {
+            name: "design.notiType",
+            description:
+              "visitor_list or visitor_counter mode selection.",
+          },
+          {
+            name: "content.message",
+            description: "Main message template with tokens.",
+          },
+          {
+            name: "content.timestamp",
+            description: "Timestamp text with token support.",
+          },
+          {
+            name: "content.avgTime, content.avgUnit",
+            description: "Fallback relative time values.",
+          },
+          {
+            name: "productNameMode, productNameLimit",
+            description: "Product title full/half and character limit.",
+          },
+        ],
+      },
+      {
+        key: "visitor-data",
+        title: "Data Fields",
+        fields: [
+          {
+            name: "data.directProductPage",
+            description: "Open product page on popup click.",
+          },
+          {
+            name: "data.showProductImage",
+            description: "Show/hide product image.",
+          },
+          {
+            name: "data.showPriceTag",
+            description: "Show/hide price section.",
+          },
+          {
+            name: "data.showRating, data.ratingSource",
+            description: "Enable rating and choose rating source.",
+          },
+          {
+            name: "data.customerInfo",
+            description: "Customer data source behavior.",
+          },
+          {
+            name: "selectedDataProducts, selectedVisibilityProducts, selectedCollections",
+            description: "Manual selection buckets for targeting.",
+          },
+        ],
+      },
+      {
+        key: "visitor-display",
+        title: "Display Fields",
+        fields: [
+          {
+            name: "visibility.showHome, visibility.showProduct, visibility.showCollectionList, visibility.showCollection, visibility.showCart",
+            description: "Page level visibility toggles.",
+          },
+          {
+            name: "visibility.productScope, visibility.collectionScope",
+            description: "All items or specific items scope.",
+          },
+          {
+            name: "visibility.position",
+            description: "Popup position on storefront.",
+          },
+        ],
+      },
+      {
+        key: "visitor-design-font",
+        title: "Design And Font Size Fields",
+        fields: [
+          {
+            name: "design.layout, design.size, design.transparent",
+            description: "Layout, width scale, and transparency.",
+          },
+          {
+            name: "design.template, design.imageAppearance",
+            description: "Template and image fit.",
+          },
+          {
+            name: "design.bgColor, design.bgAlt, design.textColor, design.timestampColor",
+            description: "Main text and background colors.",
+          },
+          {
+            name: "design.priceTagBg, design.priceTagAlt, design.priceColor, design.starColor",
+            description: "Price and rating accent colors.",
+          },
+          {
+            name: "textSize.content",
+            description: "Main content font size (px).",
+          },
+          {
+            name: "textSize.compareAt",
+            description: "Compare-at price font size (px).",
+          },
+          {
+            name: "textSize.price",
+            description: "Price tag font size (px).",
+          },
+        ],
+      },
+      {
+        key: "visitor-behavior",
+        title: "Behavior Fields",
+        fields: [
+          {
+            name: "behavior.showClose, behavior.hideOnMobile",
+            description: "Close icon and mobile hide control.",
+          },
+          {
+            name: "behavior.delay, behavior.duration",
+            description: "Initial delay and display duration.",
+          },
+          {
+            name: "behavior.interval, behavior.intervalUnit, behavior.randomize",
+            description: "Repetition interval and randomization.",
+          },
+        ],
+      },
+      {
+        key: "visitor-tokens",
+        title: "Supported Tokens",
         items: [
-          "Choose notiType: visitor_list or visitor_counter.",
-          "Set message and timestamp text with token support.",
-          "Configure data source blocks: product image, price tag, rating, customer info.",
-          "Set visibility scopes for product and collection pages.",
-          "Set behavior controls and save.",
+          "{full_name}, {first_name}, {last_name}",
+          "{product_name}, {country}, {city}, {price}",
+          "{visitor_count}, {time}, {unit}",
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
-          { name: "notiType", description: "visitor_list shows person style, visitor_counter shows live count style." },
-          { name: "layout/size/transparent", description: "Popup structure, width scale, and background transparency." },
-          { name: "template/imageAppearance", description: "Solid or gradient style and cover/contain image mode." },
-          { name: "bgColor/bgAlt/textColor/timestampColor", description: "Primary popup visual colors." },
-          { name: "priceTagBg/priceTagAlt/priceColor/starColor", description: "Price and rating color controls." },
-          { name: "textSize.content/compareAt/price", description: "Three independent text size fields in px." },
-          { name: "content.message", description: "Main message line with tokens." },
-          { name: "content.timestamp", description: "Time label with token support." },
-          { name: "content.avgTime + avgUnit", description: "Fallback average time values when needed." },
-          { name: "productNameMode + productNameLimit", description: "Full or shortened product title control." },
-          { name: "data.directProductPage", description: "Redirect popup click to product page." },
-          { name: "data.showProductImage/showPriceTag/showRating", description: "Show or hide these UI blocks." },
-          { name: "data.ratingSource/customerInfo", description: "Rating and customer data source behavior." },
-          { name: "visibility flags + scopes + position", description: "Display rules by page and location." },
-          { name: "behavior.showClose/hideOnMobile", description: "Close button and mobile visibility control." },
-          { name: "behavior.delay/duration/interval/intervalUnit/randomize", description: "Timing and random interval behavior." },
-          { name: "selectedDataProducts/selectedVisibilityProducts", description: "Product pools for data and visibility targeting." },
-          { name: "selectedCollections", description: "Collection-level visibility filtering." },
-        ],
-      },
-      {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "textSize.content: recommended 13 to 15 px.",
-          "textSize.compareAt: keep 1 to 2 px smaller than content.",
-          "textSize.price: keep equal or slightly bolder than content.",
-          "Use productName half mode when titles are long.",
-        ],
-      },
-      {
-        key: "content",
+        key: "visitor-examples",
         title: "Ready Content Examples",
         items: [
           "{full_name} from {country} just viewed this {product_name}",
           "{visitor_count} people are viewing {product_name} right now",
-          "{first_name} from {city} checked {product_name}",
           "Timestamp: Just now | {time} {unit} ago",
-        ],
-      },
-      {
-        key: "tokens",
-        title: "Supported Tokens",
-        tokens: [
-          "full_name",
-          "first_name",
-          "last_name",
-          "product_name",
-          "country",
-          "city",
-          "price",
-          "visitor_count",
-          "time",
-          "unit",
         ],
       },
     ],
   },
   {
     key: "lowstock",
-    title: "5) Low Stock Popup",
-    image: "/images/doc4.webp",
-    alt: "Low stock popup",
+    title: "4) Low Stock Popup",
     summary:
-      "Low stock popup creates urgency based on inventory threshold and product selection strategy.",
-    panels: [
+      "Low stock popup shows urgency based on inventory threshold and selected products.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
+        key: "lowstock-content",
+        title: "Content Fields",
+        fields: [
+          {
+            name: "content.message",
+            description: "Low-stock message with tokens.",
+          },
+          {
+            name: "productNameMode, productNameLimit",
+            description: "Product title formatting control.",
+          },
+        ],
+      },
+      {
+        key: "lowstock-data",
+        title: "Data Fields",
+        fields: [
+          {
+            name: "data.dataSource",
+            description: "shopify or manual data source.",
+          },
+          {
+            name: "data.stockUnder",
+            description: "Threshold: show products below this stock count.",
+          },
+          {
+            name: "data.hideOutOfStock",
+            description: "Hide products with zero stock.",
+          },
+          {
+            name: "data.directProductPage",
+            description: "Open product page on click.",
+          },
+          {
+            name: "data.showProductImage, data.showPriceTag, data.showRating",
+            description: "Visual blocks toggle controls.",
+          },
+          {
+            name: "selectedDataProducts, selectedVisibilityProducts, selectedCollections",
+            description: "Manual target selections.",
+          },
+        ],
+      },
+      {
+        key: "lowstock-display",
+        title: "Display Fields",
+        fields: [
+          {
+            name: "visibility.showHome, visibility.showProduct, visibility.showCollectionList, visibility.showCollection, visibility.showCart",
+            description: "Page visibility toggles.",
+          },
+          {
+            name: "visibility.productScope, visibility.collectionScope",
+            description: "Scope filtering options.",
+          },
+          { name: "visibility.position", description: "Popup position." },
+        ],
+      },
+      {
+        key: "lowstock-design-font",
+        title: "Design And Font Size Fields",
+        fields: [
+          {
+            name: "design.layout, design.size, design.transparent",
+            description: "Layout, width scale, and transparency.",
+          },
+          {
+            name: "design.template, design.imageAppearance",
+            description: "Template and image fit control.",
+          },
+          {
+            name: "design.bgColor, design.bgAlt, design.textColor, design.numberColor",
+            description: "Core color controls.",
+          },
+          {
+            name: "design.priceTagBg, design.priceTagAlt, design.priceColor, design.starColor",
+            description: "Price/rating accent colors.",
+          },
+          {
+            name: "textSize.content, textSize.compareAt, textSize.price",
+            description: "All text size controls in px.",
+          },
+        ],
+      },
+      {
+        key: "lowstock-behavior",
+        title: "Behavior Fields",
+        fields: [
+          {
+            name: "behavior.showClose, behavior.hideOnMobile",
+            description: "Close icon and mobile visibility.",
+          },
+          {
+            name: "behavior.delay, behavior.duration",
+            description: "Display timing controls.",
+          },
+          {
+            name: "behavior.interval, behavior.intervalUnit, behavior.randomize",
+            description: "Repeat interval controls.",
+          },
+        ],
+      },
+      {
+        key: "lowstock-tokens",
+        title: "Supported Tokens",
         items: [
-          "Select dataSource: shopify or manual.",
-          "Set stockUnder threshold and hideOutOfStock option.",
-          "Set content and style options.",
-          "Configure page visibility and behavior timing.",
-          "Save and test with low inventory products.",
+          "{product_name}, {product_price}, {stock_count}",
+          "{full_name}, {first_name}, {last_name}",
+          "{country}, {city}, {time}, {unit}",
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
-          { name: "design.layout/size/transparent", description: "Popup shape, size, and transparency control." },
-          { name: "design.template/imageAppearance", description: "Visual style and image fit." },
-          { name: "design colors", description: "Background, text, number, price and star colors." },
-          { name: "textSize.content/compareAt/price", description: "Font size controls in px." },
-          { name: "content.message", description: "Main urgency message with token support." },
-          { name: "productNameMode/productNameLimit", description: "Product title length behavior." },
-          { name: "data.dataSource", description: "shopify uses store inventory, manual uses selected products." },
-          { name: "data.stockUnder", description: "Only products below this quantity are eligible." },
-          { name: "data.hideOutOfStock", description: "Exclude products with zero quantity." },
-          { name: "data.directProductPage", description: "Popup click goes to product page." },
-          { name: "data.showProductImage/showPriceTag/showRating", description: "Control visible product UI blocks." },
-          { name: "visibility flags + scopes + position", description: "Per-page show logic and popup placement." },
-          { name: "behavior.showClose/hideOnMobile", description: "Close icon and mobile visibility toggles." },
-          { name: "behavior.delay/duration/interval/intervalUnit/randomize", description: "Timing flow for repeating popup." },
-          { name: "selectedDataProducts", description: "Manual data source product list." },
-          { name: "selectedVisibilityProducts", description: "Products eligible for display visibility." },
-          { name: "selectedCollections", description: "Collection targeting support." },
-        ],
-      },
-      {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "content text: 13 to 15 px recommended.",
-          "compare-at price: 11 to 13 px for strike-through balance.",
-          "price tag text: 12 to 14 px for clear CTA weight.",
-          "Use stronger color contrast for stock_count visibility.",
-        ],
-      },
-      {
-        key: "content",
+        key: "lowstock-examples",
         title: "Ready Content Examples",
         items: [
           "{product_name} has only {stock_count} items left in stock",
@@ -313,196 +545,284 @@ const DOC_SECTIONS = [
           "Almost sold out: {product_name} stock is {stock_count}",
         ],
       },
-      {
-        key: "tokens",
-        title: "Supported Tokens",
-        tokens: [
-          "full_name",
-          "first_name",
-          "last_name",
-          "country",
-          "city",
-          "product_name",
-          "product_price",
-          "stock_count",
-          "time",
-          "unit",
-        ],
-      },
     ],
   },
   {
     key: "addtocart",
-    title: "6) Add To Cart Notification",
-    image: "/images/doc5.webp",
-    alt: "Add to cart popup",
+    title: "5) Add To Cart Notification",
     summary:
-      "Add to cart popup displays cart activity using Shopify or manual data flows with customer identity support.",
-    panels: [
+      "Add to cart notification shows cart activity using Shopify/manual product and customer information.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
+        key: "addtocart-content",
+        title: "Content Fields",
+        fields: [
+          {
+            name: "content.message",
+            description: "Main add-to-cart line with tokens.",
+          },
+          {
+            name: "content.timestamp",
+            description: "Relative time line with token support.",
+          },
+          {
+            name: "content.avgTime, content.avgUnit",
+            description: "Fallback time values.",
+          },
+          {
+            name: "productNameMode, productNameLimit",
+            description: "Product title display mode and limit.",
+          },
+        ],
+      },
+      {
+        key: "addtocart-data",
+        title: "Data Fields",
+        fields: [
+          { name: "data.dataSource", description: "shopify or manual source." },
+          {
+            name: "data.customerInfo",
+            description: "Customer data source selection.",
+          },
+          {
+            name: "data.stockUnder, data.hideOutOfStock",
+            description: "Stock filtering controls if used.",
+          },
+          {
+            name: "data.directProductPage",
+            description: "Open product page on popup click.",
+          },
+          {
+            name: "data.showProductImage, data.showPriceTag, data.showRating",
+            description: "Show/hide product information blocks.",
+          },
+          {
+            name: "selectedDataProducts, selectedVisibilityProducts, selectedCollections",
+            description: "Manual target selection fields.",
+          },
+        ],
+      },
+      {
+        key: "addtocart-display",
+        title: "Display Fields",
+        fields: [
+          {
+            name: "visibility.showHome, visibility.showProduct, visibility.showCollectionList, visibility.showCollection, visibility.showCart",
+            description: "Page visibility toggles.",
+          },
+          {
+            name: "visibility.productScope, visibility.collectionScope",
+            description: "All vs specific scope settings.",
+          },
+          { name: "visibility.position", description: "Popup display position." },
+        ],
+      },
+      {
+        key: "addtocart-design-font",
+        title: "Design And Font Size Fields",
+        fields: [
+          {
+            name: "design.layout, design.size, design.transparent",
+            description: "Layout, scale, and transparency.",
+          },
+          {
+            name: "design.template, design.imageAppearance",
+            description: "Template and image fit setting.",
+          },
+          {
+            name: "design.bgColor, design.bgAlt, design.textColor, design.timestampColor",
+            description: "Main color settings.",
+          },
+          {
+            name: "design.priceTagBg, design.priceTagAlt, design.priceColor, design.starColor",
+            description: "Price and rating accent colors.",
+          },
+          {
+            name: "textSize.content, textSize.compareAt, textSize.price",
+            description: "All text size fields in px.",
+          },
+        ],
+      },
+      {
+        key: "addtocart-behavior",
+        title: "Behavior Fields",
+        fields: [
+          {
+            name: "behavior.showClose, behavior.hideOnMobile",
+            description: "Close icon and mobile hide control.",
+          },
+          {
+            name: "behavior.delay, behavior.duration",
+            description: "Display timing controls.",
+          },
+          {
+            name: "behavior.interval, behavior.intervalUnit, behavior.randomize",
+            description: "Repeat timing and randomization.",
+          },
+        ],
+      },
+      {
+        key: "addtocart-tokens",
+        title: "Supported Tokens",
         items: [
-          "Set dataSource and customerInfo source.",
-          "Prepare content message and timestamp.",
-          "Configure style, text size, and product visibility options.",
-          "Set page targeting and position.",
-          "Set behavior timing and save.",
+          "{full_name}, {first_name}, {last_name}",
+          "{country}, {city}, {product_name}, {product_price}",
+          "{time}, {unit}",
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
-          { name: "design.layout/size/transparent", description: "Layout structure and popup sizing controls." },
-          { name: "design.template/imageAppearance", description: "Color style and image fit options." },
-          { name: "design colors", description: "Background, text, timestamp, price, and star colors." },
-          { name: "textSize.content/compareAt/price", description: "Three px-level font size controls." },
-          { name: "content.message", description: "Main add-to-cart statement with tokens." },
-          { name: "content.timestamp", description: "Elapsed-time label with token support." },
-          { name: "content.avgTime/avgUnit", description: "Fallback relative time values." },
-          { name: "productNameMode/productNameLimit", description: "Full vs shortened product title display." },
-          { name: "data.dataSource", description: "shopify or manual product source." },
-          { name: "data.customerInfo", description: "Customer identity source behavior." },
-          { name: "data.directProductPage", description: "Click-through to product page." },
-          { name: "data.showProductImage/showPriceTag/showRating", description: "Control visibility of product info blocks." },
-          { name: "visibility flags + scopes + position", description: "Page targeting and popup position." },
-          { name: "behavior.showClose/hideOnMobile", description: "Close icon and mobile visibility controls." },
-          { name: "behavior.delay/duration/interval/intervalUnit/randomize", description: "Popup frequency settings." },
-          { name: "selectedDataProducts/selectedVisibilityProducts", description: "Product targeting lists." },
-          { name: "selectedCollections", description: "Collection filtering in visibility scope." },
-        ],
-      },
-      {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "textSize.content: 13 to 15 px keeps message clean.",
-          "textSize.compareAt: keep smaller than active price.",
-          "textSize.price: use same or slightly larger than content for emphasis.",
-          "Use medium to bold weight for customer name readability.",
-        ],
-      },
-      {
-        key: "content",
+        key: "addtocart-examples",
         title: "Ready Content Examples",
         items: [
           "{full_name} from {country} added {product_name} to cart",
           "{first_name} added {product_name} to cart",
-          "{full_name} just added this item",
           "Timestamp: {time} {unit} ago",
-        ],
-      },
-      {
-        key: "tokens",
-        title: "Supported Tokens",
-        tokens: [
-          "full_name",
-          "first_name",
-          "last_name",
-          "country",
-          "city",
-          "product_name",
-          "product_price",
-          "time",
-          "unit",
         ],
       },
     ],
   },
   {
     key: "review",
-    title: "7) Review Notification",
-    image: "/images/document.jpeg",
-    alt: "Review popup",
+    title: "6) Review Notification",
     summary:
-      "Review popup shows product reviews from Judge.me/CSV flow with review-specific token support.",
-    panels: [
+      "Review popup highlights customer review activity with review-specific token support.",
+    groups: [
       {
-        key: "setup",
-        title: "Setup Steps",
+        key: "review-content",
+        title: "Content Fields",
+        fields: [
+          {
+            name: "design.reviewType",
+            description: "review_content or new_review mode.",
+          },
+          {
+            name: "content.message",
+            description: "Main review message template with tokens.",
+          },
+          {
+            name: "content.timestamp",
+            description: "Review time label (usually review_date token).",
+          },
+          {
+            name: "productNameMode, productNameLimit",
+            description: "Product title display behavior.",
+          },
+        ],
+      },
+      {
+        key: "review-data",
+        title: "Data Fields",
+        fields: [
+          {
+            name: "data.dataSource",
+            description: "judge_me or csv source.",
+          },
+          {
+            name: "data.directProductPage",
+            description: "Click-through to product page.",
+          },
+          {
+            name: "data.showProductImage, data.showPriceTag, data.showRating",
+            description: "Visual block toggles.",
+          },
+          {
+            name: "selectedProducts, selectedCollections",
+            description: "Scope target lists.",
+          },
+        ],
+      },
+      {
+        key: "review-display",
+        title: "Display Fields",
+        fields: [
+          {
+            name: "visibility.showHome, visibility.showProduct, visibility.showCollectionList, visibility.showCollection, visibility.showCart",
+            description: "Page visibility controls.",
+          },
+          {
+            name: "visibility.productScope, visibility.collectionScope",
+            description: "All vs specific scope options.",
+          },
+          { name: "visibility.position", description: "Popup placement." },
+        ],
+      },
+      {
+        key: "review-design-font",
+        title: "Design And Font Size Fields",
+        fields: [
+          {
+            name: "design.template, design.imageAppearance",
+            description: "Template and image fit.",
+          },
+          {
+            name: "design.bgColor, design.bgAlt, design.textColor, design.timestampColor",
+            description: "Main style colors.",
+          },
+          {
+            name: "design.priceTagBg, design.priceTagAlt, design.priceColor, design.starColor",
+            description: "Price and rating accent colors.",
+          },
+          {
+            name: "textSize.content, textSize.compareAt, textSize.price",
+            description: "Font size controls in px.",
+          },
+        ],
+      },
+      {
+        key: "review-behavior",
+        title: "Behavior Fields",
+        fields: [
+          {
+            name: "behavior.showClose, behavior.hideOnMobile",
+            description: "Close icon and mobile hide setting.",
+          },
+          {
+            name: "behavior.delay, behavior.duration",
+            description: "Display timing controls.",
+          },
+          {
+            name: "behavior.interval, behavior.intervalUnit, behavior.randomize",
+            description: "Repeat timing behavior.",
+          },
+        ],
+      },
+      {
+        key: "review-tokens",
+        title: "Supported Tokens",
         items: [
-          "Choose reviewType (review_content or new_review).",
-          "Set dataSource (judge_me or csv).",
-          "Write review message and timestamp using review tokens.",
-          "Configure product/collection visibility scope.",
-          "Set behavior timing and save.",
+          "{reviewer_name}, {review_title}, {review_body}",
+          "{reviewer_country}, {reviewer_city}, {review_date}",
         ],
       },
       {
-        key: "settings",
-        title: "All Settings Explanation",
-        settings: [
-          { name: "design.reviewType", description: "Controls review style variant." },
-          { name: "design.template/imageAppearance", description: "Theme and image rendering mode." },
-          { name: "design colors", description: "Background, text, timestamp, price and rating colors." },
-          { name: "textSize.content/compareAt/price", description: "Font sizing controls in px." },
-          { name: "content.message", description: "Review body line with reviewer tokens." },
-          { name: "content.timestamp", description: "Usually mapped with review_date token." },
-          { name: "productNameMode/productNameLimit", description: "Product title length handling." },
-          { name: "data.dataSource", description: "judge_me live flow or csv-based flow." },
-          { name: "data.directProductPage", description: "Click action for popup." },
-          { name: "data.showProductImage/showPriceTag/showRating", description: "Show/hide visual blocks." },
-          { name: "visibility flags + scopes + position", description: "Page-wise targeting and placement." },
-          { name: "behavior.showClose/hideOnMobile", description: "Close control and mobile suppression." },
-          { name: "behavior.delay/duration/interval/intervalUnit/randomize", description: "Display cadence controls." },
-          { name: "selectedProducts/selectedCollections", description: "Scope-limited product and collection selection." },
-        ],
-      },
-      {
-        key: "font",
-        title: "Font Size And Typography Guide",
-        items: [
-          "content text: 13 to 15 px recommended.",
-          "price text: 12 to 14 px for clean price hierarchy.",
-          "compare-at text: 11 to 13 px with strike-through styling.",
-          "For long review text, keep font size moderate and use concise templates.",
-        ],
-      },
-      {
-        key: "content",
+        key: "review-examples",
         title: "Ready Content Examples",
         items: [
           '{reviewer_name} - "{review_title}: {review_body}"',
           "{reviewer_name} from {reviewer_country} reviewed this product",
-          "Great feedback from {reviewer_name} on {product_name}",
           "Timestamp: {review_date}",
-        ],
-      },
-      {
-        key: "tokens",
-        title: "Supported Tokens",
-        tokens: [
-          "reviewer_name",
-          "review_title",
-          "review_body",
-          "reviewer_country",
-          "reviewer_city",
-          "review_date",
         ],
       },
     ],
   },
 ];
 
-const gridStyle = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: "20px",
-  alignItems: "center",
-};
-
-const imageWrapStyle = {
-  width: "100%",
+const popupCardStyle = {
+  border: "1px solid #e5e7eb",
   borderRadius: "12px",
-  overflow: "hidden",
-  border: "1px solid #e3e3e3",
+  padding: "12px",
+  background: "#ffffff",
 };
 
-const imageStyle = {
-  width: "100%",
-  height: "auto",
-  display: "block",
+const groupCardStyle = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "10px",
+  padding: "8px 10px",
+  background: "#ffffff",
+};
+
+const groupBodyStyle = {
+  paddingTop: "8px",
 };
 
 const listStyle = {
@@ -510,23 +830,25 @@ const listStyle = {
   lineHeight: "1.7",
 };
 
-const panelStyle = {
-  border: "1px solid #e5e7eb",
-  borderRadius: "10px",
-  padding: "10px 12px",
-  background: "#ffffff",
-};
-
-const panelContentStyle = {
-  paddingTop: "8px",
-};
-
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
   return null;
 };
 
-function renderList(items = []) {
+function renderFieldList(fields = []) {
+  if (!fields.length) return null;
+  return (
+    <ul style={listStyle}>
+      {fields.map((field) => (
+        <li key={field.name}>
+          <strong>{field.name}:</strong> {field.description}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function renderTextList(items = []) {
   if (!items.length) return null;
   return (
     <ul style={listStyle}>
@@ -537,57 +859,23 @@ function renderList(items = []) {
   );
 }
 
-function renderSettingList(settings = []) {
-  if (!settings.length) return null;
-  return (
-    <ul style={listStyle}>
-      {settings.map((item, index) => (
-        <li key={`${item.name}-${index}`}>
-          <strong>{item.name}:</strong> {item.description}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function renderTokens(tokens = []) {
-  if (!tokens.length) return null;
-  return (
-    <InlineStack gap="200" wrap>
-      {tokens.map((token) => (
-        <code
-          key={token}
-          style={{
-            border: "1px solid #d1d5db",
-            borderRadius: 8,
-            padding: "4px 8px",
-            background: "#f9fafb",
-          }}
-        >
-          {`{${token}}`}
-        </code>
-      ))}
-    </InlineStack>
-  );
-}
-
 export default function DocumentsPage() {
-  const [activeSection, setActiveSection] = useState(DOC_SECTIONS[0].key);
-  const [activePanels, setActivePanels] = useState(() =>
-    DOC_SECTIONS.reduce((acc, section) => {
-      acc[section.key] = section.panels?.[0]?.key || null;
+  const [openPopup, setOpenPopup] = useState(POPUP_DOCS[0].key);
+  const [openGroups, setOpenGroups] = useState(() =>
+    POPUP_DOCS.reduce((acc, popup) => {
+      acc[popup.key] = popup.groups[0]?.key || null;
       return acc;
     }, {})
   );
 
-  const toggleSection = (sectionKey) => {
-    setActiveSection((prev) => (prev === sectionKey ? null : sectionKey));
+  const togglePopup = (popupKey) => {
+    setOpenPopup((prev) => (prev === popupKey ? null : popupKey));
   };
 
-  const togglePanel = (sectionKey, panelKey) => {
-    setActivePanels((prev) => ({
+  const toggleGroup = (popupKey, groupKey) => {
+    setOpenGroups((prev) => ({
       ...prev,
-      [sectionKey]: prev[sectionKey] === panelKey ? null : panelKey,
+      [popupKey]: prev[popupKey] === groupKey ? null : groupKey,
     }));
   };
 
@@ -598,91 +886,79 @@ export default function DocumentsPage() {
         <Card>
           <BlockStack gap="500">
             <Text as="h1" variant="headingLg">
-              Fomoify Popup Settings Documentation (Accordion)
+              Popup Wise Accordion Documentation
             </Text>
             <Text as="p" variant="bodyLg">
-              Every popup section now includes accordion panels for setup flow, all settings explanation, font size guide, and content templates.
+              Images removed. Below you get popup-wise accordion and field-wise
+              explanation for every popup configuration page.
             </Text>
 
-            {DOC_SECTIONS.map((section) => {
-              const sectionOpen = activeSection === section.key;
+            {POPUP_DOCS.map((popup) => {
+              const popupOpen = openPopup === popup.key;
               return (
-                <BlockStack key={section.key} gap="300">
-                  <InlineStack align="space-between" blockAlign="center">
-                    <Text as="h3" variant="headingMd">
-                      {section.title}
-                    </Text>
-                    <Button variant="plain" onClick={() => toggleSection(section.key)}>
-                      {sectionOpen ? "Hide" : "Show"}
-                    </Button>
-                  </InlineStack>
+                <div key={popup.key} style={popupCardStyle}>
+                  <BlockStack gap="250">
+                    <InlineStack align="space-between" blockAlign="center">
+                      <Text as="h3" variant="headingMd">
+                        {popup.title}
+                      </Text>
+                      <Button
+                        variant="plain"
+                        onClick={() => togglePopup(popup.key)}
+                      >
+                        {popupOpen ? "Hide" : "Show"}
+                      </Button>
+                    </InlineStack>
 
-                  <Collapsible open={sectionOpen}>
-                    <BlockStack gap="300">
-                      <div style={gridStyle}>
-                        <div style={imageWrapStyle}>
-                          <img
-                            src={section.image}
-                            alt={section.alt}
-                            style={imageStyle}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                        </div>
-                        <div>
-                          <Text as="p" variant="bodyMd">
-                            {section.summary}
-                          </Text>
-                        </div>
-                      </div>
+                    <Collapsible open={popupOpen}>
+                      <BlockStack gap="250">
+                        <Text as="p" variant="bodyMd">
+                          {popup.summary}
+                        </Text>
 
-                      <BlockStack gap="200">
-                        {section.panels.map((panel) => {
-                          const panelOpen = activePanels[section.key] === panel.key;
+                        {popup.groups.map((group) => {
+                          const groupOpen = openGroups[popup.key] === group.key;
                           return (
-                            <div key={`${section.key}-${panel.key}`} style={panelStyle}>
-                              <InlineStack align="space-between" blockAlign="center">
+                            <div
+                              key={`${popup.key}-${group.key}`}
+                              style={groupCardStyle}
+                            >
+                              <InlineStack
+                                align="space-between"
+                                blockAlign="center"
+                              >
                                 <Text as="h4" variant="headingSm">
-                                  {panel.title}
+                                  {group.title}
                                 </Text>
                                 <Button
                                   variant="plain"
-                                  onClick={() => togglePanel(section.key, panel.key)}
+                                  onClick={() => toggleGroup(popup.key, group.key)}
                                 >
-                                  {panelOpen ? "Hide" : "Show"}
+                                  {groupOpen ? "Hide" : "Show"}
                                 </Button>
                               </InlineStack>
-                              <Collapsible open={panelOpen}>
-                                <div style={panelContentStyle}>
-                                  {renderList(panel.items)}
-                                  {renderSettingList(panel.settings)}
-                                  {renderTokens(panel.tokens)}
+                              <Collapsible open={groupOpen}>
+                                <div style={groupBodyStyle}>
+                                  {renderFieldList(group.fields)}
+                                  {renderTextList(group.items)}
                                 </div>
                               </Collapsible>
                             </div>
                           );
                         })}
                       </BlockStack>
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
+                    </Collapsible>
+                  </BlockStack>
+                </div>
               );
             })}
 
             <Text as="p" variant="bodySm" tone="subdued">
-              Copyright {new Date().getFullYear()} Fomoify. Keep message quality, font readability, and timing balance consistent across all popup types.
+              Use this page as field reference while configuring notifications.
             </Text>
           </BlockStack>
         </Card>
       </div>
-
-      <style>{`
-        @media (max-width: 980px) {
-          div[style*="grid-template-columns: 1fr 1fr"] {
-            grid-template-columns: 1fr !important;
-          }
-        }
-      `}</style>
     </Page>
   );
 }
