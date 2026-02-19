@@ -11,7 +11,7 @@ automatically_update_urls_on_dev = true
 
 [webhooks]
 # Match this with your code. Your code uses ApiVersion.January25 → "2025-01"
-api_version = "2025-01"
+api_version = "2025-07"
 
   # --- App lifecycle topics (already present) ---
   [[webhooks.subscriptions]]
