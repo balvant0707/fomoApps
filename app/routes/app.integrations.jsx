@@ -8,6 +8,7 @@ import {
   Card,
   Frame,
   InlineStack,
+  Link as PolarisLink,
   Modal,
   Page,
   Text,
@@ -18,6 +19,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 const INTEGRATION_KEY = "integration_judge_me";
+const JUDGE_ME_APP_URL = "https://apps.shopify.com/judgeme";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -191,7 +193,13 @@ export default function IntegrationsPage() {
                     <JudgeMeBadge />
                     <BlockStack gap="100">
                       <Text as="h2" variant="headingLg">
-                        Judge.me Product Reviews
+                        <PolarisLink
+                          removeUnderline
+                          url={JUDGE_ME_APP_URL}
+                          external
+                        >
+                          Judge.me Product Reviews
+                        </PolarisLink>
                       </Text>
                       <Text tone="subdued" as="p">
                         Build trust with unlimited product reviews, photos and
@@ -277,37 +285,64 @@ export default function IntegrationsPage() {
           <BlockStack gap="300">
             <BlockStack gap="100">
               <Text as="h3" variant="headingSm">
-                Why integrate with Judge.me
+                Why integrate with{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>
               </Text>
               <Text as="p">
-                Judge.me is the most popular review app on Shopify with proven
-                records of good value to Shopify merchants. SnapNoti decided to
-                serve our users better by integrating with this application, to
-                show your product review on our notification, creating stronger
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                is the most popular review app on Shopify with proven records
+                of good value to Shopify merchants. SnapNoti decided to serve
+                our users better by integrating with this application, to show
+                your product review on our notification, creating stronger
                 social proof.
               </Text>
             </BlockStack>
 
             <BlockStack gap="100">
               <Text as="h3" variant="headingSm">
-                How to get Judge.me API key:
+                How to get{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                API key:
               </Text>
               <Text as="p" fontWeight="semibold">
-                Step 1: Install Judge.me
+                Step 1: Install{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>
               </Text>
               <Text as="p">
-                You must install Judge.me on your store to use this feature.
-                Install Judge.me.
+                You must install{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                on your store to use this feature.{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Install Judge.me.
+                </PolarisLink>
               </Text>
             </BlockStack>
 
             <BlockStack gap="100">
               <Text as="p" fontWeight="semibold">
-                Step 2: Configure Judge.me API
+                Step 2: Configure{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                API
               </Text>
               <Text as="p">
-                From Judge.me admin, go to General Settings &gt; Integrations
-                &gt; View API token.
+                From{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                admin, go to General Settings &gt; Integrations &gt; View API
+                token.
               </Text>
               <Text as="p">Copy the Shop domain and Private token.</Text>
             </BlockStack>
@@ -316,7 +351,13 @@ export default function IntegrationsPage() {
               <Text as="p" fontWeight="semibold">
                 Step 3: Integrate with SnapNoti
               </Text>
-              <Text as="p">In "Integration" tab, choose Judge.me.</Text>
+              <Text as="p">
+                In "Integration" tab, choose{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>
+                .
+              </Text>
               <Text as="p">Copy the API token to the field.</Text>
               <Text as="p">Click "Connect" and wait for the result.</Text>
             </BlockStack>
@@ -330,8 +371,15 @@ export default function IntegrationsPage() {
                 notification" and start configure.
               </Text>
               <Text as="p">
-                In Data tab of the Settings panel, choose "Sync Judge.me
-                review" to get review data from Judge.me.
+                In Data tab of the Settings panel, choose "Sync{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>{" "}
+                review" to get review data from{" "}
+                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                  Judge.me
+                </PolarisLink>
+                .
               </Text>
             </BlockStack>
 

@@ -1192,29 +1192,18 @@ function Bubble({ form, order, isMobile = false }) {
   const orderDate = order?.createdAt ? new Date(order.createdAt) : null;
   const daysDiffText = (() => {
     if (!orderDate || Number.isNaN(orderDate.getTime())) return "";
-    const diffMs = Date.now() - orderDate.getTime();
-    const absMs = Math.abs(diffMs);
-    const direction = diffMs >= 0 ? "past" : "future";
-
-    if (absMs < 60000) {
-      return direction === "past" ? "Just now" : "In 1 Minute";
-    }
-    if (absMs < 3600000) {
-      const mins = Math.max(1, Math.floor(absMs / 60000));
-      return direction === "past"
-        ? `${mins} Minute${mins === 1 ? "" : "s"} Ago`
-        : `In ${mins} Minute${mins === 1 ? "" : "s"}`;
-    }
-    if (absMs < 86400000) {
-      const hrs = Math.max(1, Math.floor(absMs / 3600000));
-      return direction === "past"
-        ? `${hrs} Hour${hrs === 1 ? "" : "s"} Ago`
-        : `In ${hrs} Hour${hrs === 1 ? "" : "s"}`;
-    }
-    const days = Math.max(1, Math.floor(absMs / 86400000));
-    return direction === "past"
-      ? `${days} Day${days === 1 ? "" : "s"} Ago`
-      : `In ${days} Day${days === 1 ? "" : "s"}`;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const orderStart = new Date(
+      orderDate.getFullYear(),
+      orderDate.getMonth(),
+      orderDate.getDate()
+    );
+    const days = Math.max(
+      0,
+      Math.floor((todayStart.getTime() - orderStart.getTime()) / 86400000)
+    );
+    return days === 0 ? "Today" : `${days} Day${days === 1 ? "" : "s"} Ago`;
   })();
   return (
     <div

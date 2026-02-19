@@ -781,6 +781,19 @@ document.addEventListener("DOMContentLoaded", async function () {
     const days = Math.floor(diff / (24 * 60 * 60 * 1000));
     return `${days} Day${days === 1 ? "" : "s"} Ago`;
   };
+  const relOrderDaysAgo = (iso) => {
+    const d = toDate(iso);
+    if (!d || Number.isNaN(d.getTime())) return "";
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const orderStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const days = Math.max(
+      0,
+      Math.floor((todayStart.getTime() - orderStart.getTime()) / (24 * 60 * 60 * 1000))
+    );
+    return days === 0 ? "Today" : `${days} Day${days === 1 ? "" : "s"} Ago`;
+  };
   const reviewDaysAgo = (iso) => {
     const d = toDate(iso);
     if (!d || Number.isNaN(d.getTime())) return "";
@@ -1380,7 +1393,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Time
     if (!cfg.hideTime) {
       const line3 = document.createElement("div");
-      const orderDaysText = relDaysAgo(cfg.createOrderTime);
+      const orderDaysText = relOrderDaysAgo(cfg.createOrderTime);
       line3.textContent =
         orderDaysText ||
         safe(cfg.createOrderTime, "") ||
