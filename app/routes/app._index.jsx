@@ -22,7 +22,8 @@ import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
 const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
-const WRITE_REVIEW_URL = "https://apps.shopify.com";
+const WRITE_REVIEW_URL =
+  "https://apps.shopify.com/fomoify-sales-popup-proof#modal-show=WriteReviewModal";
 
 const INDEX_SUPPORT_STYLES = `
 .home-support-grid {
