@@ -24,6 +24,36 @@ const toThemeGid = (value) => {
   const id = toNumericThemeId(raw);
   return id ? `gid://shopify/OnlineStoreTheme/${id}` : "";
 };
+const isObjectRecord = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const collectThemeBlockMaps = (parsed) => {
+  const maps = [];
+  const pushBlocks = (value) => {
+    if (isObjectRecord(value)) maps.push(value);
+  };
+
+  pushBlocks(parsed?.current?.blocks);
+  pushBlocks(parsed?.blocks);
+
+  if (typeof parsed?.current === "string") {
+    pushBlocks(parsed?.presets?.[parsed.current]?.blocks);
+  }
+
+  if (isObjectRecord(parsed?.presets)) {
+    Object.values(parsed.presets).forEach((preset) => {
+      pushBlocks(preset?.blocks);
+    });
+  }
+
+  const unique = [];
+  const seen = new Set();
+  maps.forEach((map) => {
+    if (seen.has(map)) return;
+    seen.add(map);
+    unique.push(map);
+  });
+  return unique;
+};
 const hasRestAssetResources = (admin) =>
   Boolean(admin?.rest?.resources?.Asset?.all);
 const hasRestThemeResources = (admin) =>
@@ -168,8 +198,8 @@ export async function getThemeEmbedState({
     } catch {
       return { enabled: false, found: false, checked: false };
     }
-    const blocks = parsed?.current?.blocks;
-    if (!blocks || typeof blocks !== "object") {
+    const blockMaps = collectThemeBlockMaps(parsed);
+    if (!blockMaps.length) {
       return { enabled: false, found: false, checked: true };
     }
 
@@ -193,23 +223,37 @@ export async function getThemeEmbedState({
       )
     );
 
-    const entries = Object.entries(blocks);
+    const entries = blockMaps.flatMap((blocks) =>
+      Object.entries(blocks).map(([blockId, block]) => ({ blockId, block }))
+    );
     const matches = entries
-      .map(([blockId, block]) => ({ blockId, block }))
       .filter(({ blockId, block }) => {
         const type = toLower(block?.type);
-        if (!type.includes("/apps/") || !type.includes("/blocks/")) {
+        if (!type) return false;
+
+        const hasAppType =
+          type.includes("shopify://apps/") ||
+          type.includes("/apps/") ||
+          normalizeToken(type).includes("shopifyapps");
+        if (!hasAppType) {
           return false;
         }
+
         const normalizedType = normalizeToken(type);
         const normalizedBlockId = normalizeToken(blockId);
-        const haystack = `${normalizedType} ${normalizedBlockId}`;
+        const normalizedName = normalizeToken(block?.name);
+        const haystack = `${normalizedType} ${normalizedBlockId} ${normalizedName}`;
         const hasHandleMatch = normalizedHandleVariants.some((variant) =>
           haystack.includes(variant)
         );
         if (hasHandleMatch) return true;
         const hasAppMarker = appMarkers.some((marker) => haystack.includes(marker));
-        return hasAppMarker && normalizedType.includes("embed");
+        const hasEmbedHint =
+          normalizedType.includes("embed") ||
+          normalizedBlockId.includes("embed") ||
+          normalizedName.includes("embed") ||
+          normalizedType.includes("appblock");
+        return hasAppMarker && hasEmbedHint;
       })
       .map(({ block }) => block);
     const found = matches.length > 0;

@@ -413,11 +413,13 @@ export default function AppIndex() {
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
-  const isEmbedActive = hasThemeEmbedCheck
+  const hasThemeEmbedSignal =
+    hasThemeEmbedCheck && appRouteData?.appEmbedFound === true;
+  const isEmbedActive = hasThemeEmbedSignal
     ? Boolean(appRouteData?.appEmbedEnabled)
     : Boolean(embedPing.isOn);
   const hasReliableEmbedStatus =
-    hasThemeEmbedCheck || Boolean(embedPing.lastPingAt);
+    hasThemeEmbedSignal || Boolean(embedPing.lastPingAt);
   const embedBadgeTone = hasReliableEmbedStatus
     ? isEmbedActive
       ? "success"

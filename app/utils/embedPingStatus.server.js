@@ -1,6 +1,6 @@
 import prisma from "../db.server";
 
-const EMBED_ON_WINDOW_MS = 2 * 1000;
+const EMBED_ON_WINDOW_MS = 10 * 60 * 1000;
 
 const embedPingModel = () => prisma.embedPing || prisma.embedping || null;
 
