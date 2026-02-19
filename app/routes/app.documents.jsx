@@ -880,19 +880,13 @@ export default function DocumentsPage() {
   };
 
   return (
-    <Page fullWidth title="Popup Documents">
-      <TitleBar title="Popup Documents" />
+    <Page>
       <div style={{ padding: 24 }}>
         <Card>
           <BlockStack gap="500">
             <Text as="h1" variant="headingLg">
-              Popup Wise Accordion Documentation
+              Popup Wise Documentation
             </Text>
-            <Text as="p" variant="bodyLg">
-              Images removed. Below you get popup-wise accordion and field-wise
-              explanation for every popup configuration page.
-            </Text>
-
             {POPUP_DOCS.map((popup) => {
               const popupOpen = openPopup === popup.key;
               return (
