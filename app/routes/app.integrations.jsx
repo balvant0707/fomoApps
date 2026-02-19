@@ -197,6 +197,8 @@ export default function IntegrationsPage() {
                           removeUnderline
                           url={JUDGE_ME_APP_URL}
                           external
+                          target="_blank"
+                          rel="noopener noreferrer"
                         >
                           Judge.me Product Reviews
                         </PolarisLink>
@@ -286,12 +288,22 @@ export default function IntegrationsPage() {
             <BlockStack gap="100">
               <Text as="h3" variant="headingSm">
                 Why integrate with{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>
               </Text>
               <Text as="p">
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 is the most popular review app on Shopify with proven records
@@ -305,24 +317,44 @@ export default function IntegrationsPage() {
             <BlockStack gap="100">
               <Text as="h3" variant="headingSm">
                 How to get{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 API key:
               </Text>
               <Text as="p" fontWeight="semibold">
                 Step 1: Install{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>
               </Text>
               <Text as="p">
                 You must install{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 on your store to use this feature.{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Install Judge.me.
                 </PolarisLink>
               </Text>
@@ -331,14 +363,24 @@ export default function IntegrationsPage() {
             <BlockStack gap="100">
               <Text as="p" fontWeight="semibold">
                 Step 2: Configure{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 API
               </Text>
               <Text as="p">
                 From{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 admin, go to General Settings &gt; Integrations &gt; View API
@@ -353,7 +395,12 @@ export default function IntegrationsPage() {
               </Text>
               <Text as="p">
                 In "Integration" tab, choose{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>
                 .
@@ -372,11 +419,21 @@ export default function IntegrationsPage() {
               </Text>
               <Text as="p">
                 In Data tab of the Settings panel, choose "Sync{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>{" "}
                 review" to get review data from{" "}
-                <PolarisLink url={JUDGE_ME_APP_URL} external>
+                <PolarisLink
+                  url={JUDGE_ME_APP_URL}
+                  external
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Judge.me
                 </PolarisLink>
                 .

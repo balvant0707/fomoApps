@@ -569,7 +569,7 @@ const LOW_STOCK_PRODUCTS_QUERY = `
 `;
 
 async function fetchLowStockProductsFromAdmin({ shop, accessToken, limit = 1000 }) {
-  const endpoint = `https://${shop}/admin/api/2025-01/graphql.json`;
+  const endpoint = `https://${shop}/admin/api/2025-07/graphql.json`;
   const maxItems = Number.isFinite(Number(limit))
     ? Math.max(1, Math.min(2000, Math.trunc(Number(limit))))
     : 1000;
