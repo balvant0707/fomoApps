@@ -17,9 +17,7 @@ import {
   Button,
   InlineStack,
   Badge,
-  Banner,
 } from "@shopify/polaris";
-import { getOrSetCache } from "../utils/serverCache.server";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
@@ -209,195 +207,6 @@ const INDEX_SUPPORT_STYLES = `
 }
 `;
 
-async function fetchRows(shop) {
-  const hasMissingColumnError = (error) => {
-    const code = String(error?.code || "").toUpperCase();
-    const msg = String(error?.message || "").toLowerCase();
-    return (
-      code === "P2022" ||
-      msg.includes("unknown column") ||
-      (msg.includes("column") && msg.includes("does not exist"))
-    );
-  };
-
-  const tableModel = (key) => {
-    switch (key) {
-      case "recent":
-        return prisma.recentpopupconfig || prisma.recentPopupConfig || null;
-      case "flash":
-        return prisma.flashpopupconfig || prisma.flashPopupConfig || null;
-      case "visitor":
-        return prisma.visitorpopupconfig || prisma.visitorPopupConfig || null;
-      case "lowstock":
-        return prisma.lowstockpopupconfig || prisma.lowStockPopupConfig || null;
-      case "addtocart":
-        return prisma.addtocartpopupconfig || prisma.addToCartPopupConfig || null;
-      case "review":
-        return prisma.reviewpopupconfig || prisma.reviewPopupConfig || null;
-      default:
-        return null;
-    }
-  };
-
-  const deriveShowType = (row) => {
-    if (!row) return "allpage";
-    const flags = [
-      row.showHome,
-      row.showProduct,
-      row.showCollection,
-      row.showCollectionList,
-      row.showCart,
-    ];
-    const enabledCount = flags.filter(Boolean).length;
-    if (enabledCount === 0) return "allpage";
-    if (enabledCount > 1) return "allpage";
-    if (row.showHome) return "home";
-    if (row.showProduct) return "product";
-    if (row.showCollection || row.showCollectionList) return "collection";
-    if (row.showCart) return "cart";
-    return "allpage";
-  };
-
-  const keys = ["recent", "flash", "visitor", "lowstock", "addtocart", "review"];
-  const legacySelectByKey = {
-    recent: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showType: true,
-      messageText: true,
-    },
-    flash: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showType: true,
-      messageTitle: true,
-      name: true,
-      messageText: true,
-    },
-    visitor: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-    lowstock: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-    },
-    addtocart: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-    review: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      enabled: true,
-      showHome: true,
-      showProduct: true,
-      showCollectionList: true,
-      showCollection: true,
-      showCart: true,
-      message: true,
-      timestamp: true,
-    },
-  };
-  const rows = [];
-  for (const key of keys) {
-    const model = tableModel(key);
-    if (!model?.findFirst) continue;
-    try {
-      const row = await model.findFirst({
-        where: { shop },
-        orderBy: { id: "desc" },
-      });
-      if (!row) continue;
-      rows.push({
-        ...row,
-        key,
-        enabled:
-          row.enabled === true ||
-          row.enabled === 1 ||
-          row.enabled === "1",
-        showType: row.showType || deriveShowType(row),
-        messageText:
-          row.messageText ||
-          row.message ||
-          row.name ||
-          row.messageTitle ||
-          row.title ||
-          row.timestamp ||
-          "",
-      });
-    } catch (e) {
-      if (!hasMissingColumnError(e)) {
-        console.error(`[home.loader] ${key} fetch failed:`, e);
-        continue;
-      }
-
-      try {
-        const select = legacySelectByKey[key];
-        if (!select) continue;
-        const row = await model.findFirst({
-          where: { shop },
-          orderBy: { id: "desc" },
-          select,
-        });
-        if (!row) continue;
-        rows.push({
-          ...row,
-          key,
-          enabled:
-            row.enabled === true ||
-            row.enabled === 1 ||
-            row.enabled === "1",
-          showType: row.showType || deriveShowType(row),
-          messageText:
-            row.messageText ||
-            row.message ||
-            row.name ||
-            row.messageTitle ||
-            row.title ||
-            row.timestamp ||
-            "",
-        });
-      } catch (retryError) {
-        console.error(`[home.loader] ${key} legacy fetch failed:`, retryError);
-      }
-    }
-  }
-
-  return { rows, total: rows.length };
-}
-
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const { getMainThemeId } = await import(
@@ -439,37 +248,7 @@ export const loader = async ({ request }) => {
       .filter((part) => part !== "store")[0] ||
     "";
   const shopDomain = toShopDomain(shop);
-  const rawType = (url.searchParams.get("type") || "all").toLowerCase();
-  const rawStatus = (url.searchParams.get("status") || "all").toLowerCase();
-  const allowedTypes = new Set([
-    "all",
-    "recent",
-    "flash",
-    "visitor",
-    "lowstock",
-    "addtocart",
-    "review",
-  ]);
-  const allowedStatuses = new Set(["all", "enabled", "disabled"]);
-  const type = allowedTypes.has(rawType) ? rawType : "all";
-  const status = allowedStatuses.has(rawStatus) ? rawStatus : "all";
-  const q = (url.searchParams.get("q") || "").trim();
-  const page = Math.max(parseInt(url.searchParams.get("page") || "1", 10), 1);
-  const pageSizeRaw = parseInt(url.searchParams.get("pageSize") || "10", 10);
-  const pageSize = [10, 25, 50].includes(pageSizeRaw) ? pageSizeRaw : 10;
-
   const themeIdPromise = getMainThemeId({ admin, shop });
-
-  const rowsPromise = getOrSetCache(`home:rows:${shop}`, 10000, () =>
-    fetchRows(shop)
-  ).catch((e) => {
-    console.error("[home.loader] Prisma error:", e);
-    return {
-      rows: [],
-      total: 0,
-      error: "Failed to load notification data.",
-    };
-  });
 
   const apiKey =
     process.env.SHOPIFY_API_KEY ||
@@ -483,8 +262,6 @@ export const loader = async ({ request }) => {
     themeId: themeIdPromise,
     apiKey,
     embedPingStatus: embedPingStatusPromise,
-    critical: { page, pageSize, filters: { type, status, q } },
-    rows: rowsPromise,
   });
 };
 

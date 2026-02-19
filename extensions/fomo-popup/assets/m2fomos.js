@@ -423,14 +423,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     },
   };
 
-  const idle = () =>
-    new Promise((r) => {
-      if ("requestIdleCallback" in window) {
-        window.requestIdleCallback(() => r(), { timeout: 1200 });
-      } else {
-        setTimeout(r, 350);
-      }
-    });
+  const idle = () => Promise.resolve();
 
   const VISITOR_ID_KEY = cacheKey("visitor-id");
   function ensureVisitorId() {
@@ -1686,7 +1679,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     const appendMessageLine = () => {
-      if (!cfg.message) return;
+      const messageText = String(cfg.message || "");
+      const messageTemplate = String(cfg.messageTemplate || "");
+      const messageTokens =
+        cfg.messageTokens && typeof cfg.messageTokens === "object"
+          ? cfg.messageTokens
+          : null;
+      if (!messageText && !messageTemplate) return false;
       const msg = document.createElement("div");
       msg.style.cssText = isVisitor
         ? `color:${cfg.textColor || "#111"};font-size:${Math.max(
@@ -1694,12 +1693,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             fontSize
           )}px;line-height:1.5;font-weight:400;`
         : `color:${cfg.textColor || "#111"};`;
-      const messageText = String(cfg.message || "");
-      const messageTemplate = String(cfg.messageTemplate || "");
-      const messageTokens =
-        cfg.messageTokens && typeof cfg.messageTokens === "object"
-          ? cfg.messageTokens
-          : null;
       const productName = String(cfg.productTitle || "").trim();
       const countValue = cfg.stockCountValue ? String(cfg.stockCountValue) : "";
       const appendTemplateWithBoldTokens = (templateText, tokenMap) => {
@@ -1743,8 +1736,21 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (tail) msg.appendChild(document.createTextNode(tail));
         return true;
       };
-      const renderedByTemplate =
-        isVisitor && appendTemplateWithBoldTokens(messageTemplate, messageTokens);
+      let renderedByTemplate = false;
+      if (isReview && messageTokens && messageTemplate) {
+        const resolved = applyTokens(messageTemplate, messageTokens)
+          .replace(/\s{2,}/g, " ")
+          .replace(/\s+([,.:;!?])/g, "$1")
+          .trim();
+        if (resolved) {
+          msg.textContent = resolved;
+          renderedByTemplate = true;
+        }
+      }
+      if (!renderedByTemplate) {
+        renderedByTemplate =
+          isVisitor && appendTemplateWithBoldTokens(messageTemplate, messageTokens);
+      }
       if (!renderedByTemplate) {
         let templ = messageText;
         if (productName) templ = templ.replace(productName, "__FOMO_PROD__");
@@ -1786,7 +1792,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         msg.style.lineHeight = "1.32";
         msg.style.fontSize = `${Math.max(12, fontSize)}px`;
       }
+      const hasMessage = Boolean(String(msg.textContent || "").trim());
+      if (!hasMessage) return false;
       body.appendChild(msg);
+      return true;
     };
 
     const appendPriceLine = () => {
@@ -1890,8 +1899,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     };
 
     if (isReview) {
+      const renderedMessage = appendMessageLine();
       appendPriceLine();
-      appendReviewLine();
+      if (!renderedMessage) appendReviewLine();
     } else {
       appendMessageLine();
       appendPriceLine();
@@ -2047,9 +2057,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           }, Math.max(0, delaySec) * 1000);
         };
 
-        const firstDelay = immediate
-          ? 0
-          : Math.max(0, Number(seq[0]?.firstDelaySeconds ?? 0));
+        const firstDelay = 0;
         showNext(firstDelay);
       },
       stop() {
@@ -2094,9 +2102,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           }, Math.max(0, delaySec) * 1000);
         };
 
-        const firstDelay = immediate
-          ? 0
-          : Math.max(0, Number(this.seq[0]?.cfg?.firstDelaySeconds ?? 0));
+        const firstDelay = 0;
         showNext(firstDelay);
       },
       stop() {
@@ -2207,8 +2213,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     let sessionReady = false,
       retries = 0,
-      maxRetries = 3,
-      retryDelay = 800;
+      maxRetries = 3;
     const sessionCacheKey = cacheKey("session");
     const cachedSession = cache.get(sessionCacheKey);
     if (cachedSession === true) sessionReady = true;
@@ -2216,22 +2221,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     while (!sessionReady && retries < maxRetries) {
       try {
         const sessionData = await fetchJson(SESSION_ENDPOINT, null, 0);
-        if (sessionData) {
-          sessionReady = !!sessionData.sessionReady;
-          if (!sessionReady) {
-            await new Promise((r) => setTimeout(r, retryDelay));
-            retries++;
-          }
-        } else {
-          retries++;
-          if (retries < maxRetries)
-            await new Promise((r) => setTimeout(r, retryDelay));
-        }
-      } catch {
-        retries++;
-        if (retries < maxRetries)
-          await new Promise((r) => setTimeout(r, retryDelay));
-      }
+        sessionReady = !!sessionData?.sessionReady;
+      } catch {}
+      retries++;
     }
     if (!sessionReady) return;
     cache.set(sessionCacheKey, true, 120000);
@@ -3896,6 +3888,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           if (!pool.length) continue;
         }
         if (isReviewPopup) {
+          const reviewMode = String(row?.reviewType || "new_review").toLowerCase();
           const reviewedPool = [];
           const seenKeys = new Set();
           const collectReviewed = async (list) => {
@@ -3916,10 +3909,24 @@ document.addEventListener("DOMContentLoaded", async function () {
           };
 
           await collectReviewed(pool);
-          if (!reviewedPool.length) {
+          if (reviewMode === "new_review" || !reviewedPool.length) {
             const storeProducts = await fetchStoreProductsForLowStock();
             const fallbackPool = Array.isArray(storeProducts)
-              ? dedupeProducts(storeProducts).slice(0, 120)
+              ? dedupeProducts(storeProducts)
+                  .slice()
+                  .sort((a, b) => {
+                    const aId = Number(normalizeProductId(a?.id) || 0);
+                    const bId = Number(normalizeProductId(b?.id) || 0);
+                    if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) {
+                      return bId - aId;
+                    }
+                    const aKey = String(a?.handle || a?.url || a?.title || "").toLowerCase();
+                    const bKey = String(b?.handle || b?.url || b?.title || "").toLowerCase();
+                    if (aKey < bKey) return 1;
+                    if (aKey > bKey) return -1;
+                    return 0;
+                  })
+                  .slice(0, 180)
               : [];
             await collectReviewed(fallbackPool);
           }
