@@ -51,8 +51,14 @@ export const action = async ({ request }) => {
   }
 
   const form = await request.formData();
-  const intent = String(form.get("_action") || "connect");
+  const intent = String(form.get("_action") || "")
+    .trim()
+    .toLowerCase();
   const apiKey = String(form.get("apiKey") || "").trim();
+
+  if (intent !== "connect" && intent !== "disconnect") {
+    return json({ ok: false, error: "Invalid action." }, { status: 400 });
+  }
 
   try {
     const model = prisma?.notificationconfig || null;
@@ -173,6 +179,11 @@ export default function IntegrationsPage() {
         <Card>
           <Box padding="500">
             <fetcher.Form method="post">
+              <input
+                type="hidden"
+                name="_action"
+                value={isConnected ? "disconnect" : "connect"}
+              />
               <BlockStack gap="500">
                 <InlineStack align="space-between" blockAlign="start">
                   <InlineStack gap="400" blockAlign="center">
@@ -233,8 +244,6 @@ export default function IntegrationsPage() {
                       Connect successfully
                     </Text>
                     <Button
-                      name="_action"
-                      value="disconnect"
                       submit
                       tone="critical"
                       variant="secondary"
@@ -245,13 +254,7 @@ export default function IntegrationsPage() {
                   </InlineStack>
                 ) : (
                   <InlineStack align="end">
-                    <Button
-                      name="_action"
-                      value="connect"
-                      submit
-                      variant="primary"
-                      loading={saving}
-                    >
+                    <Button submit variant="primary" loading={saving}>
                       Connect
                     </Button>
                   </InlineStack>

@@ -4033,7 +4033,11 @@ document.addEventListener("DOMContentLoaded", async function () {
           const compareAt = normalizePrice(prod.compareAt);
           let effectiveShowRating = baseCfg.showRating;
           if (effectiveShowRating && baseCfg.ratingSource === "judge_me") {
-            effectiveShowRating = await hasJudgeMeReview(prod);
+            if (!judgeMeConnected) {
+              effectiveShowRating = false;
+            } else {
+              effectiveShowRating = await hasJudgeMeReview(prod);
+            }
           }
           const reviewDetails =
             type === "review"
