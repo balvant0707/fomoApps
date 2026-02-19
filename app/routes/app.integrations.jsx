@@ -8,7 +8,7 @@ import {
   Card,
   Frame,
   InlineStack,
-  Link as PolarisLink,
+  Modal,
   Page,
   Text,
   TextField,
@@ -147,6 +147,7 @@ export default function IntegrationsPage() {
   const [apiKey, setApiKey] = useState(savedApiKey || "");
   const [isConnected, setIsConnected] = useState(Boolean(savedApiKey));
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
+  const [helpModalOpen, setHelpModalOpen] = useState(false);
 
   const saving = fetcher.state !== "idle";
 
@@ -177,7 +178,7 @@ export default function IntegrationsPage() {
     <Frame>
       <Page title="Integrations">
         <Card>
-          <Box padding="500">
+          <Box>
             <fetcher.Form method="post">
               <input
                 type="hidden"
@@ -213,13 +214,12 @@ export default function IntegrationsPage() {
                     <Text as="p" variant="bodyMd">
                       Private API Key
                     </Text>
-                    <PolarisLink
-                      removeUnderline
-                      url="https://judge.me/help/en/articles/44001839947-how-to-get-your-api-token"
-                      external
+                    <Button
+                      variant="plain"
+                      onClick={() => setHelpModalOpen(true)}
                     >
                       How to get API token
-                    </PolarisLink>
+                    </Button>
                   </InlineStack>
                   <TextField
                     name="apiKey"
@@ -264,6 +264,89 @@ export default function IntegrationsPage() {
           </Box>
         </Card>
       </Page>
+      <Modal
+        open={helpModalOpen}
+        onClose={() => setHelpModalOpen(false)}
+        title="How to Integrate with Judge.me to show review notification"
+        primaryAction={{
+          content: "Close",
+          onAction: () => setHelpModalOpen(false),
+        }}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <BlockStack gap="100">
+              <Text as="h3" variant="headingSm">
+                Why integrate with Judge.me
+              </Text>
+              <Text as="p">
+                Judge.me is the most popular review app on Shopify with proven
+                records of good value to Shopify merchants. SnapNoti decided to
+                serve our users better by integrating with this application, to
+                show your product review on our notification, creating stronger
+                social proof.
+              </Text>
+            </BlockStack>
+
+            <BlockStack gap="100">
+              <Text as="h3" variant="headingSm">
+                How to get Judge.me API key:
+              </Text>
+              <Text as="p" fontWeight="semibold">
+                Step 1: Install Judge.me
+              </Text>
+              <Text as="p">
+                You must install Judge.me on your store to use this feature.
+                Install Judge.me.
+              </Text>
+            </BlockStack>
+
+            <BlockStack gap="100">
+              <Text as="p" fontWeight="semibold">
+                Step 2: Configure Judge.me API
+              </Text>
+              <Text as="p">
+                From Judge.me admin, go to General Settings &gt; Integrations
+                &gt; View API token.
+              </Text>
+              <Text as="p">Copy the Shop domain and Private token.</Text>
+            </BlockStack>
+
+            <BlockStack gap="100">
+              <Text as="p" fontWeight="semibold">
+                Step 3: Integrate with SnapNoti
+              </Text>
+              <Text as="p">In "Integration" tab, choose Judge.me.</Text>
+              <Text as="p">Copy the API token to the field.</Text>
+              <Text as="p">Click "Connect" and wait for the result.</Text>
+            </BlockStack>
+
+            <BlockStack gap="100">
+              <Text as="p" fontWeight="semibold">
+                Step 4: Set up review notification
+              </Text>
+              <Text as="p">
+                Once done, you can go to Notification page, choose "Review
+                notification" and start configure.
+              </Text>
+              <Text as="p">
+                In Data tab of the Settings panel, choose "Sync Judge.me
+                review" to get review data from Judge.me.
+              </Text>
+            </BlockStack>
+
+            <BlockStack gap="100">
+              <Text as="p" fontWeight="semibold">
+                Step 5: Activate the review notification
+              </Text>
+              <Text as="p">
+                Make sure to enable the Snap Noti app-embed to see the
+                notification with review on storefront.
+              </Text>
+            </BlockStack>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
       {toast.active ? (
         <Toast
           content={toast.msg}
