@@ -792,11 +792,45 @@ document.addEventListener("DOMContentLoaded", async function () {
       0,
       Math.floor((todayStart.getTime() - reviewStart.getTime()) / (24 * 60 * 60 * 1000))
     );
-    return `${days} day${days === 1 ? "" : "s"} Ago`;
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    return `${days} Days Ago`;
+  };
+  const normalizeRelativeReviewLabel = (value) => {
+    const raw = String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!raw) return "";
+    if (/^just now$/i.test(raw)) return "Just now";
+    if (/^today$/i.test(raw)) return "Today";
+    if (/^yesterday$/i.test(raw)) return "Yesterday";
+
+    const agoMatch = raw.match(
+      /^(\d+)\s*(minute|minutes|min|mins|hour|hours|day|days|week|weeks|month|months|year|years)\s*ago$/i
+    );
+    if (!agoMatch) return "";
+    const amount = Math.max(1, Number(agoMatch[1]) || 0);
+    const unitRaw = String(agoMatch[2] || "").toLowerCase();
+    const unit = unitRaw.startsWith("min")
+      ? "Minute"
+      : unitRaw.startsWith("hour")
+      ? "Hour"
+      : unitRaw.startsWith("day")
+      ? "Day"
+      : unitRaw.startsWith("week")
+      ? "Week"
+      : unitRaw.startsWith("month")
+      ? "Month"
+      : "Year";
+    return `${amount} ${unit}${amount === 1 ? "" : "s"} Ago`;
   };
   const formatReviewDateLabel = (value) => {
-    const raw = safe(value, "").trim();
-    if (!raw) return "0 days Ago";
+    const raw = safe(value, "")
+      .replace(/^on\s+/i, "")
+      .trim();
+    if (!raw) return "Just now";
+    const relativeLabel = normalizeRelativeReviewLabel(raw);
+    if (relativeLabel) return relativeLabel;
     return reviewDaysAgo(raw) || raw;
   };
   const pad2 = (n) => String(n).padStart(2, "0");
@@ -1846,17 +1880,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         cfg.messageTokens && typeof cfg.messageTokens === "object"
           ? cfg.messageTokens
           : {};
-      const reviewerName = truncateSnippet(
-        safe(
-          tokens.reviewer_name ||
-            tokens.full_name ||
-            tokens.first_name ||
-            cfg.reviewer_name ||
-            cfg.name,
-          "Someone"
-        ),
-        26
-      );
+      const reviewerName = safe(
+        tokens.reviewer_name ||
+          tokens.full_name ||
+          tokens.first_name ||
+          cfg.reviewer_name ||
+          cfg.name,
+        "Someone"
+      )
+        .replace(/\s+/g, " ")
+        .trim();
       const reviewRaw = safe(
         tokens.review_body || tokens.review_title || cfg.review_body || cfg.message,
         ""
@@ -2962,11 +2995,19 @@ document.addEventListener("DOMContentLoaded", async function () {
           "";
         if (reviewId && seen.has(reviewId)) continue;
 
-        const reviewerName = safe(
-          node.querySelector?.(
-            ".jdgm-rev__author, .jdgm-rev__author-wrapper, [itemprop='author'], [data-content='author']"
-          )?.textContent,
-          ""
+        const reviewerName = normalizeReviewSnippet(
+          safe(
+            node.getAttribute?.("data-author-name") ||
+              node.querySelector?.("[itemprop='author'] meta[itemprop='name']")?.getAttribute?.(
+                "content"
+              ) ||
+              node.querySelector?.(".jdgm-rev__author-name")?.textContent ||
+              node.querySelector?.(
+                ".jdgm-rev__author, .jdgm-rev__author-wrapper, [itemprop='author'], [data-content='author']"
+              )?.textContent,
+            ""
+          ),
+          80
         )
           .replace(/^by\s+/i, "")
           .replace(/\s+/g, " ")
@@ -3462,7 +3503,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       last_name: "",
       country: "your area",
       city: "",
-      reviewer_name: "Jane B.",
+      reviewer_name: "Verified buyer",
       review_title: "Beautiful and elegant",
       review_body: "Absolutely stunning and elegant.",
       reviewer_country: "United States",
@@ -3998,6 +4039,10 @@ document.addEventListener("DOMContentLoaded", async function () {
             type === "review"
               ? await pickJudgeMeReviewForProduct(prod, i)
               : null;
+          if (type === "review" && !reviewDetails) {
+            // Review popup should render only when we have real review identity/date.
+            continue;
+          }
           const resolvedRating = (() => {
             const fromReview = Number(reviewDetails?.rating);
             if (Number.isFinite(fromReview) && fromReview > 0) {
