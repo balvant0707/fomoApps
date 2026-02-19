@@ -1599,6 +1599,7 @@ export default function RecentOrdersPopupPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
+  const notificationManageUrl = `/app/notification/manage${location.search || ""}`;
 
   useEffect(() => {
     console.log(
@@ -1737,7 +1738,7 @@ export default function RecentOrdersPopupPage() {
         return;
       }
 
-      navigate("/app");
+      navigate(notificationManageUrl);
     } catch (e) {
       setToast({
         on: true,

@@ -1017,6 +1017,7 @@ export default function ReviewNotificationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
+  const notificationManageUrl = `/app/notification/manage${location.search || ""}`;
   const fetcher = useFetcher();
   const collectionFetcher = useFetcher();
   const [activeSection, setActiveSection] = useState("layout");
@@ -1361,6 +1362,7 @@ export default function ReviewNotificationPage() {
         setEditingId(Number(out.id));
       }
       setToast({ active: true, error: false, msg: "Saved." });
+      setTimeout(() => navigate(notificationManageUrl), 900);
     } catch (e) {
       setToast({
         active: true,

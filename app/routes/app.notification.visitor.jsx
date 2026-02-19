@@ -974,6 +974,7 @@ export default function VisitorPopupPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
+  const notificationManageUrl = `/app/notification/manage${location.search || ""}`;
   const [activeSection, setActiveSection] = useState("layout");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
@@ -1293,6 +1294,7 @@ export default function VisitorPopupPage() {
         throw new Error(msg);
       }
       setToast({ active: true, error: false, msg: "Saved." });
+      setTimeout(() => navigate(notificationManageUrl), 900);
     } catch (e) {
       setToast({
         active: true,

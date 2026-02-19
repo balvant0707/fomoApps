@@ -765,6 +765,7 @@ export default function FlashConfigPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationUrl = `/app/notification${location.search || ""}`;
+  const notificationManageUrl = `/app/notification/manage${location.search || ""}`;
   const { title, saved } = useLoaderData();
 
   const [saving, setSaving] = useState(false);
@@ -946,7 +947,7 @@ export default function FlashConfigPage() {
       });
       if (!res.ok) throw new Error((await res.text()) || "Failed to save");
       setToast({ active: true, error: false, msg: "Saved." });
-      setTimeout(() => navigate("/app"), 900);
+      setTimeout(() => navigate(notificationManageUrl), 900);
     } catch (e) {
       setToast({ active: true, error: true, msg: e?.message || "Something went wrong" });
     } finally { setSaving(false); }
