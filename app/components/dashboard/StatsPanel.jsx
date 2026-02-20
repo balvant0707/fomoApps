@@ -113,6 +113,10 @@ function clampNumber(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function normalizePopupKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 export default function StatsPanel({ stats }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -122,14 +126,60 @@ export default function StatsPanel({ stats }) {
   const breakdownRows = Array.isArray(analytics.breakdown)
     ? analytics.breakdown
     : [];
+  const popupParam = normalizePopupKey(
+    new URLSearchParams(location.search).get("popup") || "all"
+  );
+  const validPopupKeys = new Set([
+    "all",
+    ...breakdownRows.map((row) => normalizePopupKey(row?.key)),
+  ]);
+  const selectedPopup = validPopupKeys.has(popupParam) ? popupParam : "all";
+  const popupOptions = [
+    { label: "All popups", value: "all" },
+    ...breakdownRows.map((row) => ({
+      label: row?.label || row?.key || "Popup",
+      value: normalizePopupKey(row?.key),
+    })),
+  ];
+  const filteredBreakdownRows =
+    selectedPopup === "all"
+      ? breakdownRows
+      : breakdownRows.filter(
+          (row) => normalizePopupKey(row?.key) === selectedPopup
+        );
   const series = analytics.series || EMPTY_STATS.analytics.series || {};
   const labels = Array.isArray(series.labels) ? series.labels : [];
-  const impressions = Array.isArray(series.visitors)
+  const baseImpressions = Array.isArray(series.visitors)
     ? series.visitors.map((value) => Number(value || 0))
     : [];
-  const clicks = Array.isArray(series.clicks)
+  const baseClicks = Array.isArray(series.clicks)
     ? series.clicks.map((value) => Number(value || 0))
     : [];
+  const selectedPopupRow =
+    selectedPopup === "all"
+      ? null
+      : breakdownRows.find(
+          (row) => normalizePopupKey(row?.key) === selectedPopup
+        ) || null;
+  const selectedPopupByDay = new Map(
+    (Array.isArray(selectedPopupRow?.details) ? selectedPopupRow.details : []).map(
+      (detail) => [
+        detail?.startDate,
+        {
+          impressions: Number(detail?.impressions || 0),
+          clicks: Number(detail?.clicks || 0),
+        },
+      ]
+    )
+  );
+  const impressions =
+    selectedPopup === "all"
+      ? baseImpressions
+      : labels.map((day) => selectedPopupByDay.get(day)?.impressions || 0);
+  const clicks =
+    selectedPopup === "all"
+      ? baseClicks
+      : labels.map((day) => selectedPopupByDay.get(day)?.clicks || 0);
 
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [draftRange, setDraftRange] = useState(analyticsFilter.range || "7d");
@@ -163,7 +213,12 @@ export default function StatsPanel({ stats }) {
 
   useEffect(() => {
     setExpandedRows({});
-  }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
+  }, [
+    analyticsFilter.range,
+    analyticsFilter.startDate,
+    analyticsFilter.endDate,
+    selectedPopup,
+  ]);
 
   useEffect(() => {
     const node = chartFrameRef.current;
@@ -188,7 +243,12 @@ export default function StatsPanel({ stats }) {
 
   useEffect(() => {
     setHoveredIndex(null);
-  }, [analyticsFilter.range, analyticsFilter.startDate, analyticsFilter.endDate]);
+  }, [
+    analyticsFilter.range,
+    analyticsFilter.startDate,
+    analyticsFilter.endDate,
+    selectedPopup,
+  ]);
 
   const chartMax = Math.max(1, ...impressions, ...clicks);
   const yTicks = 4;
@@ -275,6 +335,18 @@ export default function StatsPanel({ stats }) {
       params.delete("end");
     }
 
+    const query = params.toString();
+    navigate(`${location.pathname}${query ? `?${query}` : ""}`);
+  };
+
+  const onPopupFilterChange = (value) => {
+    const next = normalizePopupKey(value);
+    const params = new URLSearchParams(location.search);
+    if (!next || next === "all") {
+      params.delete("popup");
+    } else {
+      params.set("popup", next);
+    }
     const query = params.toString();
     navigate(`${location.pathname}${query ? `?${query}` : ""}`);
   };
@@ -382,6 +454,23 @@ export default function StatsPanel({ stats }) {
             </Text>
           </BlockStack>
 
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ minWidth: 220 }}>
+              <Select
+                label="Popup filter"
+                options={popupOptions}
+                value={selectedPopup}
+                onChange={onPopupFilterChange}
+              />
+            </div>
+
           <Popover
             active={isPickerOpen}
             onClose={closePicker}
@@ -484,6 +573,7 @@ export default function StatsPanel({ stats }) {
               </BlockStack>
             </div>
           </Popover>
+          </div>
         </InlineStack>
 
         <div
@@ -778,14 +868,14 @@ export default function StatsPanel({ stats }) {
             </Text>
           </div>
 
-          {breakdownRows.length === 0 ? (
+          {filteredBreakdownRows.length === 0 ? (
             <div style={{ padding: "14px 16px" }}>
               <Text as="p" tone="subdued">
                 No analytics data found for this range.
               </Text>
             </div>
           ) : (
-            breakdownRows.map((row) => {
+            filteredBreakdownRows.map((row) => {
               const isOpen = Boolean(expandedRows[row.key]);
               return (
                 <div key={row.key} style={{ borderBottom: "1px solid #E5E7EB" }}>
