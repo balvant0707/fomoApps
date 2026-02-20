@@ -601,7 +601,7 @@ function ColorField({ label, value, onChange, fallback }) {
         borderRadius: "0 8px 8px 0",
         overflow: "hidden",
         cursor: "pointer",
-        background: hex6(value) ? value : "#ffffff",
+        background: safeValue,
         display: "inline-block",
       }}
     >
