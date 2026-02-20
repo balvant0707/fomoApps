@@ -287,7 +287,31 @@ export default function StatsPanel({ stats }) {
   const activeDay = activeIndex !== null ? labels[activeIndex] : "";
   const activeImpressions = activeIndex !== null ? impressions[activeIndex] || 0 : 0;
   const activeClicks = activeIndex !== null ? clicks[activeIndex] || 0 : 0;
-  const tooltipWidth = 230;
+  const activePopupRows = activeDay
+    ? filteredBreakdownRows
+        .map((row) => {
+          const detail = Array.isArray(row?.details)
+            ? row.details.find((item) => item?.startDate === activeDay)
+            : null;
+          return {
+            key: row?.key,
+            label: row?.label || row?.key || "Popup",
+            impressions: Number(detail?.impressions || 0),
+            clicks: Number(detail?.clicks || 0),
+            orders: Number(detail?.orders || 0),
+          };
+        })
+        .filter((row) =>
+          selectedPopup === "all"
+            ? row.impressions > 0 || row.clicks > 0 || row.orders > 0
+            : true
+        )
+    : [];
+  const popupSummaryTitle =
+    selectedPopup === "all"
+      ? "Popup-wise data"
+      : `${selectedPopupRow?.label || "Popup"} data`;
+  const tooltipWidth = selectedPopup === "all" ? 340 : 280;
   const tooltipLeft =
     activeIndex !== null
       ? clampNumber(activeX + 14, paddingLeft + 8, paddingLeft + plotWidth - tooltipWidth - 8)
@@ -710,6 +734,11 @@ export default function StatsPanel({ stats }) {
                         <Text as="p" variant="headingSm">
                           {toDayLabel(activeDay)}
                         </Text>
+                        <Text as="p" tone="subdued" variant="bodySm">
+                          {selectedPopup === "all"
+                            ? "All popups"
+                            : `Popup: ${selectedPopupRow?.label || "Unknown"}`}
+                        </Text>
                         <InlineStack align="space-between" blockAlign="center">
                           <InlineStack gap="100" blockAlign="center">
                             <span
@@ -748,6 +777,40 @@ export default function StatsPanel({ stats }) {
                             {activeClicks}
                           </Text>
                         </InlineStack>
+
+                        <div
+                          style={{
+                            borderTop: "1px solid #EEF1F4",
+                            paddingTop: 8,
+                          }}
+                        >
+                          <BlockStack gap="100">
+                            <Text as="p" variant="bodySm" fontWeight="semibold">
+                              {popupSummaryTitle}
+                            </Text>
+                            {activePopupRows.length > 0 ? (
+                              activePopupRows.map((row) => (
+                                <InlineStack
+                                  key={`tip-${row.key}`}
+                                  align="space-between"
+                                  blockAlign="center"
+                                  wrap={false}
+                                >
+                                  <Text as="span" variant="bodySm">
+                                    {row.label}
+                                  </Text>
+                                  <Text as="span" tone="subdued" variant="bodySm">
+                                    {`I:${row.impressions}  C:${row.clicks}  O:${row.orders}`}
+                                  </Text>
+                                </InlineStack>
+                              ))
+                            ) : (
+                              <Text as="p" tone="subdued" variant="bodySm">
+                                No popup events on this day.
+                              </Text>
+                            )}
+                          </BlockStack>
+                        </div>
                       </BlockStack>
                     </div>
                   ) : null}
