@@ -1060,9 +1060,9 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
       }}
       aria-label={`${label} color picker`}
       style={{
-        width: 44,
-        height: 36,
-        margin: "-6px -12px -6px 8px",
+        width: 34,
+        height: 31,
+        margin: "0px -12px -5px 0px",
         borderLeft: "1px solid #c9cccf",
         borderRadius: "0 8px 8px 0",
         overflow: "hidden",
