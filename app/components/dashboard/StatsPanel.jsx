@@ -298,18 +298,15 @@ export default function StatsPanel({ stats }) {
             label: row?.label || row?.key || "Popup",
             impressions: Number(detail?.impressions || 0),
             clicks: Number(detail?.clicks || 0),
-            orders: Number(detail?.orders || 0),
           };
         })
         .filter((row) =>
-          selectedPopup === "all"
-            ? row.impressions > 0 || row.clicks > 0 || row.orders > 0
-            : true
+          selectedPopup === "all" ? row.impressions > 0 || row.clicks > 0 : true
         )
     : [];
   const popupSummaryTitle =
     selectedPopup === "all"
-      ? "Popup-wise data"
+      ? "Popup-wise counts"
       : `${selectedPopupRow?.label || "Popup"} data`;
   const tooltipWidth = selectedPopup === "all" ? 340 : 280;
   const tooltipLeft =
@@ -800,7 +797,7 @@ export default function StatsPanel({ stats }) {
                                     {row.label}
                                   </Text>
                                   <Text as="span" tone="subdued" variant="bodySm">
-                                    {`I:${row.impressions}  C:${row.clicks}  O:${row.orders}`}
+                                    {`Impressions: ${row.impressions} | Clicks: ${row.clicks}`}
                                   </Text>
                                 </InlineStack>
                               ))
