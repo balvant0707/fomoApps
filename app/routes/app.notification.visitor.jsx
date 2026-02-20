@@ -591,28 +591,45 @@ function formatProductName(name, mode, limit) {
 
 function ColorField({ label, value, onChange, fallback }) {
   const safeValue = normalizeHex(value, fallback);
+  const colorSwatch = (
+    <span
+      style={{
+        width: 44,
+        height: 36,
+        margin: "-6px -12px -6px 8px",
+        borderLeft: "1px solid #c9cccf",
+        borderRadius: "0 8px 8px 0",
+        overflow: "hidden",
+        background: safeValue,
+        display: "inline-block",
+        position: "relative",
+      }}
+    >
+      <input
+        type="color"
+        value={safeValue}
+        onChange={(e) => onChange(e.target.value.toUpperCase())}
+        style={{
+          width: "100%",
+          height: "100%",
+          border: "none",
+          padding: 0,
+          margin: 0,
+          cursor: "pointer",
+          opacity: 0,
+          display: "block",
+        }}
+        aria-label={`${label} color`}
+      />
+    </span>
+  );
   return (
     <TextField
       label={label}
       value={safeValue}
       onChange={onChange}
       autoComplete="off"
-      suffix={
-        <input
-          type="color"
-          value={safeValue}
-          onChange={(e) => onChange(e.target.value.toUpperCase())}
-          style={{
-            width: 26,
-            height: 26,
-            border: "none",
-            padding: 0,
-            background: "transparent",
-            cursor: "pointer",
-          }}
-          aria-label={`${label} color`}
-        />
-      }
+      suffix={colorSwatch}
     />
   );
 }

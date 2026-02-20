@@ -507,9 +507,28 @@ function ColorInput({ label, value, onChange, placeholder = "#244E89" }) {
   useEffect(() => { if (hex6(value)) setHsb(hexToHSB(value)); }, [value]);
 
   const swatch = (
-    <div
+    <span
+      role="button"
+      tabIndex={0}
       onClick={() => setOpen(true)}
-      style={{ width: 28, height: 28, borderRadius: 10, cursor: "pointer", border: "1px solid rgba(0,0,0,0.08)", background: hex6(value) ? value : "#ffffff" }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setOpen(true);
+        }
+      }}
+      aria-label={`${label} color picker`}
+      style={{
+        width: 44,
+        height: 36,
+        margin: "-6px -12px -6px 8px",
+        borderLeft: "1px solid #c9cccf",
+        borderRadius: "0 8px 8px 0",
+        overflow: "hidden",
+        cursor: "pointer",
+        background: hex6(value) ? value : "#ffffff",
+        display: "inline-block",
+      }}
     />
   );
 
