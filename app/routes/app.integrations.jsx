@@ -20,6 +20,118 @@ import prisma from "../db.server";
 
 const INTEGRATION_KEY = "integration_judge_me";
 const JUDGE_ME_APP_URL = "https://apps.shopify.com/judgeme";
+const JUDGE_ME_VERIFY_URL = "https://judge.me/api/v1/reviews";
+
+const normalizeShopDomain = (shop = "") =>
+  String(shop || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+
+const pickJudgeMeErrorMessage = (payload) => {
+  if (!payload || typeof payload !== "object") return "";
+
+  const candidates = [
+    payload.error,
+    payload.message,
+    payload.errors,
+    payload.error_message,
+    payload.errorMessage,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (Array.isArray(candidate) && candidate.length) {
+      const first = candidate[0];
+      if (typeof first === "string" && first.trim()) return first.trim();
+      if (first && typeof first === "object") {
+        const nested =
+          first.message || first.error || first.detail || first.title || "";
+        if (typeof nested === "string" && nested.trim()) return nested.trim();
+      }
+    }
+  }
+
+  return "";
+};
+
+const isJudgeMeCredentialError = (status, message = "") => {
+  const lower = String(message || "").toLowerCase();
+  if (status === 401 || status === 403) return true;
+  if (status === 400 || status === 422) {
+    return (
+      lower.includes("api") ||
+      lower.includes("token") ||
+      lower.includes("auth") ||
+      lower.includes("unauthorized") ||
+      lower.includes("forbidden") ||
+      lower.includes("shop_domain") ||
+      lower.includes("shop domain")
+    );
+  }
+  return (
+    lower.includes("invalid api") ||
+    lower.includes("api token") ||
+    lower.includes("private api") ||
+    lower.includes("unauthorized") ||
+    lower.includes("forbidden")
+  );
+};
+
+async function verifyJudgeMeApiKey({ shop, apiKey }) {
+  const shopDomain = normalizeShopDomain(shop);
+
+  const params = new URLSearchParams({
+    api_token: apiKey,
+    shop_domain: shopDomain,
+    per_page: "1",
+    page: "1",
+  });
+
+  const response = await fetch(`${JUDGE_ME_VERIFY_URL}?${params.toString()}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  });
+
+  const contentType = String(response.headers.get("content-type") || "");
+  let payload = null;
+  let fallbackText = "";
+
+  if (contentType.toLowerCase().includes("application/json")) {
+    payload = await response.json().catch(() => null);
+  } else {
+    fallbackText = await response.text().catch(() => "");
+    try {
+      payload = fallbackText ? JSON.parse(fallbackText) : null;
+    } catch {
+      payload = null;
+    }
+  }
+
+  const judgeMeMessage = pickJudgeMeErrorMessage(payload) || fallbackText;
+
+  if (!response.ok) {
+    if (isJudgeMeCredentialError(response.status, judgeMeMessage)) {
+      return {
+        ok: false,
+        fieldError:
+          "Invalid Judge.me Private API Key for this Shopify domain.",
+      };
+    }
+
+    return {
+      ok: false,
+      error:
+        judgeMeMessage ||
+        `Judge.me verification failed with status ${response.status}.`,
+    };
+  }
+
+  return { ok: true };
+}
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -85,8 +197,33 @@ export const action = async ({ request }) => {
 
     if (!apiKey) {
       return json(
-        { ok: false, error: "Private API Key is required." },
+        {
+          ok: false,
+          fieldErrors: { apiKey: "Private API Key is required." },
+        },
         { status: 400 }
+      );
+    }
+
+    const verification = await verifyJudgeMeApiKey({ shop, apiKey });
+    if (!verification.ok) {
+      if (verification.fieldError) {
+        return json(
+          {
+            ok: false,
+            fieldErrors: { apiKey: verification.fieldError },
+          },
+          { status: 400 }
+        );
+      }
+
+      return json(
+        {
+          ok: false,
+          error:
+            verification.error || "Unable to verify Judge.me Private API Key.",
+        },
+        { status: 502 }
       );
     }
 
@@ -147,6 +284,7 @@ export default function IntegrationsPage() {
   const { shop, apiKey: savedApiKey } = useLoaderData();
   const fetcher = useFetcher();
   const [apiKey, setApiKey] = useState(savedApiKey || "");
+  const [apiKeyError, setApiKeyError] = useState("");
   const [isConnected, setIsConnected] = useState(Boolean(savedApiKey));
   const [toast, setToast] = useState({ active: false, error: false, msg: "" });
   const [helpModalOpen, setHelpModalOpen] = useState(false);
@@ -156,6 +294,7 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (!fetcher.data) return;
     if (fetcher.data.ok) {
+      setApiKeyError("");
       if (fetcher.data.disconnected) {
         setIsConnected(false);
         setApiKey("");
@@ -169,6 +308,11 @@ export default function IntegrationsPage() {
       }
       return;
     }
+
+    const nextApiKeyError = String(fetcher.data?.fieldErrors?.apiKey || "");
+    setApiKeyError(nextApiKeyError);
+    if (nextApiKeyError) return;
+
     setToast({
       active: true,
       error: true,
@@ -234,8 +378,12 @@ export default function IntegrationsPage() {
                   <TextField
                     name="apiKey"
                     value={apiKey}
-                    onChange={setApiKey}
+                    onChange={(value) => {
+                      setApiKey(value);
+                      if (apiKeyError) setApiKeyError("");
+                    }}
                     autoComplete="off"
+                    error={apiKeyError || undefined}
                   />
                 </BlockStack>
 
