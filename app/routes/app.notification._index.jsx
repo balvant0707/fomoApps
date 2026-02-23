@@ -95,7 +95,7 @@ function DashboardCard({
       </div>
       <div className="notify-card-right" aria-hidden>
         <img
-          src="/public/images/Flash Sale.png"
+          src="/images/Flash%20Sale.png"
           alt="Notification Sample"
           width={120}
           height={80}
