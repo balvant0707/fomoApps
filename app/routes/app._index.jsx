@@ -26,6 +26,7 @@ import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 
 const CONTACT_SUBJECT_DEFAULT = "Support Request (FOMO Shopify App)";
+const CONTACT_ACK_SUBJECT = "We received your support request (FOMO Shopify App)";
 const CONTACT_FORM_INITIAL = {
   name: "",
   email: "",
@@ -42,6 +43,10 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function isValidEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
 const INDEX_SUPPORT_STYLES = `
@@ -431,6 +436,16 @@ export async function action({ request }) {
       );
     }
 
+    if (!email || !isValidEmail(email)) {
+      return safeJson(
+        {
+          ok: false,
+          error: "Valid email is required so our team can contact you.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (!ownerEmail) {
       return safeJson(
         {
@@ -481,12 +496,52 @@ export async function action({ request }) {
       </html>
     `.trim();
 
+    const customerTextBody = [
+      "Hi,",
+      "",
+      "We received your support request for Fomoify Sales Popup & Proof.",
+      "Our team will contact you soon.",
+      "",
+      `Shop: ${safeShop}`,
+      `Submitted at: ${submittedAt}`,
+      `Subject: ${subject}`,
+      "",
+      "Your message:",
+      message,
+      "",
+      "Thanks,",
+      "Fomoify Support Team",
+    ].join("\n");
+
+    const customerHtmlBody = `
+      <html>
+        <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+          <h2 style="margin:0 0 12px;">Support request received</h2>
+          <p>Hi,</p>
+          <p>We received your support request for <strong>Fomoify Sales Popup &amp; Proof</strong>.</p>
+          <p>Our team will contact you soon.</p>
+          <p><strong>Shop:</strong> ${escapeHtml(safeShop)}</p>
+          <p><strong>Submitted at:</strong> ${escapeHtml(submittedAt)}</p>
+          <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+          <p><strong>Your message:</strong></p>
+          <pre style="white-space:pre-wrap;background:#f8f9fb;padding:12px;border-radius:8px;">${escapeHtml(message)}</pre>
+          <p>Thanks,<br/>Fomoify Support Team</p>
+        </body>
+      </html>
+    `.trim();
+
     try {
       await sendOwnerEmail({
         to: ownerEmail,
         subject: `[Issue Report] ${subject}`,
         text: textBody,
         html: htmlBody,
+      });
+      await sendOwnerEmail({
+        to: email,
+        subject: CONTACT_ACK_SUBJECT,
+        text: customerTextBody,
+        html: customerHtmlBody,
       });
       return safeJson({ ok: true });
     } catch (e) {
@@ -625,15 +680,20 @@ export default function AppIndex() {
     setContactError("");
     const subject = String(contactForm.subject || "").trim() || CONTACT_SUBJECT_DEFAULT;
     const message = String(contactForm.message || "").trim();
+    const email = String(contactForm.email || "").trim();
     if (!message) {
       setContactError("Message is required.");
+      return;
+    }
+    if (!email || !isValidEmail(email)) {
+      setContactError("Valid email is required so our team can contact you.");
       return;
     }
 
     const payload = new FormData();
     payload.set("_action", "report-issue");
     payload.set("name", String(contactForm.name || "").trim());
-    payload.set("email", String(contactForm.email || "").trim());
+    payload.set("email", email);
     payload.set("subject", subject);
     payload.set("message", message);
     contactFetcher.submit(payload, { method: "post" });
@@ -787,6 +847,7 @@ export default function AppIndex() {
             loading: contactFetcher.state !== "idle",
             disabled:
               contactFetcher.state !== "idle" ||
+              !String(contactForm.email || "").trim() ||
               !String(contactForm.message || "").trim(),
           }}
           secondaryActions={[
@@ -800,7 +861,7 @@ export default function AppIndex() {
           <Modal.Section>
             <BlockStack gap="300">
               <Text as="p" tone="subdued">
-                Share the issue details and our support team will help you.
+                Share issue details with your email. Our team will contact you soon.
               </Text>
               <TextField
                 label="Name"
