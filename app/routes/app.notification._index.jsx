@@ -94,9 +94,13 @@ function DashboardCard({
         </div>
       </div>
       <div className="notify-card-right" aria-hidden>
-        <span className="notify-bar is-primary" />
-        <span className="notify-bar" />
-        <span className="notify-bar" />
+        <img
+          src="/public/images/Flash Sale.png"
+          alt="Notification Sample"
+          width={120}
+          height={80}
+          style={{ borderRadius: 8, objectFit: "cover" }}
+        />
       </div>
     </div>
   );
