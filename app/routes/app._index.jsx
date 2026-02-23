@@ -281,10 +281,11 @@ const INDEX_SUPPORT_STYLES = `
 }
 .home-support-item.knowledge {
   border-color: #c6d9ca;
-  // background-image:
-  //   linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-  //   linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-  //   linear-gradient(150deg, #ebf4e7 0%, #d9eccf 100%);
+  border-color: #c8d7f3;
+  background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
 }
 .home-support-item:hover {
   border-color: #96b6ff;
