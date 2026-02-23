@@ -281,10 +281,10 @@ const INDEX_SUPPORT_STYLES = `
 }
 .home-support-item.knowledge {
   border-color: #c6d9ca;
-  background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
-    linear-gradient(150deg, #ebf4e7 0%, #d9eccf 100%);
+  // background-image:
+  //   linear-gradient(0deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+  //   linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px),
+  //   linear-gradient(150deg, #ebf4e7 0%, #d9eccf 100%);
 }
 .home-support-item:hover {
   border-color: #96b6ff;
@@ -342,7 +342,8 @@ const INDEX_SUPPORT_STYLES = `
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-border-color: #c8d7f3;
+  border-color: #c8d7f3;
+  border-color: #c8d7f3;
   background-image:
     linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
