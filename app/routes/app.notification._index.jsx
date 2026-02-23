@@ -75,10 +75,13 @@ const DASHBOARD_STYLES = `
 function DashboardCard({
   title,
   desc,
+  imageName,
   onCreate,
   onManage,
   loading,
 }) {
+  const imageSrc = `/images/${encodeURIComponent(imageName)}`;
+
   return (
     <div className="notify-card">
       <div className="notify-card-body">
@@ -95,8 +98,8 @@ function DashboardCard({
       </div>
       <div className="notify-card-right" aria-hidden>
         <img
-          src="/images/Flash%20Sale.png"
-          alt="Notification Sample"
+          src={imageSrc}
+          alt={`${title} preview`}
           width={120}
           height={80}
           style={{ borderRadius: 8, objectFit: "cover" }}
@@ -112,36 +115,42 @@ const CARD_DATA = [
     title: "Recent Purchases Popup",
     desc: "Show real-time customer activity to create social proof and FOMO.",
     path: "/app/notification/recent",
+    imageName: "Recent cart.png",
   },
   {
     key: "flash",
     title: "Flash Sale / Countdown Bar",
     desc: "Announce limited-time offers with a sticky top bar and timer.",
     path: "/app/notification/flash",
+    imageName: "Flash Sale.png",
   },
   {
     key: "visitor",
     title: "Visitor Popup",
     desc: "Show live visitor activity and product interest notifications.",
     path: "/app/notification/visitor",
+    imageName: "Visitor Popup - new.png",
   },
   {
     key: "lowstock",
     title: "Low Stock Popup",
     desc: "Create urgency when inventory is running low.",
     path: "/app/notification/lowstock",
+    imageName: "low stock popup.png",
   },
   {
     key: "addtocart",
     title: "Add to Cart Notification",
     desc: "Show live add-to-cart activity to build social proof.",
     path: "/app/notification/addtocart",
+    imageName: "add to cart notification.png",
   },
   {
     key: "review",
     title: "Review Notification",
     desc: "Show new product reviews to build trust and social proof.",
     path: "/app/notification/review",
+    imageName: "Review notification.png",
   },
 ];
 
@@ -180,6 +189,7 @@ export default function NotificationDashboardIndex() {
                 key={card.key}
                 title={card.title}
                 desc={card.desc}
+                imageName={card.imageName}
                 onCreate={() => go(card.path, `${card.key}-create`)}
                 onManage={() => goManage(card.key)}
                 loading={
