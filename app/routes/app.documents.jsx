@@ -830,6 +830,134 @@ const listStyle = {
   lineHeight: "1.7",
 };
 
+const ADMIN_FIELD_LABELS = {
+  messageText: "Message",
+  orderDays: "Order Lookback (Days)",
+  createOrderTime: "Latest Order Time",
+  namesJson: "Dynamic Values / Hidden Fields",
+  productNameMode: "Product Name Format",
+  productNameLimit: "Product Name Limit",
+  selectedProductsJson: "Selected Products",
+  locationsJson: "Locations List",
+  messageTitlesJson: "Message Titles List",
+  enabled: "Enable Popup",
+  showType: "Display On",
+  showHome: "Show On Home Page",
+  showProduct: "Show On Product Page",
+  showCollectionList: "Show On Collection List Page",
+  showCollection: "Show On Collection Page",
+  showCart: "Show On Cart Page",
+  position: "Desktop Position",
+  mobilePosition: "Mobile Position",
+  mobileSize: "Mobile Size",
+  layout: "Layout",
+  template: "Template",
+  imageAppearance: "Image Appearance",
+  fontFamily: "Font Family",
+  fontWeight: "Text Weight",
+  rounded: "Text Size (px)",
+  bgColor: "Background Color",
+  bgAlt: "Background Alt Color",
+  textColor: "Text Color",
+  numberColor: "Number Color",
+  priceTagBg: "Price Tag Background",
+  priceTagAlt: "Price Tag Alt Color",
+  priceColor: "Price Color",
+  starColor: "Star Color",
+  animation: "Animation Style",
+  firstDelaySeconds: "Initial Delay",
+  durationSeconds: "Display Duration",
+  alternateSeconds: "Repeat Interval",
+  intervalUnit: "Interval Unit",
+  messageTitle: "Headline",
+  name: "Offer Title",
+  iconKey: "Icon",
+  iconSvg: "Uploaded SVG Icon",
+  "design.notiType": "Notification Type",
+  "content.message": "Message",
+  "content.timestamp": "Timestamp Text",
+  "content.avgTime": "Average Time Value",
+  "content.avgUnit": "Average Time Unit",
+  "data.directProductPage": "Open Product Page On Click",
+  "data.showProductImage": "Show Product Image",
+  "data.showPriceTag": "Show Price Tag",
+  "data.showRating": "Show Rating",
+  "data.ratingSource": "Rating Source",
+  "data.customerInfo": "Customer Info Source",
+  selectedDataProducts: "Selected Data Products",
+  selectedVisibilityProducts: "Selected Display Products",
+  selectedCollections: "Selected Collections",
+  "visibility.showHome": "Show On Home Page",
+  "visibility.showProduct": "Show On Product Page",
+  "visibility.showCollectionList": "Show On Collection List Page",
+  "visibility.showCollection": "Show On Collection Page",
+  "visibility.showCart": "Show On Cart Page",
+  "visibility.productScope": "Product Scope",
+  "visibility.collectionScope": "Collection Scope",
+  "visibility.position": "Popup Position",
+  "design.layout": "Layout",
+  "design.size": "Popup Size",
+  "design.transparent": "Transparent Background",
+  "design.template": "Template",
+  "design.imageAppearance": "Image Appearance",
+  "design.bgColor": "Background Color",
+  "design.bgAlt": "Background Alt Color",
+  "design.textColor": "Text Color",
+  "design.timestampColor": "Timestamp Color",
+  "design.priceTagBg": "Price Tag Background",
+  "design.priceTagAlt": "Price Tag Alt Color",
+  "design.priceColor": "Price Color",
+  "design.starColor": "Star Color",
+  "textSize.content": "Content Text Size (px)",
+  "textSize.compareAt": "Compare-at Text Size (px)",
+  "textSize.price": "Price Text Size (px)",
+  "behavior.showClose": "Show Close Button",
+  "behavior.hideOnMobile": "Hide On Mobile",
+  "behavior.delay": "Initial Delay",
+  "behavior.duration": "Display Duration",
+  "behavior.interval": "Repeat Interval",
+  "behavior.intervalUnit": "Interval Unit",
+  "behavior.randomize": "Randomize Order",
+  "data.dataSource": "Data Source",
+  "data.stockUnder": "Low Stock Threshold",
+  "data.hideOutOfStock": "Hide Out Of Stock Products",
+  "design.numberColor": "Number Color",
+  "design.reviewType": "Review Type",
+  selectedProducts: "Selected Products",
+};
+
+function toTitleCase(value) {
+  if (!value) return "";
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function humanizeFieldToken(token) {
+  const cleaned = String(token || "").trim();
+  if (!cleaned) return "";
+  if (ADMIN_FIELD_LABELS[cleaned]) return ADMIN_FIELD_LABELS[cleaned];
+
+  const leaf = cleaned.split(".").pop() || cleaned;
+  const withoutJson = leaf.endsWith("Json") ? leaf.slice(0, -4) : leaf;
+  const spaced = withoutJson
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return toTitleCase(spaced);
+}
+
+function formatAdminFieldLabel(rawName) {
+  return String(rawName || "")
+    .split(",")
+    .map((part) => humanizeFieldToken(part))
+    .filter(Boolean)
+    .join(", ");
+}
+
 export const loader = async ({ request }) => {
   await authenticate.admin(request);
   return null;
@@ -840,8 +968,9 @@ function renderFieldList(fields = []) {
   return (
     <ul style={listStyle}>
       {fields.map((field) => (
-        <li key={field.name}>
-          <strong>{field.name}:</strong> {field.description}
+        <li key={field.name || field.label}>
+          <strong>{field.label || formatAdminFieldLabel(field.name)}:</strong>{" "}
+          {field.description}
         </li>
       ))}
     </ul>
@@ -948,7 +1077,8 @@ export default function DocumentsPage() {
             })}
 
             <Text as="p" variant="bodySm" tone="subdued">
-              Use this page as field reference while configuring notifications.
+              Use this page as admin setting reference while configuring
+              notifications.
             </Text>
           </BlockStack>
         </Card>
