@@ -36,6 +36,7 @@ const CONTACT_FORM_INITIAL = {
 const WRITE_REVIEW_URL =
   "https://apps.shopify.com/fomoify-sales-popup-proof#modal-show=WriteReviewModal";
 const POPUPS_PER_SLIDE = 2;
+const POPUP_AUTOSLIDE_MS = 3500;
 const POPUP_CARD_DATA = [
   {
     key: "recent",
@@ -771,6 +772,7 @@ export default function AppIndex() {
   const [contactError, setContactError] = useState("");
   const [popupLoadingKey, setPopupLoadingKey] = useState(null);
   const [popupSlideIndex, setPopupSlideIndex] = useState(0);
+  const [isPopupSliderPaused, setIsPopupSliderPaused] = useState(false);
   const search = location.search || "";
   const appUrl = useCallback((path) => `${path}${search}`, [search]);
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
@@ -883,6 +885,16 @@ export default function AppIndex() {
   const canPopupSlidePrev = popupSlideIndex > 0;
   const canPopupSlideNext = popupSlideIndex < maxPopupSlideIndex;
 
+  useEffect(() => {
+    if (POPUP_SLIDES.length <= 1 || isPopupSliderPaused) return undefined;
+    const timer = setInterval(() => {
+      setPopupSlideIndex((prev) =>
+        prev >= maxPopupSlideIndex ? 0 : prev + 1
+      );
+    }, POPUP_AUTOSLIDE_MS);
+    return () => clearInterval(timer);
+  }, [isPopupSliderPaused, maxPopupSlideIndex]);
+
   const prevPopupSlide = useCallback(() => {
     setPopupSlideIndex((prev) => Math.max(prev - 1, 0));
   }, []);
@@ -967,7 +979,15 @@ export default function AppIndex() {
         </Card>
 
         <Card>
-          <div className="home-popup-slider">
+          <div
+            className="home-popup-slider"
+            onMouseEnter={() => setIsPopupSliderPaused(true)}
+            onMouseLeave={() => setIsPopupSliderPaused(false)}
+            onFocusCapture={() => setIsPopupSliderPaused(true)}
+            onBlurCapture={() => setIsPopupSliderPaused(false)}
+            onTouchStart={() => setIsPopupSliderPaused(true)}
+            onTouchEnd={() => setIsPopupSliderPaused(false)}
+          >
             <div className="home-popup-slider-head">
               <Text as="h3" variant="headingMd">
                 All Popups
