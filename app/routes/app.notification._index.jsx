@@ -100,8 +100,8 @@ function DashboardCard({
         <img
           src={imageSrc}
           alt={`${title} preview`}
-          width={120}
-          height={120}
+          width={100}
+          height={100}
           style={{ borderRadius: 8, objectFit: "contain" }}
         />
       </div>
