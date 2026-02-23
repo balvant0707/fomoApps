@@ -988,7 +988,7 @@ export default function AppIndex() {
             onTouchStart={() => setIsPopupSliderPaused(true)}
             onTouchEnd={() => setIsPopupSliderPaused(false)}
           >
-            <div className="home-popup-slider-head">
+            {/* <div className="home-popup-slider-head">
               <Text as="h3" variant="headingMd">
                 All Popups
               </Text>
@@ -1012,7 +1012,7 @@ export default function AppIndex() {
                   Next
                 </button>
               </div>
-            </div>
+            </div> */}
 
             <div className="home-popup-slider-window">
               <div
