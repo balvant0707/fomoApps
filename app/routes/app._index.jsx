@@ -17,11 +17,13 @@ import {
   Button,
   InlineStack,
   Badge,
+  Modal,
+  TextField,
 } from "@shopify/polaris";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 
-const REPORT_ISSUE_URL = "https://pryxotech.com/#inquiry-now";
+const SUPPORT_EMAIL = "info@pryxotech.com";
 const WRITE_REVIEW_URL =
   "https://apps.shopify.com/fomoify-sales-popup-proof#modal-show=WriteReviewModal";
 
@@ -411,6 +413,13 @@ export default function AppIndex() {
     lastPingAt: null,
     checkedAt: null,
   });
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: "",
+    email: "",
+    subject: "Support Request (FOMO Shopify App)",
+    message: "",
+  });
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
@@ -489,6 +498,41 @@ export default function AppIndex() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const updateContactField = (field) => (value) => {
+    setContactForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const openContactModal = () => {
+    setIsContactModalOpen(true);
+  };
+
+  const closeContactModal = () => {
+    setIsContactModalOpen(false);
+  };
+
+  const submitContactIssue = () => {
+    const subject = String(contactForm.subject || "").trim() || "Support Request (FOMO Shopify App)";
+    const message = String(contactForm.message || "").trim();
+    if (!message) return;
+
+    const lines = [
+      "Please describe your issue:",
+      "",
+      `Name: ${String(contactForm.name || "").trim() || "-"}`,
+      `Email: ${String(contactForm.email || "").trim() || "-"}`,
+      `Shop URL: ${shopDomain || slug || "-"}`,
+      "",
+      "Message:",
+      message,
+    ];
+
+    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
+      lines.join("\n")
+    )}`;
+    window.location.href = mailto;
+    closeContactModal();
+  };
+
   return (
     <Page>
       <BlockStack gap="400">
@@ -554,7 +598,7 @@ export default function AppIndex() {
                     </svg>
                   </div>
                   <div className="home-support-item-body">
-                    <div className="home-support-item-link">Live chat</div>
+                    <div className="home-support-item-link">Support</div>
                     <Text as="p" tone="subdued">
                       Support, reply, and assist instantly in office hours.
                     </Text>
@@ -619,13 +663,64 @@ export default function AppIndex() {
               <button
                 type="button"
                 className="home-review-btn secondary"
-                onClick={() => window.open(REPORT_ISSUE_URL, "_blank", "noopener,noreferrer")}
+                onClick={openContactModal}
               >
                 Report an issue
               </button>
             </div>
           </div>
         </div>
+
+        <Modal
+          open={isContactModalOpen}
+          onClose={closeContactModal}
+          title="Contact Support"
+          primaryAction={{
+            content: "Send",
+            onAction: submitContactIssue,
+            disabled: !String(contactForm.message || "").trim(),
+          }}
+          secondaryActions={[
+            {
+              content: "Cancel",
+              onAction: closeContactModal,
+            },
+          ]}
+        >
+          <Modal.Section>
+            <BlockStack gap="300">
+              <Text as="p" tone="subdued">
+                Share the issue details and our support team will help you.
+              </Text>
+              <TextField
+                label="Name"
+                value={contactForm.name}
+                onChange={updateContactField("name")}
+                autoComplete="name"
+              />
+              <TextField
+                label="Email"
+                type="email"
+                value={contactForm.email}
+                onChange={updateContactField("email")}
+                autoComplete="email"
+              />
+              <TextField
+                label="Subject"
+                value={contactForm.subject}
+                onChange={updateContactField("subject")}
+                autoComplete="off"
+              />
+              <TextField
+                label="Message"
+                value={contactForm.message}
+                onChange={updateContactField("message")}
+                multiline={6}
+                autoComplete="off"
+              />
+            </BlockStack>
+          </Modal.Section>
+        </Modal>
       </BlockStack>
     </Page>
   );
