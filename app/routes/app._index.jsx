@@ -292,9 +292,7 @@ const INDEX_SUPPORT_STYLES = `
   box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.08);
   transform: translateY(-1px);
 }
-.home-support-item.knowledge:hover {
-  border-color: #8ebd95;
-}
+
 .home-support-item-row {
   display: grid;
   align-items: center;
