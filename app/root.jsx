@@ -73,7 +73,7 @@ export default function App() {
         <Links />
 
         {/* ✅ Tawk.to Live Chat – Backend (All Pages) */}
-        <script
+        {/* <script
           dangerouslySetInnerHTML={{
             __html: `
               var Tawk_API = Tawk_API || {}, Tawk_LoadStart = new Date();
@@ -88,7 +88,7 @@ export default function App() {
               })();
             `,
           }}
-        />
+        /> */}
       </head>
 
       <body>

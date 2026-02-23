@@ -47,7 +47,7 @@ const POPUP_CARD_DATA = [
   },
   {
     key: "flash",
-    title: "Flash Sale / Countdown Bar",
+    title: "Flash Sale",
     desc: "Announce limited-time offers with a sticky top bar and timer.",
     path: "/app/notification/flash",
     imageName: "Flash Sale.png",

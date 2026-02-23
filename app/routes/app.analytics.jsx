@@ -31,7 +31,7 @@ const TYPE_DEFINITIONS = [
   { key: "addtocart", label: "Add To Cart", sourceTypes: ["addtocart"] },
   { key: "visitor", label: "Visitor", sourceTypes: ["visitor"] },
   { key: "lowstock", label: "Low Stock", sourceTypes: ["lowstock"] },
-  { key: "discount", label: "Discount", sourceTypes: ["flash", "discount"] },
+  { key: "flash", label: "Flash Sale", sourceTypes: ["flash", "discount"] },
   { key: "review", label: "Reviews", sourceTypes: ["review", "reviews"] },
 ];
 
