@@ -155,8 +155,8 @@ export default function App() {
         <a href={appUrl("/app/notification")}>Notification</a>
         <a href={appUrl("/app/analytics")}>Analytics</a>
         <a href={appUrl("/app/integrations")}>Integrations</a>
-        <a href={appUrl("/app/documents")}>Documents</a>
-        <a href={appUrl("/app/help")}>Help</a>
+        {/* <a href={appUrl("/app/documents")}>Documents</a>
+        <a href={appUrl("/app/help")}>Help</a> */}
       </NavMenu>
       <LcpObserver />
       {shouldShowEmbedWarning && (

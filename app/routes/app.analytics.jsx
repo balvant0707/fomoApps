@@ -28,9 +28,9 @@ const PRESET_DAY_OPTIONS = [7, 15, 30, 60, 90, 365];
 const MAX_CUSTOM_RANGE_DAYS = 366;
 const TYPE_DEFINITIONS = [
   { key: "order", label: "Order", sourceTypes: ["recent", "orders"] },
-  { key: "addtocart", label: "AddToCart", sourceTypes: ["addtocart"] },
+  { key: "addtocart", label: "Add To Cart", sourceTypes: ["addtocart"] },
   { key: "visitor", label: "Visitor", sourceTypes: ["visitor"] },
-  { key: "lowstock", label: "LowStock", sourceTypes: ["lowstock"] },
+  { key: "lowstock", label: "Low Stock", sourceTypes: ["lowstock"] },
   { key: "discount", label: "Discount", sourceTypes: ["flash", "discount"] },
   { key: "review", label: "Reviews", sourceTypes: ["review", "reviews"] },
 ];
