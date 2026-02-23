@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { TitleBar } from "@shopify/app-bridge-react";
 import {
   Page,
   Card,
   Text,
   BlockStack,
   InlineStack,
-  Button,
   Collapsible,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
@@ -825,6 +823,16 @@ const groupBodyStyle = {
   paddingTop: "8px",
 };
 
+const accordionTitleButtonStyle = {
+  width: "100%",
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  margin: 0,
+  cursor: "pointer",
+  textAlign: "left",
+};
+
 const listStyle = {
   margin: "0 0 0 18px",
   lineHeight: "1.7",
@@ -1022,18 +1030,23 @@ export default function DocumentsPage() {
                 <div key={popup.key} style={popupCardStyle}>
                   <BlockStack gap="250">
                     <InlineStack align="space-between" blockAlign="center">
-                      <Text as="h3" variant="headingMd">
-                        {popup.title}
-                      </Text>
-                      <Button
-                        variant="plain"
+                      <button
+                        type="button"
+                        style={accordionTitleButtonStyle}
                         onClick={() => togglePopup(popup.key)}
+                        aria-expanded={popupOpen}
+                        aria-controls={`${popup.key}-content`}
                       >
+                        <Text as="h3" variant="headingMd">
+                          {popup.title}
+                        </Text>
+                      </button>
+                      <Text as="span" variant="bodySm" tone="subdued">
                         {popupOpen ? "Hide" : "Show"}
-                      </Button>
+                      </Text>
                     </InlineStack>
 
-                    <Collapsible open={popupOpen}>
+                    <Collapsible id={`${popup.key}-content`} open={popupOpen}>
                       <BlockStack gap="250">
                         <Text as="p" variant="bodyMd">
                           {popup.summary}
@@ -1050,17 +1063,25 @@ export default function DocumentsPage() {
                                 align="space-between"
                                 blockAlign="center"
                               >
-                                <Text as="h4" variant="headingSm">
-                                  {group.title}
-                                </Text>
-                                <Button
-                                  variant="plain"
+                                <button
+                                  type="button"
+                                  style={accordionTitleButtonStyle}
                                   onClick={() => toggleGroup(popup.key, group.key)}
+                                  aria-expanded={groupOpen}
+                                  aria-controls={`${popup.key}-${group.key}-content`}
                                 >
+                                  <Text as="h4" variant="headingSm">
+                                    {group.title}
+                                  </Text>
+                                </button>
+                                <Text as="span" variant="bodySm" tone="subdued">
                                   {groupOpen ? "Hide" : "Show"}
-                                </Button>
+                                </Text>
                               </InlineStack>
-                              <Collapsible open={groupOpen}>
+                              <Collapsible
+                                id={`${popup.key}-${group.key}-content`}
+                                open={groupOpen}
+                              >
                                 <div style={groupBodyStyle}>
                                   {renderFieldList(group.fields)}
                                   {renderTextList(group.items)}
