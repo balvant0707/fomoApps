@@ -7,7 +7,7 @@ import {
   useRevalidator,
   useRouteLoaderData,
 } from "@remix-run/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import {
@@ -35,6 +35,61 @@ const CONTACT_FORM_INITIAL = {
 };
 const WRITE_REVIEW_URL =
   "https://apps.shopify.com/fomoify-sales-popup-proof#modal-show=WriteReviewModal";
+const POPUPS_PER_SLIDE = 2;
+const POPUP_CARD_DATA = [
+  {
+    key: "recent",
+    title: "Recent Purchases Popup",
+    desc: "Show real-time customer activity to create social proof and FOMO.",
+    path: "/app/notification/recent",
+    imageName: "Recent cart.png",
+  },
+  {
+    key: "flash",
+    title: "Flash Sale / Countdown Bar",
+    desc: "Announce limited-time offers with a sticky top bar and timer.",
+    path: "/app/notification/flash",
+    imageName: "Flash Sale.png",
+  },
+  {
+    key: "visitor",
+    title: "Visitor Popup",
+    desc: "Show live visitor activity and product interest notifications.",
+    path: "/app/notification/visitor",
+    imageName: "Visitor Popup - new.png",
+  },
+  {
+    key: "lowstock",
+    title: "Low Stock Popup",
+    desc: "Create urgency when inventory is running low.",
+    path: "/app/notification/lowstock",
+    imageName: "low stock popup.png",
+  },
+  {
+    key: "addtocart",
+    title: "Add to Cart Notification",
+    desc: "Show live add-to-cart activity to build social proof.",
+    path: "/app/notification/addtocart",
+    imageName: "add to cart notification.png",
+  },
+  {
+    key: "review",
+    title: "Review Notification",
+    desc: "Show new product reviews to build trust and social proof.",
+    path: "/app/notification/review",
+    imageName: "Review notification.png",
+  },
+];
+
+function splitIntoSlides(items, perSlide) {
+  const out = [];
+  for (let idx = 0; idx < items.length; idx += perSlide) {
+    out.push(items.slice(idx, idx + perSlide));
+  }
+  return out;
+}
+
+const POPUP_SLIDES = splitIntoSlides(POPUP_CARD_DATA, POPUPS_PER_SLIDE);
 
 function escapeHtml(value) {
   return String(value || "")
@@ -49,7 +104,135 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function PopupSliderCard({
+  title,
+  desc,
+  imageName,
+  onCreate,
+  onManage,
+  loading,
+}) {
+  const imageSrc = `/images/${encodeURIComponent(imageName)}`;
+
+  return (
+    <div className="home-popup-card">
+      <div className="home-popup-card-content">
+        <div className="home-popup-card-title">{title}</div>
+        <div className="home-popup-card-desc">{desc}</div>
+        <div className="home-popup-card-actions">
+          <Button primary onClick={onCreate} loading={loading} disabled={loading}>
+            {loading ? "Opening..." : "Create"}
+          </Button>
+          <Button onClick={onManage} disabled={loading}>
+            Manage
+          </Button>
+        </div>
+      </div>
+      <div className="home-popup-card-image" aria-hidden>
+        <img
+          src={imageSrc}
+          alt={`${title} preview`}
+          width={96}
+          height={96}
+          style={{ borderRadius: 8, objectFit: "contain" }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const INDEX_SUPPORT_STYLES = `
+.home-popup-slider {
+  display: grid;
+  gap: 14px;
+}
+.home-popup-slider-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+.home-popup-slider-nav {
+  display: inline-flex;
+  gap: 8px;
+}
+.home-popup-nav-btn {
+  border: 1px solid #d2d6dc;
+  background: #ffffff;
+  color: #111827;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.home-popup-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.home-popup-slider-window {
+  overflow: hidden;
+  border-radius: 14px;
+}
+.home-popup-slider-track {
+  display: flex;
+  transition: transform 260ms ease;
+}
+.home-popup-slide {
+  flex: 0 0 100%;
+}
+.home-popup-slide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.home-popup-card {
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 8px 20px rgba(17, 24, 39, 0.05);
+}
+.home-popup-card-content {
+  display: grid;
+  gap: 8px;
+}
+.home-popup-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.home-popup-card-desc {
+  font-size: 13px;
+  color: #6b7280;
+}
+.home-popup-card-actions {
+  display: flex;
+  gap: 8px;
+}
+.home-popup-card-image {
+  flex: 0 0 auto;
+}
+.home-popup-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+.home-popup-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 0;
+  background: #d1d5db;
+  cursor: pointer;
+}
+.home-popup-dot.is-active {
+  width: 22px;
+  background: #2563eb;
+}
 .home-support-grid {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
@@ -212,6 +395,19 @@ const INDEX_SUPPORT_STYLES = `
   }
 }
 @media (max-width: 740px) {
+  .home-popup-slide-grid {
+    grid-template-columns: 1fr;
+  }
+  .home-popup-card {
+    align-items: flex-start;
+  }
+  .home-popup-card-image {
+    display: none;
+  }
+  .home-popup-slider-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .home-support-items {
     grid-template-columns: 1fr;
   }
@@ -573,8 +769,10 @@ export default function AppIndex() {
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [contactForm, setContactForm] = useState(CONTACT_FORM_INITIAL);
   const [contactError, setContactError] = useState("");
+  const [popupLoadingKey, setPopupLoadingKey] = useState(null);
+  const [popupSlideIndex, setPopupSlideIndex] = useState(0);
   const search = location.search || "";
-  const appUrl = (path) => `${path}${search}`;
+  const appUrl = useCallback((path) => `${path}${search}`, [search]);
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
   const hasThemeEmbedSignal =
     hasThemeEmbedCheck && appRouteData?.appEmbedFound === true;
@@ -663,6 +861,36 @@ export default function AppIndex() {
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
+  const goPopupCreate = useCallback(
+    (path, key) => {
+      if (popupLoadingKey) return;
+      setPopupLoadingKey(`${key}-create`);
+      setTimeout(() => navigate(appUrl(path)), 350);
+    },
+    [appUrl, navigate, popupLoadingKey]
+  );
+
+  const goPopupManage = useCallback(
+    (key) => {
+      if (popupLoadingKey) return;
+      setPopupLoadingKey(`${key}-manage`);
+      setTimeout(() => navigate(appUrl("/app/notification/manage")), 350);
+    },
+    [appUrl, navigate, popupLoadingKey]
+  );
+
+  const maxPopupSlideIndex = Math.max(POPUP_SLIDES.length - 1, 0);
+  const canPopupSlidePrev = popupSlideIndex > 0;
+  const canPopupSlideNext = popupSlideIndex < maxPopupSlideIndex;
+
+  const prevPopupSlide = useCallback(() => {
+    setPopupSlideIndex((prev) => Math.max(prev - 1, 0));
+  }, []);
+
+  const nextPopupSlide = useCallback(() => {
+    setPopupSlideIndex((prev) => Math.min(prev + 1, maxPopupSlideIndex));
+  }, [maxPopupSlideIndex]);
+
   const updateContactField = (field) => (value) => {
     setContactForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -736,6 +964,78 @@ export default function AppIndex() {
               </Button>
             </InlineStack>
           </BlockStack>
+        </Card>
+
+        <Card>
+          <div className="home-popup-slider">
+            <div className="home-popup-slider-head">
+              <Text as="h3" variant="headingMd">
+                All Popups
+              </Text>
+              <div className="home-popup-slider-nav">
+                <button
+                  type="button"
+                  className="home-popup-nav-btn"
+                  onClick={prevPopupSlide}
+                  disabled={!canPopupSlidePrev}
+                  aria-label="Previous popup slide"
+                >
+                  Prev
+                </button>
+                <button
+                  type="button"
+                  className="home-popup-nav-btn"
+                  onClick={nextPopupSlide}
+                  disabled={!canPopupSlideNext}
+                  aria-label="Next popup slide"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div className="home-popup-slider-window">
+              <div
+                className="home-popup-slider-track"
+                style={{ transform: `translateX(-${popupSlideIndex * 100}%)` }}
+              >
+                {POPUP_SLIDES.map((slide, slideIdx) => (
+                  <div className="home-popup-slide" key={`slide-${slideIdx}`}>
+                    <div className="home-popup-slide-grid">
+                      {slide.map((card) => (
+                        <PopupSliderCard
+                          key={card.key}
+                          title={card.title}
+                          desc={card.desc}
+                          imageName={card.imageName}
+                          onCreate={() => goPopupCreate(card.path, card.key)}
+                          onManage={() => goPopupManage(card.key)}
+                          loading={
+                            popupLoadingKey === `${card.key}-create` ||
+                            popupLoadingKey === `${card.key}-manage`
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {POPUP_SLIDES.length > 1 ? (
+              <div className="home-popup-dots" aria-label="Popup slides">
+                {POPUP_SLIDES.map((_, idx) => (
+                  <button
+                    key={`dot-${idx}`}
+                    type="button"
+                    className={`home-popup-dot${idx === popupSlideIndex ? " is-active" : ""}`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                    onClick={() => setPopupSlideIndex(idx)}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
         </Card>
 
         <div className="home-support-grid">
