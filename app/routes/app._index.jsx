@@ -243,9 +243,13 @@ const INDEX_SUPPORT_STYLES = `
     border: 1px solid #e6e6e8;
     border-radius: 16px;
     padding: 18px;
-    background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px), linear-gradient(160deg, #c2dcb3 0%, #adc995 100%);
     background-size: 36px 36px, 36px 36px, auto;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    border-color: #c8d7f3;
+    background-image:
+    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
+    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
 }
 .home-support-items {
   display: grid;
