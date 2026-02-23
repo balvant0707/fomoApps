@@ -1,6 +1,7 @@
 import { defer, json, redirect } from "@remix-run/node";
 import {
   useLoaderData,
+  useFetcher,
   useLocation,
   useNavigate,
   useRevalidator,
@@ -22,10 +23,26 @@ import {
 } from "@shopify/polaris";
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
+import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 
-const SUPPORT_EMAIL = "info@pryxotech.com";
+const CONTACT_SUBJECT_DEFAULT = "Support Request (FOMO Shopify App)";
+const CONTACT_FORM_INITIAL = {
+  name: "",
+  email: "",
+  subject: CONTACT_SUBJECT_DEFAULT,
+  message: "",
+};
 const WRITE_REVIEW_URL =
   "https://apps.shopify.com/fomoify-sales-popup-proof#modal-show=WriteReviewModal";
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 const INDEX_SUPPORT_STYLES = `
 .home-support-grid {
@@ -397,11 +414,96 @@ export async function action({ request }) {
     }
   }
 
+  if (_action === "report-issue") {
+    const name = String(form.get("name") || "").trim();
+    const email = String(form.get("email") || "").trim();
+    const subjectRaw = String(form.get("subject") || "").trim();
+    const message = String(form.get("message") || "").trim();
+    const ownerEmail = String(process.env.APP_OWNER_FALLBACK_EMAIL || "").trim();
+    const smtpConfigured = Boolean(
+      process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS
+    );
+
+    if (!message) {
+      return safeJson(
+        { ok: false, error: "Message is required." },
+        { status: 400 }
+      );
+    }
+
+    if (!ownerEmail) {
+      return safeJson(
+        {
+          ok: false,
+          error: "Owner email is not configured. Set APP_OWNER_FALLBACK_EMAIL.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!smtpConfigured) {
+      return safeJson(
+        {
+          ok: false,
+          error: "SMTP is not configured. Set SMTP_HOST, SMTP_USER, and SMTP_PASS.",
+        },
+        { status: 500 }
+      );
+    }
+
+    const subject = subjectRaw || CONTACT_SUBJECT_DEFAULT;
+    const submittedAt = new Date().toISOString();
+    const safeShop = String(shop || "").trim() || "-";
+    const textBody = [
+      "New issue report from app dashboard.",
+      "",
+      `Submitted at: ${submittedAt}`,
+      `Shop: ${safeShop}`,
+      `Name: ${name || "-"}`,
+      `Email: ${email || "-"}`,
+      "",
+      "Message:",
+      message,
+    ].join("\n");
+
+    const htmlBody = `
+      <html>
+        <body style="font-family:Arial,sans-serif;line-height:1.6;color:#333;">
+          <h2 style="margin:0 0 12px;">New issue report from app dashboard</h2>
+          <p><strong>Submitted at:</strong> ${escapeHtml(submittedAt)}</p>
+          <p><strong>Shop:</strong> ${escapeHtml(safeShop)}</p>
+          <p><strong>Name:</strong> ${escapeHtml(name || "-")}</p>
+          <p><strong>Email:</strong> ${escapeHtml(email || "-")}</p>
+          <p><strong>Subject:</strong> ${escapeHtml(subject)}</p>
+          <p><strong>Message:</strong></p>
+          <pre style="white-space:pre-wrap;background:#f8f9fb;padding:12px;border-radius:8px;">${escapeHtml(message)}</pre>
+        </body>
+      </html>
+    `.trim();
+
+    try {
+      await sendOwnerEmail({
+        to: ownerEmail,
+        subject: `[Issue Report] ${subject}`,
+        text: textBody,
+        html: htmlBody,
+      });
+      return safeJson({ ok: true });
+    } catch (e) {
+      console.error("[home.action:report-issue] error:", e);
+      return safeJson(
+        { ok: false, error: "Failed to send issue email." },
+        { status: 500 }
+      );
+    }
+  }
+
   return safeJson({ ok: false, error: "Unknown action" }, { status: 400 });
 }
 
 export default function AppIndex() {
   const { slug, shopDomain, themeId, apiKey, embedPingStatus } = useLoaderData();
+  const contactFetcher = useFetcher();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const location = useLocation();
@@ -414,12 +516,8 @@ export default function AppIndex() {
     checkedAt: null,
   });
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-  const [contactForm, setContactForm] = useState({
-    name: "",
-    email: "",
-    subject: "Support Request (FOMO Shopify App)",
-    message: "",
-  });
+  const [contactForm, setContactForm] = useState(CONTACT_FORM_INITIAL);
+  const [contactError, setContactError] = useState("");
   const search = location.search || "";
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
@@ -477,6 +575,18 @@ export default function AppIndex() {
     };
   }, [embedPingStatus]);
 
+  useEffect(() => {
+    const data = contactFetcher.data;
+    if (!data) return;
+    if (data.ok) {
+      setContactForm(CONTACT_FORM_INITIAL);
+      setContactError("");
+      setIsContactModalOpen(false);
+      return;
+    }
+    setContactError(String(data.error || "Failed to send issue email."));
+  }, [contactFetcher.data]);
+
   const toThemeEditorThemeId = (value) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "current";
@@ -503,6 +613,7 @@ export default function AppIndex() {
   };
 
   const openContactModal = () => {
+    setContactError("");
     setIsContactModalOpen(true);
   };
 
@@ -511,26 +622,21 @@ export default function AppIndex() {
   };
 
   const submitContactIssue = () => {
-    const subject = String(contactForm.subject || "").trim() || "Support Request (FOMO Shopify App)";
+    setContactError("");
+    const subject = String(contactForm.subject || "").trim() || CONTACT_SUBJECT_DEFAULT;
     const message = String(contactForm.message || "").trim();
-    if (!message) return;
+    if (!message) {
+      setContactError("Message is required.");
+      return;
+    }
 
-    const lines = [
-      "Please describe your issue:",
-      "",
-      `Name: ${String(contactForm.name || "").trim() || "-"}`,
-      `Email: ${String(contactForm.email || "").trim() || "-"}`,
-      `Shop URL: ${shopDomain || slug || "-"}`,
-      "",
-      "Message:",
-      message,
-    ];
-
-    const mailto = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(
-      lines.join("\n")
-    )}`;
-    window.location.href = mailto;
-    closeContactModal();
+    const payload = new FormData();
+    payload.set("_action", "report-issue");
+    payload.set("name", String(contactForm.name || "").trim());
+    payload.set("email", String(contactForm.email || "").trim());
+    payload.set("subject", subject);
+    payload.set("message", message);
+    contactFetcher.submit(payload, { method: "post" });
   };
 
   return (
@@ -678,12 +784,16 @@ export default function AppIndex() {
           primaryAction={{
             content: "Send",
             onAction: submitContactIssue,
-            disabled: !String(contactForm.message || "").trim(),
+            loading: contactFetcher.state !== "idle",
+            disabled:
+              contactFetcher.state !== "idle" ||
+              !String(contactForm.message || "").trim(),
           }}
           secondaryActions={[
             {
               content: "Cancel",
               onAction: closeContactModal,
+              disabled: contactFetcher.state !== "idle",
             },
           ]}
         >
@@ -718,6 +828,11 @@ export default function AppIndex() {
                 multiline={6}
                 autoComplete="off"
               />
+              {contactError ? (
+                <Text as="p" tone="critical">
+                  {contactError}
+                </Text>
+              ) : null}
             </BlockStack>
           </Modal.Section>
         </Modal>
