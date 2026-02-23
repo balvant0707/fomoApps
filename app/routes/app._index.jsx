@@ -316,7 +316,7 @@ const INDEX_SUPPORT_STYLES = `
   background: radial-gradient(circle at 35% 35%, #76a7ff 12%, #2f6de7 60%, #1e4ba8 100%);
 }
 .home-support-item.knowledge .home-support-item-icon {
-  background: radial-gradient(circle at 35% 35%, #80c47f 12%, #449c5c 60%, #2f6b3f 100%);
+  background: radial-gradient(circle at 35% 35%, #76a7ff 12%, #2f6de7 60%, #1e4ba8 100%);
 }
 .home-support-item-icon svg {
   width: 24px;
@@ -333,7 +333,7 @@ const INDEX_SUPPORT_STYLES = `
   margin-bottom: 2px;
 }
 .home-support-item.knowledge .home-support-item-link {
-  color: #166534;
+ 
 }
 .home-review-panel {
   border: 1px solid #aec69c;
