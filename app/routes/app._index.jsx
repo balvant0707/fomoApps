@@ -274,15 +274,11 @@ const INDEX_SUPPORT_STYLES = `
       background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(150deg, #bca9e4 0%, #d2c4f1 100%);
 }
 .home-support-item.knowledge {
-  border-color: #c6d9ca;
   border-color: #c8d7f3;
-  background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
+      background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(150deg, #bca9e4 0%, #d2c4f1 100%);
 }
 .home-support-item:hover {
-  border-color: #96b6ff;
+  border-color: #a982fd;
   box-shadow: 0 0 0 2px rgba(47, 133, 90, 0.08);
   transform: translateY(-1px);
 }
