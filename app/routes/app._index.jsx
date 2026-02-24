@@ -246,10 +246,7 @@ const INDEX_SUPPORT_STYLES = `
     background-size: 36px 36px, 36px 36px, auto;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
     border-color: #c8d7f3;
-    background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
+        background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(150deg, #bca9e4 0%, #d2c4f1 100%);
 }
 .home-support-items {
   display: grid;
@@ -274,10 +271,7 @@ const INDEX_SUPPORT_STYLES = `
 }
 .home-support-item.chat {
   border-color: #c8d7f3;
-  background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
+      background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(150deg, #bca9e4 0%, #d2c4f1 100%);
 }
 .home-support-item.knowledge {
   border-color: #c6d9ca;
@@ -343,10 +337,7 @@ const INDEX_SUPPORT_STYLES = `
   justify-content: space-between;
   border-color: #c8d7f3;
   border-color: #c8d7f3;
-  background-image:
-    linear-gradient(0deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px),
-    linear-gradient(150deg, #eaf1ff 0%, #dce9ff 100%);
+  background-image: linear-gradient(0deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px), linear-gradient(150deg, #bca9e4 0%, #d2c4f1 100%);
   background-size: 36px 36px, 36px 36px, auto;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
