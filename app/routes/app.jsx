@@ -127,12 +127,12 @@ export default function App() {
   const appUrl = (path) => `${path}${search}`;
   const hasThemeEmbedCheck = appEmbedChecked === true;
   const hasThemeEmbedSignal = hasThemeEmbedCheck && appEmbedFound === true;
+  const hasFreshPingSignal =
+    embedPingStatus?.isFresh === true || embedPingStatus?.isOn === true;
   const isEmbedActive = hasThemeEmbedSignal
     ? Boolean(appEmbedEnabled)
-    : Boolean(embedPingStatus?.isOn);
-  const hasReliableEmbedStatus =
-    hasThemeEmbedSignal || Boolean(embedPingStatus?.lastPingAt);
-  const shouldShowEmbedWarning = hasReliableEmbedStatus && !isEmbedActive;
+    : hasFreshPingSignal;
+  const shouldShowEmbedWarning = hasThemeEmbedSignal && !isEmbedActive;
   const embedWarningTitle = "App embed is disabled";
   const embedWarningText =
     'Fomoify App Embed is currently disabled. To enable popups and social proof on your storefront, go to Theme Customize -> App embeds and turn ON "Fomoify - Core Embed".';

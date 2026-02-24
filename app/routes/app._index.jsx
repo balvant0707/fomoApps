@@ -769,6 +769,7 @@ export default function AppIndex() {
   const [isEmbedPingLoading, setIsEmbedPingLoading] = useState(true);
   const [embedPing, setEmbedPing] = useState({
     isOn: false,
+    isFresh: false,
     lastPingAt: null,
     checkedAt: null,
   });
@@ -783,11 +784,13 @@ export default function AppIndex() {
   const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
   const hasThemeEmbedSignal =
     hasThemeEmbedCheck && appRouteData?.appEmbedFound === true;
+  const hasFreshPingSignal =
+    embedPing?.isFresh === true || embedPing?.isOn === true;
   const isEmbedActive = hasThemeEmbedSignal
     ? Boolean(appRouteData?.appEmbedEnabled)
-    : Boolean(embedPing.isOn);
+    : hasFreshPingSignal;
   const hasReliableEmbedStatus =
-    hasThemeEmbedSignal || Boolean(embedPing.lastPingAt);
+    hasThemeEmbedSignal || hasFreshPingSignal;
   const embedBadgeTone = hasReliableEmbedStatus
     ? isEmbedActive
       ? "success"
@@ -815,6 +818,7 @@ export default function AppIndex() {
         if (!active) return;
         setEmbedPing({
           isOn: Boolean(state?.isOn),
+          isFresh: Boolean(state?.isFresh ?? state?.isOn),
           lastPingAt: state?.lastPingAt || null,
           checkedAt: state?.checkedAt || null,
         });
@@ -823,6 +827,7 @@ export default function AppIndex() {
         if (!active) return;
         setEmbedPing({
           isOn: false,
+          isFresh: false,
           lastPingAt: null,
           checkedAt: null,
         });

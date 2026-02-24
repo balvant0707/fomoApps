@@ -54,6 +54,38 @@ const collectThemeBlockMaps = (parsed) => {
   });
   return unique;
 };
+const collectThemeBlockEntries = (parsed) => {
+  const entries = [];
+  const seenBlocks = new Set();
+  const pushEntry = (blockId, block) => {
+    if (!isObjectRecord(block) || seenBlocks.has(block)) return;
+    seenBlocks.add(block);
+    entries.push({ blockId: String(blockId || ""), block });
+  };
+
+  collectThemeBlockMaps(parsed).forEach((blocks) => {
+    Object.entries(blocks).forEach(([blockId, block]) => {
+      pushEntry(blockId, block);
+    });
+  });
+
+  const walk = (value, keyHint = "") => {
+    if (Array.isArray(value)) {
+      value.forEach((item, idx) =>
+        walk(item, keyHint ? `${keyHint}:${idx}` : String(idx))
+      );
+      return;
+    }
+    if (!isObjectRecord(value)) return;
+    if (typeof value.type === "string") {
+      pushEntry(keyHint || value?.id || value?.type || "", value);
+    }
+    Object.entries(value).forEach(([key, child]) => walk(child, key));
+  };
+
+  walk(parsed);
+  return entries;
+};
 const hasRestAssetResources = (admin) =>
   Boolean(admin?.rest?.resources?.Asset?.all);
 const hasRestThemeResources = (admin) =>
@@ -198,8 +230,8 @@ export async function getThemeEmbedState({
     } catch {
       return { enabled: false, found: false, checked: false };
     }
-    const blockMaps = collectThemeBlockMaps(parsed);
-    if (!blockMaps.length) {
+    const entries = collectThemeBlockEntries(parsed);
+    if (!entries.length) {
       return { enabled: false, found: false, checked: true };
     }
 
@@ -223,26 +255,29 @@ export async function getThemeEmbedState({
       )
     );
 
-    const entries = blockMaps.flatMap((blocks) =>
-      Object.entries(blocks).map(([blockId, block]) => ({ blockId, block }))
-    );
     const matches = entries
       .filter(({ blockId, block }) => {
         const type = toLower(block?.type);
         if (!type) return false;
 
+        const normalizedType = normalizeToken(type);
+        const normalizedBlockId = normalizeToken(blockId);
+        const normalizedName = normalizeToken(
+          block?.name || block?.settings?.name
+        );
+        const normalizedTarget = normalizeToken(
+          block?.target || block?.settings?.target
+        );
         const hasAppType =
           type.includes("shopify://apps/") ||
           type.includes("/apps/") ||
-          normalizeToken(type).includes("shopifyapps");
+          normalizedType.includes("shopifyapps") ||
+          normalizedBlockId.includes("shopifyapps");
         if (!hasAppType) {
           return false;
         }
 
-        const normalizedType = normalizeToken(type);
-        const normalizedBlockId = normalizeToken(blockId);
-        const normalizedName = normalizeToken(block?.name);
-        const haystack = `${normalizedType} ${normalizedBlockId} ${normalizedName}`;
+        const haystack = `${normalizedType} ${normalizedBlockId} ${normalizedName} ${normalizedTarget}`;
         const hasHandleMatch = normalizedHandleVariants.some((variant) =>
           haystack.includes(variant)
         );
@@ -252,6 +287,7 @@ export async function getThemeEmbedState({
           normalizedType.includes("embed") ||
           normalizedBlockId.includes("embed") ||
           normalizedName.includes("embed") ||
+          normalizedTarget.includes("embed") ||
           normalizedType.includes("appblock");
         return hasAppMarker && hasEmbedHint;
       })

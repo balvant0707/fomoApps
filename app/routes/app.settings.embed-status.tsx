@@ -50,11 +50,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasThemeEmbedSignal =
     hasThemeEmbedCheck &&
     Boolean(embedContext.appEmbedFound);
+  const hasFreshPingSignal =
+    pingStatus?.isFresh === true || pingStatus?.isOn === true;
   const isEmbedOn = hasThemeEmbedSignal
     ? Boolean(embedContext.appEmbedEnabled)
-    : Boolean(pingStatus?.isOn);
+    : hasFreshPingSignal;
   const hasReliableStatus =
-    hasThemeEmbedSignal || Boolean(pingStatus?.lastPingAt);
+    hasThemeEmbedSignal || hasFreshPingSignal;
 
   return json({
     shop,

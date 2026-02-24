@@ -10,6 +10,7 @@ export async function getEmbedPingStatus(shopDomain) {
 
   const fallback = {
     isOn: false,
+    isFresh: false,
     lastPingAt: null,
     checkedAt: now.toISOString(),
   };
@@ -25,13 +26,17 @@ export async function getEmbedPingStatus(shopDomain) {
       select: { lastPingAt: true },
     });
     const lastPingAt = row?.lastPingAt ? new Date(row.lastPingAt) : null;
-    const isOn =
-      Boolean(lastPingAt) &&
-      now.getTime() - lastPingAt.getTime() <= EMBED_ON_WINDOW_MS;
+    const lastPingAgeMs = lastPingAt
+      ? Math.max(0, now.getTime() - lastPingAt.getTime())
+      : null;
+    const isFresh =
+      Number.isFinite(lastPingAgeMs) && lastPingAgeMs <= EMBED_ON_WINDOW_MS;
 
     return {
-      isOn,
+      isOn: Boolean(isFresh),
+      isFresh: Boolean(isFresh),
       lastPingAt: lastPingAt ? lastPingAt.toISOString() : null,
+      lastPingAgeMs,
       checkedAt: now.toISOString(),
     };
   } catch (error) {
