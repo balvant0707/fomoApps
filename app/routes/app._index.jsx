@@ -24,6 +24,7 @@ import {
 import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
+import { maybeSendAnnouncementEmail } from "../utils/sendAnnouncementEmail.server";
 
 const CONTACT_SUBJECT_DEFAULT = "Support Request (FOMO Shopify App)";
 const CONTACT_ACK_SUBJECT = "We received your support request (FOMO Shopify App)";
@@ -463,6 +464,11 @@ export const loader = async ({ request }) => {
     "";
   const shopDomain = toShopDomain(shop);
   const themeIdPromise = getMainThemeId({ admin, shop });
+
+  // Fire announcement email in background — does not block page load
+  maybeSendAnnouncementEmail(shopDomain, session?.email ?? null).catch((err) =>
+    console.error("[announcement email] error:", err.message)
+  );
 
   const apiKey =
     process.env.SHOPIFY_API_KEY ||

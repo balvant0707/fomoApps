@@ -10,7 +10,6 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import prisma from "./db.server";
 import { upsertInstalledShop } from "./utils/upsertShop.server";
 import { ensurePrismaSessionTable } from "./utils/ensureSessionTable.server";
-import { sendWelcomeEmail } from "./utils/sendWelcomeEmail.server";
 
 const toPositiveInt = (value, fallback) => {
   const n = Number(value);
