@@ -15,6 +15,9 @@
 //
 // ── Edit the email content below before running ───────────────────────────────
 
+// Author email for testing. Set to null to send to all installed users.
+const AUTHOR_TEST_EMAIL = "cisase6754@fentaoba.com";
+
 const EMAIL_SUBJECT = "New feature available in FomoApp!";
 
 const EMAIL_HTML_BODY = /* html */ `
@@ -50,8 +53,7 @@ import "dotenv/config";
 import nodemailer from "nodemailer";
 import { PrismaClient } from "@prisma/client";
 
-const { SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM_EMAIL, SMTP_FROM_NAME, TEST_EMAIL } =
-  process.env;
+const { SMTP_HOST, SMTP_USER, SMTP_PASS, SMTP_FROM_EMAIL, SMTP_FROM_NAME } = process.env;
 const SMTP_PORT = Number(process.env.SMTP_PORT ?? 587);
 const EMAIL_FROM = SMTP_FROM_NAME
   ? `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL ?? SMTP_USER}>`
@@ -110,8 +112,8 @@ async function main() {
   await transporter.verify();
   console.log("SMTP connection verified.\n");
 
-  const recipients = TEST_EMAIL
-    ? [{ shop: "test", email: TEST_EMAIL, name: null }]
+  const recipients = AUTHOR_TEST_EMAIL
+    ? [{ shop: "test", email: AUTHOR_TEST_EMAIL, name: null }]
     : await getRecipients();
 
   if (recipients.length === 0) {
@@ -120,8 +122,8 @@ async function main() {
     return;
   }
 
-  if (TEST_EMAIL) {
-    console.log(`TEST MODE — sending only to ${TEST_EMAIL}\n`);
+  if (AUTHOR_TEST_EMAIL) {
+    console.log(`TEST MODE — sending only to ${AUTHOR_TEST_EMAIL}\n`);
   } else {
     console.log(`Sending to ${recipients.length} shop owner(s)...\n`);
   }
