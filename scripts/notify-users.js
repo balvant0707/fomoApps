@@ -16,7 +16,7 @@
 // ── Edit the email content below before running ───────────────────────────────
 
 // Author email for testing. Set to null to send to all installed users.
-const AUTHOR_TEST_EMAIL = "sales@pryxotech.com";
+const AUTHOR_TEST_EMAIL = "wamaf93131@ostahie.com";
 
 const EMAIL_SUBJECT = "🆕 4 Powerful New Popups Just Launched in Fomoify!";
 
