@@ -1072,7 +1072,7 @@ export default function AppIndex() {
               <button
                 type="button"
                 className="home-support-item chat"
-                onClick={() => navigate(appUrl("/app/help"))}
+                onClick={() => window.open("https://fomoifysalespopupproof.tawk.help/category/features", "_blank", "noopener,noreferrer")}
               >
                 <div className="home-support-item-row">
                   <div className="home-support-item-icon" aria-hidden>
