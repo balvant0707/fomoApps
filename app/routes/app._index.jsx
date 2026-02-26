@@ -779,11 +779,11 @@ export default function AppIndex() {
     hasThemeEmbedCheck && appRouteData?.appEmbedFound === true;
   const hasFreshPingSignal =
     embedPing?.isFresh === true || embedPing?.isOn === true;
-  const isEmbedActive = hasThemeEmbedSignal
+  const isEmbedActive = hasThemeEmbedCheck
     ? Boolean(appRouteData?.appEmbedEnabled)
     : hasFreshPingSignal;
   const hasReliableEmbedStatus =
-    hasThemeEmbedSignal || hasFreshPingSignal;
+    hasThemeEmbedCheck || hasFreshPingSignal;
   const embedBadgeTone = hasReliableEmbedStatus
     ? isEmbedActive
       ? "success"
