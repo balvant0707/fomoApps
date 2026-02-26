@@ -5,7 +5,6 @@ import {
   useLocation,
   useNavigate,
   useRevalidator,
-  useRouteLoaderData,
 } from "@remix-run/react";
 import { useEffect, useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
@@ -424,7 +423,7 @@ const INDEX_SUPPORT_STYLES = `
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const { getMainThemeId } = await import(
+  const { getAppEmbedContext } = await import(
     "../utils/themeEmbed.server"
   );
   const url = new URL(request.url);
@@ -463,7 +462,6 @@ export const loader = async ({ request }) => {
       .filter((part) => part !== "store")[0] ||
     "";
   const shopDomain = toShopDomain(shop);
-  const themeIdPromise = getMainThemeId({ admin, shop });
 
   // Fire announcement email in background — does not block page load
   maybeSendAnnouncementEmail(shopDomain, session?.email ?? null).catch((err) =>
@@ -474,14 +472,22 @@ export const loader = async ({ request }) => {
     process.env.SHOPIFY_API_KEY ||
     process.env.SHOPIFY_APP_BRIDGE_APP_ID ||
     "";
+  const extId = process.env.SHOPIFY_THEME_EXTENSION_ID || "";
+
+  // Deferred: starts fetch immediately but does NOT block the page render.
+  // Resolves to { themeId, appEmbedEnabled, appEmbedFound, appEmbedChecked }
+  const embedContextPromise = shop
+    ? getAppEmbedContext({ admin, shop, apiKey, extId, embedHandle: APP_EMBED_HANDLE })
+    : Promise.resolve({ themeId: null, appEmbedEnabled: false, appEmbedFound: false, appEmbedChecked: false });
+
   const embedPingStatusPromise = getEmbedPingStatus(shop);
 
   return defer({
     slug,
     shopDomain,
-    themeId: themeIdPromise,
     apiKey,
     embedPingStatus: embedPingStatusPromise,
+    embedContext: embedContextPromise,
   });
 };
 
@@ -752,13 +758,18 @@ export async function action({ request }) {
 }
 
 export default function AppIndex() {
-  const { slug, shopDomain, themeId, apiKey, embedPingStatus } = useLoaderData();
+  const { slug, shopDomain, apiKey, embedPingStatus, embedContext } = useLoaderData();
   const contactFetcher = useFetcher();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const location = useLocation();
-  const appRouteData = useRouteLoaderData("routes/app");
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
+  const [isEmbedContextLoading, setIsEmbedContextLoading] = useState(true);
+  const [embedContextState, setEmbedContextState] = useState({
+    appEmbedEnabled: false,
+    appEmbedFound: false,
+    appEmbedChecked: false,
+  });
   const [isEmbedPingLoading, setIsEmbedPingLoading] = useState(true);
   const [embedPing, setEmbedPing] = useState({
     isOn: false,
@@ -774,34 +785,40 @@ export default function AppIndex() {
   const [isPopupSliderPaused, setIsPopupSliderPaused] = useState(false);
   const search = location.search || "";
   const appUrl = useCallback((path) => `${path}${search}`, [search]);
-  const hasThemeEmbedCheck = appRouteData?.appEmbedChecked === true;
-  const hasThemeEmbedSignal =
-    hasThemeEmbedCheck && appRouteData?.appEmbedFound === true;
+  const hasThemeEmbedCheck = embedContextState.appEmbedChecked === true;
   const hasFreshPingSignal =
     embedPing?.isFresh === true || embedPing?.isOn === true;
+  // Theme check is authoritative when it completed; fall back to ping only if check failed
   const isEmbedActive = hasThemeEmbedCheck
-    ? Boolean(appRouteData?.appEmbedEnabled)
+    ? Boolean(embedContextState.appEmbedEnabled)
     : hasFreshPingSignal;
-  const hasReliableEmbedStatus =
-    hasThemeEmbedCheck || hasFreshPingSignal;
-  const embedBadgeTone = hasReliableEmbedStatus
-    ? isEmbedActive
-      ? "success"
-      : "critical"
-    : "attention";
-  const embedBadgeText = hasReliableEmbedStatus
-    ? `App embed: ${isEmbedActive ? "ON" : "OFF"}`
-    : "App embed: CHECKING";
+  const embedBadgeTone = isEmbedActive ? "success" : "critical";
+  const embedBadgeText = `App embed: ${isEmbedActive ? "ON" : "OFF"}`;
 
   useEffect(() => {
     let active = true;
-    Promise.resolve(themeId).then((id) => {
-      if (active) setResolvedThemeId(id ?? null);
-    });
+    setIsEmbedContextLoading(true);
+    Promise.resolve(embedContext)
+      .then((ctx) => {
+        if (!active) return;
+        setResolvedThemeId(ctx?.themeId ?? null);
+        setEmbedContextState({
+          appEmbedEnabled: Boolean(ctx?.appEmbedEnabled),
+          appEmbedFound: Boolean(ctx?.appEmbedFound),
+          appEmbedChecked: Boolean(ctx?.appEmbedChecked),
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setEmbedContextState({ appEmbedEnabled: false, appEmbedFound: false, appEmbedChecked: false });
+      })
+      .finally(() => {
+        if (active) setIsEmbedContextLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, [themeId]);
+  }, [embedContext]);
 
   useEffect(() => {
     let active = true;
@@ -972,7 +989,7 @@ export default function AppIndex() {
               </Button>
               <Button
                 variant="secondary"
-                loading={isEmbedPingLoading || revalidator.state !== "idle"}
+                loading={isEmbedContextLoading || isEmbedPingLoading || revalidator.state !== "idle"}
                 onClick={() => revalidator.revalidate()}
               >
                 Refresh Status
