@@ -4,7 +4,6 @@ import {
   useFetcher,
   useLocation,
   useNavigate,
-  useRevalidator,
 } from "@remix-run/react";
 import { useEffect, useState, useCallback } from "react";
 import { authenticate } from "../shopify.server";
@@ -761,7 +760,6 @@ export default function AppIndex() {
   const { slug, shopDomain, apiKey, embedPingStatus, embedContext } = useLoaderData();
   const contactFetcher = useFetcher();
   const navigate = useNavigate();
-  const revalidator = useRevalidator();
   const location = useLocation();
   const [resolvedThemeId, setResolvedThemeId] = useState(null);
   const [isEmbedContextLoading, setIsEmbedContextLoading] = useState(true);
@@ -980,13 +978,6 @@ export default function AppIndex() {
                 onClick={() => openThemeEditor(resolvedThemeId, "activate")}
               >
                 Open App Embeds
-              </Button>
-              <Button
-                variant="secondary"
-                loading={isEmbedContextLoading || isEmbedPingLoading || revalidator.state !== "idle"}
-                onClick={() => revalidator.revalidate()}
-              >
-                Refresh Status
               </Button>
             </InlineStack>
           </BlockStack>
