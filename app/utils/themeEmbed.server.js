@@ -248,7 +248,18 @@ export async function getThemeEmbedState({
     } catch {
       return { enabled: false, found: false, checked: false };
     }
+
+    // --- DEBUG: log current structure ---
+    console.log("[theme-embed:debug] themeId:", themeId, "| current type:", typeof parsed?.current);
     const entries = getActiveRootBlockEntries(parsed);
+    console.log("[theme-embed:debug] root block entries:", entries.length);
+    entries.forEach(({ blockId, block }) => {
+      console.log(
+        `[theme-embed:debug]   blockId=${blockId} | type=${block?.type} | disabled=${JSON.stringify(block?.disabled)}`
+      );
+    });
+    // --- END DEBUG ---
+
     if (!entries.length) {
       return { enabled: false, found: false, checked: true };
     }
@@ -312,6 +323,13 @@ export async function getThemeEmbedState({
       .map(({ block }) => block);
     const found = matches.length > 0;
     const enabled = matches.some((block) => !toBool(block?.disabled));
+
+    // --- DEBUG: log match result ---
+    console.log("[theme-embed:debug] matched blocks:", matches.length, "| found:", found, "| enabled:", enabled);
+    matches.forEach((block, i) => {
+      console.log(`[theme-embed:debug]   match[${i}] type=${block?.type} disabled=${JSON.stringify(block?.disabled)}`);
+    });
+    // --- END DEBUG ---
 
     return { enabled, found, checked: true };
   } catch (error) {
