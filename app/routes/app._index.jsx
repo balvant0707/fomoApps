@@ -973,12 +973,6 @@ export default function AppIndex() {
                 {embedBadgeText}
               </Badge>
             </InlineStack>
-            {!hasReliableEmbedStatus && (
-              <Text as="p" tone="subdued">
-                Embed status check is in progress. Open storefront once and
-                refresh status.
-              </Text>
-            )}
             
             <InlineStack gap="300" align="start">
               <Button
