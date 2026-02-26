@@ -86,6 +86,28 @@ const collectThemeBlockEntries = (parsed) => {
   walk(parsed);
   return entries;
 };
+// Returns ONLY the root-level blocks from the active (current) configuration.
+// App embed blocks live exclusively at this level — NOT inside sections or presets.
+// Using collectThemeBlockEntries (which deep-walks presets/sections) causes false
+// positives: a preset copy with disabled:false makes the embed appear ON even
+// when the current config has disabled:true.
+const getActiveRootBlockEntries = (parsed) => {
+  let blocks = null;
+  if (typeof parsed?.current === "string") {
+    // Old theme format: "current" is a preset name string
+    blocks = parsed?.presets?.[parsed.current]?.blocks ?? null;
+  } else if (isObjectRecord(parsed?.current)) {
+    // Modern 2.0 theme format: "current" is the active configuration object
+    blocks = parsed?.current?.blocks ?? null;
+  }
+  // Fallback for non-standard layouts
+  if (!isObjectRecord(blocks)) blocks = parsed?.blocks ?? null;
+  if (!isObjectRecord(blocks)) return [];
+  return Object.entries(blocks)
+    .filter(([, block]) => isObjectRecord(block))
+    .map(([blockId, block]) => ({ blockId: String(blockId), block }));
+};
+
 const hasRestAssetResources = (admin) =>
   Boolean(admin?.rest?.resources?.Asset?.all);
 const hasRestThemeResources = (admin) =>
@@ -217,11 +239,7 @@ export async function getThemeEmbedState({
   try {
     if (!themeId) return { enabled: false, found: false, checked: false };
 
-    const settingsRaw = await getOrSetCache(
-      `themes:settings:${shop}:${themeId}`,
-      2000,
-      () => fetchThemeSettingsData({ admin, themeId })
-    );
+    const settingsRaw = await fetchThemeSettingsData({ admin, themeId });
     if (!settingsRaw) return { enabled: false, found: false, checked: false };
 
     let parsed = null;
@@ -230,7 +248,7 @@ export async function getThemeEmbedState({
     } catch {
       return { enabled: false, found: false, checked: false };
     }
-    const entries = collectThemeBlockEntries(parsed);
+    const entries = getActiveRootBlockEntries(parsed);
     if (!entries.length) {
       return { enabled: false, found: false, checked: true };
     }
