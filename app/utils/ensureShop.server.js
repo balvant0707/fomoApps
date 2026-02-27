@@ -2,6 +2,14 @@
 import prisma from "../db.server.js";
 
 const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
+const normalizeNullableText = (value) => {
+  const text = String(value ?? "").trim();
+  return text ? text : null;
+};
+const normalizeEmail = (value) => {
+  const text = normalizeNullableText(value);
+  return text ? text.toLowerCase() : null;
+};
 
 /**
  * Ensure Shop row exists.
@@ -23,6 +31,9 @@ export async function ensureShopRow(rawShop) {
     (await prisma.session.findFirst({ where: { shop } }));
 
   if (!sess) return null;
+  const firstName = normalizeNullableText(sess.firstName);
+  const lastName = normalizeNullableText(sess.lastName);
+  const email = normalizeEmail(sess.email);
 
   // 3) Backfill Shop row using session access token
   const created = await prisma.shop.upsert({
@@ -30,6 +41,10 @@ export async function ensureShopRow(rawShop) {
     update: {
       accessToken: sess.accessToken ?? null,
       installed: true,
+      status: "active",
+      firstName: firstName ?? undefined,
+      lastName: lastName ?? undefined,
+      email: email ?? undefined,
       uninstalledAt: null,
       updatedAt: new Date(),
     },
@@ -37,6 +52,10 @@ export async function ensureShopRow(rawShop) {
       shop,
       accessToken: sess.accessToken ?? null,
       installed: true,
+      status: "active",
+      firstName: firstName ?? null,
+      lastName: lastName ?? null,
+      email: email ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     },

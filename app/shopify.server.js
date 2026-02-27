@@ -10,6 +10,7 @@ import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prism
 import prisma from "./db.server";
 import { upsertInstalledShop } from "./utils/upsertShop.server";
 import { ensurePrismaSessionTable } from "./utils/ensureSessionTable.server";
+import { sendWelcomeEmail } from "./utils/sendWelcomeEmail.server";
 
 const toPositiveInt = (value, fallback) => {
   const n = Number(value);
@@ -139,6 +140,10 @@ export const shopify = shopifyApp({
       await upsertInstalledShop({
         shop: session.shop,
         accessToken: session.accessToken ?? null,
+        firstName: session?.firstName ?? undefined,
+        lastName: session?.lastName ?? undefined,
+        email: session?.email ?? undefined,
+        status: "active",
       });
 
       const reg = await shopify.registerWebhooks({ session });
@@ -149,10 +154,21 @@ export const shopify = shopifyApp({
           // Fetch the store's contact email via GraphQL
           const client = new shopify.api.clients.Graphql({ session });
           const { data } = await client.request(`#graphql
-            query { shop { name email } }
+            query { shop { name email phone } }
           `);
           const shopEmail = data?.shop?.email ?? null;
+          const shopPhone = data?.shop?.phone ?? null;
           const shopName = data?.shop?.name ?? null;
+
+          await upsertInstalledShop({
+            shop: session.shop,
+            accessToken: session.accessToken ?? null,
+            firstName: session?.firstName ?? undefined,
+            lastName: session?.lastName ?? undefined,
+            email: shopEmail ?? undefined,
+            phone: shopPhone ?? undefined,
+            status: "active",
+          });
 
           await sendWelcomeEmail({
             shopEmail,

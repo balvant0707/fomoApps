@@ -1,7 +1,6 @@
 // app/routes/auth.$.jsx
 import { redirect } from "@remix-run/node";
 import { authenticate, registerWebhooks } from "../shopify.server";
-import prisma from "../db.server";
 import { ensureShopRow } from "../utils/ensureShop.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 import { upsertInstalledShop } from "../utils/upsertShop.server";
@@ -16,16 +15,18 @@ export const loader = async ({ request }) => {
   const { admin, session } = result;
   const shop = norm(session.shop);
 
-  // Check if this shop already exists (to detect first-time install if needed)
-  const existing = await prisma.shop.findUnique({
-    where: { shop },
-    select: { id: true, installed: true },
-  });
+  const sessionFirstName = String(session?.firstName || "").trim() || null;
+  const sessionLastName = String(session?.lastName || "").trim() || null;
+  const sessionEmail = String(session?.email || "").trim().toLowerCase() || null;
 
   // Primary upsert (install/update)
   await upsertInstalledShop({
     shop,
     accessToken: session.accessToken ?? null,
+    firstName: sessionFirstName,
+    lastName: sessionLastName,
+    email: sessionEmail,
+    status: "active",
   });
 
   // Safety net: even if above silently skips, ensure row exists from session table
@@ -35,10 +36,9 @@ export const loader = async ({ request }) => {
   await registerWebhooks({ session });
 
   // 🔔 Send email on every successful auth (install / re-auth)
-  // If you only want FIRST install, wrap this block in:
-  // if (!existing || !existing.installed) { ... }
   try {
-    let ownerEmail = null;
+    let ownerEmail = sessionEmail;
+    let ownerPhone = null;
     let shopName = shop;
     let myshopifyDomain = shop;
 
@@ -49,6 +49,7 @@ export const loader = async ({ request }) => {
           shop {
             email
             contactEmail
+            phone
             myshopifyDomain
             name
           }
@@ -58,13 +59,24 @@ export const loader = async ({ request }) => {
       ownerEmail =
         js?.data?.shop?.contactEmail ||
         js?.data?.shop?.email ||
-        null;
+        ownerEmail;
+      ownerPhone = String(js?.data?.shop?.phone || "").trim() || null;
 
       shopName = js?.data?.shop?.name || shop;
       myshopifyDomain = js?.data?.shop?.myshopifyDomain || shop;
     } catch (e) {
       console.error("[FOMO][INSTALL EMAIL] failed to fetch shop info:", e);
     }
+
+    await upsertInstalledShop({
+      shop,
+      accessToken: session.accessToken ?? null,
+      firstName: sessionFirstName,
+      lastName: sessionLastName,
+      email: ownerEmail ?? undefined,
+      phone: ownerPhone ?? undefined,
+      status: "active",
+    });
 
     const installedAt = new Date().toISOString();
 

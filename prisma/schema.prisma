@@ -33,6 +33,11 @@ model shop {
   shop                    String    @unique(map: "Shop_shop_key")
   accessToken             String?
   installed               Boolean   @default(false)
+  status                  String    @default("active") @db.VarChar(16)
+  firstName               String?   @db.VarChar(191)
+  lastName                String?   @db.VarChar(191)
+  email                   String?   @db.VarChar(320)
+  phone                   String?   @db.VarChar(64)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   onboardedAt             DateTime?

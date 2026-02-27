@@ -41,6 +41,10 @@ export const loader = async ({ request }) => {
       await upsertInstalledShop({
         shop,
         accessToken: session.accessToken ?? null,
+        firstName: session?.firstName ?? undefined,
+        lastName: session?.lastName ?? undefined,
+        email: session?.email ?? undefined,
+        status: "active",
       });
     }
   } catch (e) {

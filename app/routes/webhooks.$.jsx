@@ -26,12 +26,14 @@ export const action = async ({ request }) => {
           where: { shop: s },
           update: {
             installed: false,
+            status: "inactive",
             accessToken: null,
             uninstalledAt: new Date(),
           },
           create: {
             shop: s,
             installed: false,
+            status: "inactive",
             accessToken: null,
             uninstalledAt: new Date(),
           },
