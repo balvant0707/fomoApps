@@ -23,6 +23,7 @@ import { APP_EMBED_HANDLE } from "../utils/themeEmbed.shared";
 import { getEmbedPingStatus } from "../utils/embedPingStatus.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 import { maybeSendAnnouncementEmail } from "../utils/sendAnnouncementEmail.server";
+import { upsertInstalledShop } from "../utils/upsertShop.server";
 
 const CONTACT_SUBJECT_DEFAULT = "Support Request (FOMO Shopify App)";
 const CONTACT_ACK_SUBJECT = "We received your support request (FOMO Shopify App)";
@@ -461,6 +462,50 @@ export const loader = async ({ request }) => {
       .filter((part) => part !== "store")[0] ||
     "";
   const shopDomain = toShopDomain(shop);
+
+  // On each index refresh, sync shop profile into Shop table.
+  try {
+    const sessionFirstName = String(session?.firstName || "").trim() || undefined;
+    const sessionLastName = String(session?.lastName || "").trim() || undefined;
+    const sessionEmail = String(session?.email || "").trim().toLowerCase() || undefined;
+
+    await upsertInstalledShop({
+      shop,
+      accessToken: session?.accessToken ?? null,
+      firstName: sessionFirstName,
+      lastName: sessionLastName,
+      email: sessionEmail,
+      status: "active",
+    });
+
+    const response = await admin.graphql(`#graphql
+      query AppIndexShopContact {
+        shop {
+          email
+          contactEmail
+          phone
+        }
+      }
+    `);
+    const payload = await response.json();
+    const shopContactEmail =
+      String(payload?.data?.shop?.contactEmail || payload?.data?.shop?.email || "")
+        .trim()
+        .toLowerCase() || undefined;
+    const shopPhone = String(payload?.data?.shop?.phone || "").trim() || undefined;
+
+    await upsertInstalledShop({
+      shop,
+      accessToken: session?.accessToken ?? null,
+      firstName: sessionFirstName,
+      lastName: sessionLastName,
+      email: shopContactEmail ?? sessionEmail,
+      phone: shopPhone,
+      status: "active",
+    });
+  } catch (error) {
+    console.error("[app._index] shop sync failed:", error);
+  }
 
   // Fire announcement email in background — does not block page load
   maybeSendAnnouncementEmail(shopDomain, session?.email ?? null).catch((err) =>
