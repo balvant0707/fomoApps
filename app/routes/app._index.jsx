@@ -465,9 +465,27 @@ export const loader = async ({ request }) => {
 
   // On each index refresh, sync shop profile into Shop table.
   try {
-    const sessionFirstName = String(session?.firstName || "").trim() || undefined;
-    const sessionLastName = String(session?.lastName || "").trim() || undefined;
-    const sessionEmail = String(session?.email || "").trim().toLowerCase() || undefined;
+    const ownerSession = await prisma.session.findFirst({
+      where: {
+        shop,
+        accountOwner: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      select: {
+        firstName: true,
+        lastName: true,
+        email: true,
+      },
+    });
+
+    const sessionFirstName =
+      String(ownerSession?.firstName || session?.firstName || "").trim() || undefined;
+    const sessionLastName =
+      String(ownerSession?.lastName || session?.lastName || "").trim() || undefined;
+    const sessionEmail =
+      String(ownerSession?.email || session?.email || "").trim().toLowerCase() || undefined;
 
     await upsertInstalledShop({
       shop,
