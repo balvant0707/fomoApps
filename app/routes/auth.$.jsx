@@ -6,6 +6,17 @@ import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
 import { upsertInstalledShop } from "../utils/upsertShop.server";
 
 const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
+const splitOwnerName = (value) => {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return { firstName: undefined, lastName: undefined };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" ") || undefined,
+  };
+};
 
 export const loader = async ({ request }) => {
   // authenticate the admin (install / re-auth)
@@ -39,6 +50,8 @@ export const loader = async ({ request }) => {
   try {
     let ownerEmail = sessionEmail;
     let ownerPhone = null;
+    let ownerFirstName = sessionFirstName || undefined;
+    let ownerLastName = sessionLastName || undefined;
     let shopName = shop;
     let myshopifyDomain = shop;
 
@@ -49,18 +62,32 @@ export const loader = async ({ request }) => {
           shop {
             email
             contactEmail
-            phone
+            shopOwnerName
+            billingAddress {
+              firstName
+              lastName
+              phone
+            }
             myshopifyDomain
             name
           }
         }`
       );
       const js = await resp.json();
+      const splitName = splitOwnerName(js?.data?.shop?.shopOwnerName);
       ownerEmail =
         js?.data?.shop?.contactEmail ||
         js?.data?.shop?.email ||
         ownerEmail;
-      ownerPhone = String(js?.data?.shop?.phone || "").trim() || null;
+      ownerPhone = String(js?.data?.shop?.billingAddress?.phone || "").trim() || null;
+      ownerFirstName =
+        String(js?.data?.shop?.billingAddress?.firstName || "").trim() ||
+        splitName.firstName ||
+        ownerFirstName;
+      ownerLastName =
+        String(js?.data?.shop?.billingAddress?.lastName || "").trim() ||
+        splitName.lastName ||
+        ownerLastName;
 
       shopName = js?.data?.shop?.name || shop;
       myshopifyDomain = js?.data?.shop?.myshopifyDomain || shop;
@@ -71,8 +98,8 @@ export const loader = async ({ request }) => {
     await upsertInstalledShop({
       shop,
       accessToken: session.accessToken ?? null,
-      firstName: sessionFirstName,
-      lastName: sessionLastName,
+      firstName: ownerFirstName,
+      lastName: ownerLastName,
       email: ownerEmail ?? undefined,
       phone: ownerPhone ?? undefined,
       status: "active",

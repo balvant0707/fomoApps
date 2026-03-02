@@ -1,5 +1,6 @@
 // app/utils/ensureShop.server.js
 import prisma from "../db.server.js";
+import { upsertInstalledShop } from "./upsertShop.server";
 
 const norm = (s) => (s || "").toLowerCase().replace(/^https?:\/\//, "");
 const normalizeNullableText = (value) => {
@@ -36,30 +37,13 @@ export async function ensureShopRow(rawShop) {
   const email = normalizeEmail(sess.email);
 
   // 3) Backfill Shop row using session access token
-  const created = await prisma.shop.upsert({
-    where: { shop },
-    update: {
-      accessToken: sess.accessToken ?? null,
-      installed: true,
-      status: "active",
-      firstName: firstName ?? undefined,
-      lastName: lastName ?? undefined,
-      email: email ?? undefined,
-      uninstalledAt: null,
-      updatedAt: new Date(),
-    },
-    create: {
-      shop,
-      accessToken: sess.accessToken ?? null,
-      installed: true,
-      status: "active",
-      firstName: firstName ?? null,
-      lastName: lastName ?? null,
-      email: email ?? null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
+  return upsertInstalledShop({
+    shop,
+    accessToken: sess.accessToken ?? null,
+    firstName: firstName ?? undefined,
+    lastName: lastName ?? undefined,
+    email: email ?? undefined,
+    status: "active",
+    installed: true,
   });
-
-  return created;
 }

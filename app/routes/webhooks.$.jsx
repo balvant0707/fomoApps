@@ -2,6 +2,7 @@
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { sendOwnerEmail } from "../utils/sendOwnerEmail.server";
+import { upsertInstalledShop } from "../utils/upsertShop.server";
 
 const norm = (s) => (s || "").toLowerCase();
 
@@ -22,21 +23,11 @@ export const action = async ({ request }) => {
   try {
     switch (topic) {
       case "APP_UNINSTALLED": {
-        await prisma.shop.upsert({
-          where: { shop: s },
-          update: {
-            installed: false,
-            status: "inactive",
-            accessToken: null,
-            uninstalledAt: new Date(),
-          },
-          create: {
-            shop: s,
-            installed: false,
-            status: "inactive",
-            accessToken: null,
-            uninstalledAt: new Date(),
-          },
+        await upsertInstalledShop({
+          shop: s,
+          accessToken: null,
+          installed: false,
+          status: "inactive",
         });
         console.log(`[APP_UNINSTALLED] ${s} → installed=false`);
 

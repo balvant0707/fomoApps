@@ -18,6 +18,18 @@ const toPositiveInt = (value, fallback) => {
   return Math.floor(n);
 };
 
+const splitOwnerName = (value) => {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return { firstName: undefined, lastName: undefined };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" ") || undefined,
+  };
+};
+
 const shouldAutoPrepareSessionTable =
   process.env.PRISMA_AUTO_PREPARE_SESSION_TABLE === "1" ||
   process.env.NODE_ENV !== "production";
@@ -154,17 +166,34 @@ export const shopify = shopifyApp({
           // Fetch the store's contact email via GraphQL
           const client = new shopify.api.clients.Graphql({ session });
           const { data } = await client.request(`#graphql
-            query { shop { name email phone } }
+            query {
+              shop {
+                name
+                email
+                contactEmail
+                shopOwnerName
+                billingAddress {
+                  firstName
+                  lastName
+                  phone
+                }
+              }
+            }
           `);
-          const shopEmail = data?.shop?.email ?? null;
-          const shopPhone = data?.shop?.phone ?? null;
+          const splitName = splitOwnerName(data?.shop?.shopOwnerName);
+          const shopEmail = data?.shop?.contactEmail ?? data?.shop?.email ?? null;
+          const shopPhone = data?.shop?.billingAddress?.phone ?? null;
+          const shopFirstName =
+            data?.shop?.billingAddress?.firstName ?? splitName.firstName ?? null;
+          const shopLastName =
+            data?.shop?.billingAddress?.lastName ?? splitName.lastName ?? null;
           const shopName = data?.shop?.name ?? null;
 
           await upsertInstalledShop({
             shop: session.shop,
             accessToken: session.accessToken ?? null,
-            firstName: session?.firstName ?? undefined,
-            lastName: session?.lastName ?? undefined,
+            firstName: shopFirstName ?? session?.firstName ?? undefined,
+            lastName: shopLastName ?? session?.lastName ?? undefined,
             email: shopEmail ?? undefined,
             phone: shopPhone ?? undefined,
             status: "active",

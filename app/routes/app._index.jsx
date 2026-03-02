@@ -105,6 +105,18 @@ function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
 }
 
+function splitOwnerName(value) {
+  const parts = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return { firstName: undefined, lastName: undefined };
+  return {
+    firstName: parts[0],
+    lastName: parts.slice(1).join(" ") || undefined,
+  };
+}
+
 function PopupSliderCard({
   title,
   desc,
@@ -465,27 +477,12 @@ export const loader = async ({ request }) => {
 
   // On each index refresh, sync shop profile into Shop table.
   try {
-    const ownerSession = await prisma.session.findFirst({
-      where: {
-        shop,
-        accountOwner: true,
-      },
-      orderBy: {
-        updatedAt: "desc",
-      },
-      select: {
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
-    });
-
     const sessionFirstName =
-      String(ownerSession?.firstName || session?.firstName || "").trim() || undefined;
+      String(session?.firstName || "").trim() || undefined;
     const sessionLastName =
-      String(ownerSession?.lastName || session?.lastName || "").trim() || undefined;
+      String(session?.lastName || "").trim() || undefined;
     const sessionEmail =
-      String(ownerSession?.email || session?.email || "").trim().toLowerCase() || undefined;
+      String(session?.email || "").trim().toLowerCase() || undefined;
 
     await upsertInstalledShop({
       shop,
@@ -499,24 +496,40 @@ export const loader = async ({ request }) => {
     const response = await admin.graphql(`#graphql
       query AppIndexShopContact {
         shop {
+          name
+          shopOwnerName
           email
           contactEmail
-          phone
+          billingAddress {
+            firstName
+            lastName
+            phone
+          }
         }
       }
     `);
     const payload = await response.json();
+    const splitName = splitOwnerName(payload?.data?.shop?.shopOwnerName);
     const shopContactEmail =
       String(payload?.data?.shop?.contactEmail || payload?.data?.shop?.email || "")
         .trim()
         .toLowerCase() || undefined;
-    const shopPhone = String(payload?.data?.shop?.phone || "").trim() || undefined;
+    const shopPhone =
+      String(payload?.data?.shop?.billingAddress?.phone || "").trim() || undefined;
+    const shopFirstName =
+      String(payload?.data?.shop?.billingAddress?.firstName || "").trim() ||
+      splitName.firstName ||
+      sessionFirstName;
+    const shopLastName =
+      String(payload?.data?.shop?.billingAddress?.lastName || "").trim() ||
+      splitName.lastName ||
+      sessionLastName;
 
     await upsertInstalledShop({
       shop,
       accessToken: session?.accessToken ?? null,
-      firstName: sessionFirstName,
-      lastName: sessionLastName,
+      firstName: shopFirstName,
+      lastName: shopLastName,
       email: shopContactEmail ?? sessionEmail,
       phone: shopPhone,
       status: "active",
